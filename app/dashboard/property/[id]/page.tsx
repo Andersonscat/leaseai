@@ -183,14 +183,14 @@ export default function PropertyPage() {
       {/* Side Navigation - Previous */}
       {previousPropertyId ? (
         <Link href={`/dashboard/property/${previousPropertyId}`}>
-          <button className="fixed left-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
+          <button className="fixed left-[280px] top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
             <ChevronLeft className="w-6 h-6 text-black" />
           </button>
         </Link>
       ) : (
         <button 
           disabled 
-          className="fixed left-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
+          className="fixed left-[280px] top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
