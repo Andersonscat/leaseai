@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, X, Check, Wifi, Sofa, Lock } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "properties";
-  const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
 
   // Mock properties data with detailed info
   const properties = [
@@ -126,8 +124,6 @@ export default function DashboardPage() {
     }
   ];
 
-  const selectedPropertyData = properties.find(p => p.id === selectedProperty);
-
   return (
     <div className="p-10">
           {/* Inbox Tab */}
@@ -225,9 +221,10 @@ export default function DashboardPage() {
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {properties.map((property) => (
-                  <div 
+                  <Link 
                     key={property.id} 
-                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300"
+                    href={`/dashboard/property/${property.id}`}
+                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer block"
                   >
                     {/* Property Image */}
                     <div className="relative h-48 bg-gray-200 overflow-hidden group">
@@ -249,20 +246,12 @@ export default function DashboardPage() {
 
                     {/* Property Info */}
                     <div className="p-6">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-2xl font-bold text-black mb-1">{property.price}</h3>
-                          <div className="flex items-start gap-1 text-gray-600 text-sm">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <span>{property.address}</span>
-                          </div>
+                      <div className="mb-3">
+                        <h3 className="text-2xl font-bold text-black mb-1">{property.price}</h3>
+                        <div className="flex items-start gap-1 text-gray-600 text-sm">
+                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <span>{property.address}</span>
                         </div>
-                        <button
-                          onClick={() => setSelectedProperty(property.id)}
-                          className="ml-6 px-4 py-2 text-sm font-semibold text-black hover:underline transition-all whitespace-nowrap"
-                        >
-                          Details
-                        </button>
                       </div>
 
                       {/* Property Details */}
@@ -284,15 +273,8 @@ export default function DashboardPage() {
                           <span className="text-sm font-medium">{property.pets}</span>
                         </div>
                       </div>
-
-                      {/* View Property Button */}
-                      <Link href={`/dashboard/property/${property.id}`}>
-                        <button className="w-full mt-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
-                          View Property
-                        </button>
-                      </Link>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -322,146 +304,6 @@ export default function DashboardPage() {
               </div>
             </>
           )}
-
-      {/* Modal for Property Details */}
-      {selectedProperty && selectedPropertyData && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setSelectedProperty(null)}
-        >
-          <div 
-            className="bg-white rounded-3xl max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10 rounded-t-3xl">
-              <div>
-                <h2 className="text-3xl font-bold text-black">{selectedPropertyData.price}</h2>
-                <div className="flex items-center gap-2 text-gray-600 mt-1">
-                  <MapPin className="w-4 h-4" />
-                  <span>{selectedPropertyData.address}</span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedProperty(null)}
-                className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all shadow-sm border border-gray-300"
-              >
-                <X className="w-6 h-6 text-black" />
-              </button>
-            </div>
-
-            {/* Property Images */}
-            <div className="grid grid-cols-2 gap-2 p-6">
-              {selectedPropertyData.images.map((img, idx) => (
-                <img 
-                  key={idx}
-                  src={img} 
-                  alt={`Property ${idx + 1}`}
-                  className="w-full h-64 object-cover rounded-2xl"
-                />
-              ))}
-            </div>
-
-            {/* Property Details */}
-            <div className="p-6 space-y-8">
-              {/* Overview */}
-              <div>
-                <h3 className="text-2xl font-bold text-black mb-4 flex items-center gap-2">
-                  <Home className="w-6 h-6" />
-                  Property Overview
-                </h3>
-                <div className="grid grid-cols-4 gap-4 bg-gray-50 rounded-2xl p-6">
-                  <div className="text-center">
-                    <Bed className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                    <div className="text-2xl font-bold text-black">{selectedPropertyData.beds}</div>
-                    <div className="text-sm text-gray-600">Bedrooms</div>
-                  </div>
-                  <div className="text-center">
-                    <Bath className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                    <div className="text-2xl font-bold text-black">{selectedPropertyData.baths}</div>
-                    <div className="text-sm text-gray-600">Bathrooms</div>
-                  </div>
-                  <div className="text-center">
-                    <Ruler className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                    <div className="text-2xl font-bold text-black">{selectedPropertyData.sqft}</div>
-                    <div className="text-sm text-gray-600">sq.ft</div>
-                  </div>
-                  <div className="text-center">
-                    <Dog className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                    <div className="text-lg font-bold text-black">{selectedPropertyData.pets}</div>
-                    <div className="text-sm text-gray-600">Pets</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <h3 className="text-2xl font-bold text-black mb-4">Description</h3>
-                <p className="text-gray-700 leading-relaxed text-lg">
-                  {selectedPropertyData.description}
-                </p>
-              </div>
-
-              {/* Amenities */}
-              <div>
-                <h3 className="text-2xl font-bold text-black mb-4 flex items-center gap-2">
-                  <Wifi className="w-6 h-6" />
-                  Amenities
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {selectedPropertyData.amenities.map((amenity, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-4">
-                      <Check className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-700">{amenity}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Features */}
-              <div>
-                <h3 className="text-2xl font-bold text-black mb-4 flex items-center gap-2">
-                  <Sofa className="w-6 h-6" />
-                  Property Features
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedPropertyData.features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-gray-700">
-                      <div className="w-2 h-2 bg-black rounded-full"></div>
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rules */}
-              <div>
-                <h3 className="text-2xl font-bold text-black mb-4 flex items-center gap-2">
-                  <Lock className="w-6 h-6" />
-                  Lease Terms & Rules
-                </h3>
-                <div className="bg-gray-50 rounded-2xl p-6 space-y-3">
-                  {selectedPropertyData.rules.map((rule, idx) => (
-                    <div key={idx} className="flex items-start gap-3 text-gray-700">
-                      <div className="w-5 h-5 bg-black rounded-full flex items-center justify-center text-white text-xs mt-0.5">
-                        {idx + 1}
-                      </div>
-                      <span>{rule}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Contact Button */}
-              <div className="sticky bottom-0 bg-white pt-6 pb-2 border-t border-gray-200">
-                <button className="w-full py-5 bg-black text-white rounded-2xl font-bold text-lg hover:bg-gray-800 transition-all">
-                  Schedule Viewing
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
