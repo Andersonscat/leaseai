@@ -32,53 +32,51 @@ export default function DashboardLayout({
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 min-h-screen p-6 sticky top-[73px] self-start">
-          <nav className="space-y-2">
-            <Link href="/dashboard?tab=inbox">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                pathname === "/dashboard" && !pathname.includes("/property")
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Inbox className="w-5 h-5" />
-                <span>Inbox</span>
-              </div>
-            </Link>
-            
-            <Link href="/dashboard?tab=properties">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                pathname.includes("/property") || (pathname === "/dashboard")
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Home className="w-5 h-5" />
-                <span>Properties</span>
-              </div>
-            </Link>
-            
-            <Link href="/dashboard?tab=analytics">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
-                <BarChart3 className="w-5 h-5" />
-                <span>Analytics</span>
-              </div>
-            </Link>
-            
-            <Link href="/billing">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
-                <CreditCard className="w-5 h-5" />
-                <span>Billing</span>
-              </div>
-            </Link>
-          </nav>
-        </aside>
+      {/* Sidebar */}
+      <aside className="fixed left-0 top-[73px] w-64 h-[calc(100vh-73px)] bg-white border-r border-gray-200 p-6 overflow-y-auto z-40">
+        <nav className="space-y-2">
+          <Link href="/dashboard?tab=inbox">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              pathname === "/dashboard" && !pathname.includes("/property")
+                ? "bg-gray-100 text-black" 
+                : "hover:bg-gray-50 text-gray-700"
+            }`}>
+              <Inbox className="w-5 h-5" />
+              <span>Inbox</span>
+            </div>
+          </Link>
+          
+          <Link href="/dashboard?tab=properties">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              pathname.includes("/property") || (pathname === "/dashboard")
+                ? "bg-gray-100 text-black" 
+                : "hover:bg-gray-50 text-gray-700"
+            }`}>
+              <Home className="w-5 h-5" />
+              <span>Properties</span>
+            </div>
+          </Link>
+          
+          <Link href="/dashboard?tab=analytics">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
+              <BarChart3 className="w-5 h-5" />
+              <span>Analytics</span>
+            </div>
+          </Link>
+          
+          <Link href="/billing">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
+              <CreditCard className="w-5 h-5" />
+              <span>Billing</span>
+            </div>
+          </Link>
+        </nav>
+      </aside>
 
-        {/* Main Content */}
-        <main className="flex-1">
-          {children}
-        </main>
-      </div>
+      {/* Main Content */}
+      <main className="ml-64">
+        {children}
+      </main>
     </div>
   );
 }
