@@ -50,6 +50,71 @@ export default function PropertyPage() {
       description: "Spacious family home in quiet neighborhood. Large backyard perfect for entertaining.",
       amenities: ["WiFi", "Central Heating", "2-Car Garage", "Dishwasher", "Washer/Dryer", "Fireplace"],
     },
+    {
+      id: 3,
+      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200"
+      ],
+      address: "789 Pine Road, Redmond, WA",
+      price: "$5,800/mo",
+      beds: 4,
+      baths: 3,
+      sqft: "2,650",
+      pets: "Cats only",
+      status: "Pending",
+      description: "Luxury estate with premium finishes. Smart home features throughout. Private backyard with pool and entertainment area.",
+      amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage", "Wine Cellar", "Home Theater"],
+    },
+    {
+      id: 4,
+      image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200"
+      ],
+      address: "321 Elm Street, Kirkland, WA",
+      price: "$2,900/mo",
+      beds: 1,
+      baths: 1,
+      sqft: "850",
+      pets: "No pets",
+      status: "Available",
+      description: "Cozy studio apartment perfect for professionals. Modern amenities and great location near downtown.",
+      amenities: ["WiFi", "Air Conditioning", "Parking Spot", "Dishwasher", "In-unit Laundry"],
+    },
+    {
+      id: 5,
+      image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200"
+      ],
+      address: "555 Maple Drive, Bellevue, WA",
+      price: "$6,500/mo",
+      beds: 4,
+      baths: 3.5,
+      sqft: "3,495",
+      pets: "Allowed",
+      status: "Available",
+      description: "Executive home with panoramic views. High-end finishes and designer touches throughout. Perfect for luxury living.",
+      amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Wine Room", "Gym"],
+    },
+    {
+      id: 6,
+      image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=1200"
+      ],
+      address: "987 Cedar Lane, Issaquah, WA",
+      price: "$3,200/mo",
+      beds: 2,
+      baths: 1.5,
+      sqft: "1,120",
+      pets: "Dogs only",
+      status: "Available",
+      description: "Charming townhouse with modern updates. Great for dog owners with nearby parks and trails.",
+      amenities: ["WiFi", "Central Heating", "Parking", "Dishwasher", "Washer/Dryer Hookup"],
+    }
   ];
 
   // Mock chat data
@@ -89,6 +154,11 @@ export default function PropertyPage() {
   ];
 
   const property = properties.find(p => p.id === propertyId) || properties[0];
+  
+  // Find current property index
+  const currentPropertyIndex = properties.findIndex(p => p.id === propertyId);
+  const previousPropertyId = currentPropertyIndex > 0 ? properties[currentPropertyIndex - 1].id : null;
+  const nextPropertyId = currentPropertyIndex < properties.length - 1 ? properties[currentPropertyIndex + 1].id : null;
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % property.images.length);
@@ -100,14 +170,55 @@ export default function PropertyPage() {
 
   return (
     <div className="p-10">
-      {/* Back Button */}
-      <div className="mb-6">
+      {/* Navigation Header */}
+      <div className="mb-6 flex items-center justify-between">
         <Link href="/dashboard?tab=properties">
-          <button className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold">
+          <button className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold transition-colors">
             <ArrowLeft className="w-5 h-5" />
             Back to Properties
           </button>
         </Link>
+
+        {/* Property Navigation */}
+        <div className="flex items-center gap-3">
+          {previousPropertyId ? (
+            <Link href={`/dashboard/property/${previousPropertyId}`}>
+              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                <ChevronLeft className="w-5 h-5" />
+                <span className="font-semibold">Previous</span>
+              </button>
+            </Link>
+          ) : (
+            <button 
+              disabled 
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="font-semibold">Previous</span>
+            </button>
+          )}
+
+          <span className="text-gray-600 font-medium">
+            {currentPropertyIndex + 1} / {properties.length}
+          </span>
+
+          {nextPropertyId ? (
+            <Link href={`/dashboard/property/${nextPropertyId}`}>
+              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
+                <span className="font-semibold">Next</span>
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </Link>
+          ) : (
+            <button 
+              disabled 
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed"
+            >
+              <span className="font-semibold">Next</span>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}
