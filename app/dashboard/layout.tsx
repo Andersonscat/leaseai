@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { Inbox, Home, BarChart3, CreditCard } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -12,6 +12,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "properties";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,7 +39,7 @@ export default function DashboardLayout({
         <nav className="space-y-2">
           <Link href="/dashboard?tab=inbox">
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              pathname === "/dashboard" && !pathname.includes("/property")
+              activeTab === "inbox" && pathname === "/dashboard"
                 ? "bg-gray-100 text-black" 
                 : "hover:bg-gray-50 text-gray-700"
             }`}>
@@ -48,7 +50,7 @@ export default function DashboardLayout({
           
           <Link href="/dashboard?tab=properties">
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              pathname.includes("/property") || (pathname === "/dashboard")
+              (activeTab === "properties" && pathname === "/dashboard") || pathname.includes("/property")
                 ? "bg-gray-100 text-black" 
                 : "hover:bg-gray-50 text-gray-700"
             }`}>
@@ -58,14 +60,22 @@ export default function DashboardLayout({
           </Link>
           
           <Link href="/dashboard?tab=analytics">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              activeTab === "analytics" && pathname === "/dashboard"
+                ? "bg-gray-100 text-black"
+                : "hover:bg-gray-50 text-gray-700"
+            }`}>
               <BarChart3 className="w-5 h-5" />
               <span>Analytics</span>
             </div>
           </Link>
           
           <Link href="/billing">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-all">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              pathname === "/billing"
+                ? "bg-gray-100 text-black"
+                : "hover:bg-gray-50 text-gray-700"
+            }`}>
               <CreditCard className="w-5 h-5" />
               <span>Billing</span>
             </div>
