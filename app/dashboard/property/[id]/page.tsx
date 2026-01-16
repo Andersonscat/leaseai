@@ -169,56 +169,52 @@ export default function PropertyPage() {
   };
 
   return (
-    <div className="p-10">
-      {/* Navigation Header */}
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-10 relative">
+      {/* Back Button */}
+      <div className="mb-6">
         <Link href="/dashboard?tab=properties">
           <button className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold transition-colors">
             <ArrowLeft className="w-5 h-5" />
             Back to Properties
           </button>
         </Link>
+      </div>
 
-        {/* Property Navigation */}
-        <div className="flex items-center gap-3">
-          {previousPropertyId ? (
-            <Link href={`/dashboard/property/${previousPropertyId}`}>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
-                <ChevronLeft className="w-5 h-5" />
-                <span className="font-semibold">Previous</span>
-              </button>
-            </Link>
-          ) : (
-            <button 
-              disabled 
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span className="font-semibold">Previous</span>
-            </button>
-          )}
+      {/* Side Navigation - Previous */}
+      {previousPropertyId ? (
+        <Link href={`/dashboard/property/${previousPropertyId}`}>
+          <button className="fixed left-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
+            <ChevronLeft className="w-6 h-6 text-black" />
+          </button>
+        </Link>
+      ) : (
+        <button 
+          disabled 
+          className="fixed left-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
 
-          <span className="text-gray-600 font-medium">
-            {currentPropertyIndex + 1} / {properties.length}
-          </span>
+      {/* Side Navigation - Next */}
+      {nextPropertyId ? (
+        <Link href={`/dashboard/property/${nextPropertyId}`}>
+          <button className="fixed right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
+            <ChevronRight className="w-6 h-6 text-black" />
+          </button>
+        </Link>
+      ) : (
+        <button 
+          disabled 
+          className="fixed right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
 
-          {nextPropertyId ? (
-            <Link href={`/dashboard/property/${nextPropertyId}`}>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all">
-                <span className="font-semibold">Next</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </Link>
-          ) : (
-            <button 
-              disabled 
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed"
-            >
-              <span className="font-semibold">Next</span>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          )}
-        </div>
+      {/* Property Counter */}
+      <div className="fixed right-6 bottom-6 z-50 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-semibold">
+        {currentPropertyIndex + 1} / {properties.length}
       </div>
 
       {/* Main Content */}
