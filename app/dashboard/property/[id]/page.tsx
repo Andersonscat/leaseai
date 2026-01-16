@@ -154,11 +154,6 @@ export default function PropertyPage() {
   ];
 
   const property = properties.find(p => p.id === propertyId) || properties[0];
-  
-  // Find current property index
-  const currentPropertyIndex = properties.findIndex(p => p.id === propertyId);
-  const previousPropertyId = currentPropertyIndex > 0 ? properties[currentPropertyIndex - 1].id : null;
-  const nextPropertyId = currentPropertyIndex < properties.length - 1 ? properties[currentPropertyIndex + 1].id : null;
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % property.images.length);
@@ -169,7 +164,7 @@ export default function PropertyPage() {
   };
 
   return (
-    <div className="p-10 relative">
+    <div className="p-10">
       {/* Back Button */}
       <div className="mb-6">
         <Link href="/dashboard?tab=properties">
@@ -178,43 +173,6 @@ export default function PropertyPage() {
             Back to Properties
           </button>
         </Link>
-      </div>
-
-      {/* Side Navigation - Previous */}
-      {previousPropertyId ? (
-        <Link href={`/dashboard/property/${previousPropertyId}`}>
-          <button className="fixed left-[320px] top-1/2 -translate-y-1/2 z-50 w-14 h-14 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
-            <ChevronLeft className="w-7 h-7 text-black" />
-          </button>
-        </Link>
-      ) : (
-        <button 
-          disabled 
-          className="fixed left-[320px] top-1/2 -translate-y-1/2 z-50 w-14 h-14 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
-        >
-          <ChevronLeft className="w-7 h-7" />
-        </button>
-      )}
-
-      {/* Side Navigation - Next */}
-      {nextPropertyId ? (
-        <Link href={`/dashboard/property/${nextPropertyId}`}>
-          <button className="fixed right-10 top-1/2 -translate-y-1/2 z-50 w-14 h-14 bg-white border-2 border-gray-300 rounded-full hover:bg-gray-50 hover:scale-110 transition-all shadow-lg flex items-center justify-center">
-            <ChevronRight className="w-7 h-7 text-black" />
-          </button>
-        </Link>
-      ) : (
-        <button 
-          disabled 
-          className="fixed right-10 top-1/2 -translate-y-1/2 z-50 w-14 h-14 bg-gray-100 border-2 border-gray-200 rounded-full text-gray-400 cursor-not-allowed shadow-lg flex items-center justify-center"
-        >
-          <ChevronRight className="w-7 h-7" />
-        </button>
-      )}
-
-      {/* Property Counter */}
-      <div className="fixed right-6 bottom-6 z-50 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-semibold">
-        {currentPropertyIndex + 1} / {properties.length}
       </div>
 
       {/* Main Content */}
