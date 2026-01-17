@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedSort, setSelectedSort] = useState<string>("none");
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
+  const [contractSearch, setContractSearch] = useState("");
 
   // Mock contracts data
   const contracts = [
@@ -807,12 +808,18 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Info Banner */}
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <p className="text-sm text-green-800">
-                You have <strong>{contracts.length} contracts</strong> saved out of <strong>10</strong> available slots.
-              </p>
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search contracts by name, tenant, or property..."
+                  value={contractSearch}
+                  onChange={(e) => setContractSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                />
+              </div>
             </div>
 
             {/* Contracts Table */}
@@ -829,7 +836,31 @@ export default function DashboardPage() {
 
               {/* Table Rows */}
               <div className="divide-y divide-gray-200">
-                {contracts.map((contract) => (
+                {(() => {
+                  const filteredContracts = contracts.filter((contract) => {
+                    const searchLower = contractSearch.toLowerCase();
+                    return (
+                      contract.name.toLowerCase().includes(searchLower) ||
+                      contract.tenant.toLowerCase().includes(searchLower) ||
+                      contract.property.toLowerCase().includes(searchLower)
+                    );
+                  });
+
+                  if (filteredContracts.length === 0) {
+                    return (
+                      <div className="px-6 py-16 text-center">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                          <Search className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-xl font-bold text-black mb-2">No contracts found</h3>
+                        <p className="text-gray-600">
+                          Try adjusting your search terms or clear the search to see all contracts.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filteredContracts.map((contract) => (
                   <div 
                     key={contract.id}
                     className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
@@ -896,7 +927,8 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                ));
+                })()}
               </div>
             </div>
 
