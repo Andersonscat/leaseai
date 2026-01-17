@@ -343,50 +343,34 @@ export default function DashboardPage() {
                         onClick={() => setShowFilterMenu(false)}
                       />
                       
-                      <div className="absolute right-0 top-full mt-2 w-[200px] bg-white rounded-xl shadow-2xl border border-gray-200 py-4 z-50">
+                      <div className="absolute right-0 top-full mt-2 w-[200px] bg-white rounded-xl shadow-2xl border border-gray-200 py-3 z-50">
                         {/* Sort By */}
                         <div className="px-4 py-2">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">SORT BY</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Sort by</label>
                           <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="default">Default</option>
                             <option value="messages-high">Most Messages</option>
                             <option value="messages-low">Least Messages</option>
                             <option value="price-high">Highest Price</option>
                             <option value="price-low">Lowest Price</option>
-                            <option value="beds-high">Most Beds</option>
-                            <option value="beds-low">Least Beds</option>
+                            <option value="beds-high">Most Rooms</option>
+                            <option value="beds-low">Least Rooms</option>
                           </select>
                         </div>
 
-                        <div className="h-px bg-gray-200 my-2" />
-
-                        {/* Status Filter */}
-                        <div className="px-4 py-2">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">STATUS</label>
-                          <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="all">All</option>
-                            <option value="Available">Available</option>
-                            <option value="Pending">Pending</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-200 my-2" />
+                        <div className="h-px bg-gray-100 my-2" />
 
                         {/* Messages Filter */}
                         <div className="px-4 py-2">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">MESSAGES</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Messages</label>
                           <select
                             value={messagesFilter}
                             onChange={(e) => setMessagesFilter(e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="all">All</option>
                             <option value="with-messages">With Messages</option>
@@ -394,33 +378,49 @@ export default function DashboardPage() {
                           </select>
                         </div>
 
-                        <div className="h-px bg-gray-200 my-2" />
+                        <div className="h-px bg-gray-100 my-2" />
 
-                        {/* Bedrooms Filter */}
+                        {/* Status Filter */}
                         <div className="px-4 py-2">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">BEDROOMS</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
                           <select
-                            value={bedsFilter}
-                            onChange={(e) => setBedsFilter(e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
-                            <option value="all">Any</option>
-                            <option value="1">1 Bed</option>
-                            <option value="2">2 Beds</option>
-                            <option value="3">3 Beds</option>
-                            <option value="4+">4+ Beds</option>
+                            <option value="all">All</option>
+                            <option value="Available">Available</option>
+                            <option value="Pending">Pending</option>
                           </select>
                         </div>
 
-                        <div className="h-px bg-gray-200 my-2" />
+                        <div className="h-px bg-gray-100 my-2" />
+
+                        {/* Bedrooms Filter */}
+                        <div className="px-4 py-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Rooms</label>
+                          <select
+                            value={bedsFilter}
+                            onChange={(e) => setBedsFilter(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                          >
+                            <option value="all">Any</option>
+                            <option value="1">1 Room</option>
+                            <option value="2">2 Rooms</option>
+                            <option value="3">3 Rooms</option>
+                            <option value="4+">4+ Rooms</option>
+                          </select>
+                        </div>
+
+                        <div className="h-px bg-gray-100 my-2" />
 
                         {/* Pets Filter */}
                         <div className="px-4 py-2">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">PETS</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Pets</label>
                           <select
                             value={petsFilter}
                             onChange={(e) => setPetsFilter(e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="all">All</option>
                             <option value="Allowed">Allowed</option>
@@ -430,7 +430,7 @@ export default function DashboardPage() {
                           </select>
                         </div>
 
-                        <div className="h-px bg-gray-200 my-2" />
+                        <div className="h-px bg-gray-100 my-2" />
 
                         {/* Reset Button */}
                         <div className="px-4 py-2">
