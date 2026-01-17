@@ -187,88 +187,91 @@ export default function DashboardLayout({
       </header>
 
       {/* Sidebar */}
-      <aside className="fixed left-0 top-[81px] w-64 h-[calc(100vh-81px)] bg-white border-r border-gray-200 p-6 overflow-y-auto z-40">
-        <nav className="space-y-2">
-          <Link href="/dashboard?tab=inbox">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "inbox" && pathname === "/dashboard"
-                ? "bg-gray-100 text-black" 
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <Inbox className="w-5 h-5" />
-              <span>Inbox</span>
-            </div>
-          </Link>
-          
-          <Link href="/dashboard?tab=properties">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              (activeTab === "properties" && pathname === "/dashboard") || pathname.includes("/property")
-                ? "bg-gray-100 text-black" 
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <Home className="w-5 h-5" />
-              <span>Properties</span>
-            </div>
-          </Link>
-          
-          <Link href="/dashboard?tab=contracts">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "contracts" && pathname === "/dashboard"
-                ? "bg-gray-100 text-black" 
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <FileText className="w-5 h-5" />
-              <span>Contracts</span>
-            </div>
-          </Link>
-          
-          <Link href="/dashboard?tab=tenants">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "tenants" && pathname === "/dashboard"
-                ? "bg-gray-100 text-black" 
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <Users className="w-5 h-5" />
-              <span>Tenants</span>
-            </div>
-          </Link>
-          
-          <Link href="/dashboard?tab=analytics">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "analytics" && pathname === "/dashboard"
-                ? "bg-gray-100 text-black"
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <BarChart3 className="w-5 h-5" />
-              <span>Analytics</span>
-            </div>
-          </Link>
-          
-          <Link href="/billing">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              pathname === "/billing"
-                ? "bg-gray-100 text-black"
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <CreditCard className="w-5 h-5" />
-              <span>Billing</span>
-            </div>
-          </Link>
+      <aside className="fixed left-0 top-[81px] w-64 h-[calc(100vh-81px)] bg-white border-r border-gray-200 overflow-y-auto z-40">
+        <div className="flex flex-col h-full">
+          {/* Main Navigation */}
+          <nav className="space-y-2 p-6 flex-1">
+            <Link href="/dashboard?tab=inbox">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "inbox" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <Inbox className="w-5 h-5" />
+                <span>Inbox</span>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard?tab=properties">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                (activeTab === "properties" && pathname === "/dashboard") || pathname.includes("/property")
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <Home className="w-5 h-5" />
+                <span>Properties</span>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard?tab=contracts">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "contracts" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <FileText className="w-5 h-5" />
+                <span>Contracts</span>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard?tab=tenants">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "tenants" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <Users className="w-5 h-5" />
+                <span>Tenants</span>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard?tab=analytics">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "analytics" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <BarChart3 className="w-5 h-5" />
+                <span>Analytics</span>
+              </div>
+            </Link>
+            
+            <Link href="/billing">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                pathname === "/billing"
+                  ? "bg-gray-100 text-black"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <CreditCard className="w-5 h-5" />
+                <span>Billing</span>
+              </div>
+            </Link>
+          </nav>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-gray-200"></div>
-
-          <Link href="/dashboard?tab=settings">
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "settings" && pathname === "/dashboard"
-                ? "bg-gray-100 text-black"
-                : "hover:bg-gray-50 text-gray-700"
-            }`}>
-              <Settings className="w-5 h-5" />
-              <span>Settings</span>
-            </div>
-          </Link>
-        </nav>
+          {/* Settings at Bottom */}
+          <div className="p-6 pt-0 border-t border-gray-200">
+            <Link href="/dashboard?tab=settings">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "settings" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <Settings className="w-5 h-5" />
+                <span>Settings</span>
+              </div>
+            </Link>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
