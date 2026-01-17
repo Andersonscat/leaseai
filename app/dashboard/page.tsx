@@ -861,8 +861,9 @@ export default function DashboardPage() {
                   }
 
                   return filteredContracts.map((contract) => (
-                  <div 
+                  <Link 
                     key={contract.id}
+                    href={`/dashboard/contract/${contract.id}`}
                     className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
                   >
                     {/* Contract Name */}
@@ -926,7 +927,7 @@ export default function DashboardPage() {
                         <MoreVertical className="w-5 h-5 text-gray-600" />
                       </button>
                     </div>
-                  </div>
+                  </Link>
                 ));
                 })()}
               </div>
