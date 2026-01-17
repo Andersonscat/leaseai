@@ -355,7 +355,7 @@ export default function PropertyPage() {
         {/* All Chats Sidebar (WhatsApp style) */}
         {showAllChats && (
           <div className="w-[450px] flex-shrink-0">
-            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
+            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-180px)] flex flex-col sticky top-24">
               {/* Header */}
               <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-black">All Chats</h3>
@@ -408,7 +408,7 @@ export default function PropertyPage() {
         {/* Chat Sidebar */}
         {selectedChat && selectedChatData && (
           <div className="w-[450px] flex-shrink-0">
-            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
+            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-180px)] flex flex-col sticky top-24">
             {/* Chat Header */}
             <div className="p-6 border-b border-gray-200 flex items-center gap-3">
               {/* Back button */}
