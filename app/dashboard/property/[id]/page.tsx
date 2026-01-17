@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, Send, ArrowLeft } from "lucide-react";
+import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -10,7 +10,6 @@ export default function PropertyPage() {
   const propertyId = parseInt(params.id as string);
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [messageText, setMessageText] = useState("");
 
   // Mock property data
   const properties = [
@@ -302,24 +301,6 @@ export default function PropertyPage() {
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Quick Message */}
-          <div className="mt-6 p-6 bg-gray-50 rounded-2xl">
-            <h3 className="font-bold text-black mb-4">Send Quick Message to All</h3>
-            <div className="flex gap-3">
-              <input
-                type="text"
-                placeholder="Type your message..."
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
-              />
-              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Send
-              </button>
-            </div>
           </div>
         </div>
       </div>
