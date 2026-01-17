@@ -371,8 +371,8 @@ export default function DashboardPage() {
 
   return (
     <div className="p-10">
-          {/* Inbox Tab */}
-          {activeTab === "inbox" && (
+      {/* Inbox Tab */}
+      {activeTab === "inbox" && (
             <>
               <div className="mb-10">
                 <h2 className="text-4xl font-bold text-black mb-2">Inbox</h2>
@@ -453,225 +453,225 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            </>
-          )}
+        </>
+      )}
 
-          {/* Properties Tab */}
-          {activeTab === "properties" && (
-            <>
-              <div className="mb-10 flex items-center justify-between">
-                <div>
-                  <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
-                  <p className="text-lg text-gray-600">Manage your real estate listings</p>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  {/* Rent/Sale Toggle */}
-                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setPropertyType("rent")}
-                      className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-                        propertyType === "rent"
-                          ? "bg-black text-white"
-                          : "text-gray-700 hover:text-black"
-                      }`}
-                    >
-                      Rent
-                    </button>
-                    <button
-                      onClick={() => setPropertyType("sale")}
-                      className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-                        propertyType === "sale"
-                          ? "bg-black text-white"
-                          : "text-gray-700 hover:text-black"
-                      }`}
-                    >
-                      Sale
-                    </button>
-                  </div>
+      {/* Properties Tab */}
+      {activeTab === "properties" && (
+        <>
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
+                <p className="text-lg text-gray-600">Manage your real estate listings</p>
+              </div>
+              
+              {/* Filter Buttons */}
+              <div className="flex items-center gap-2">
+                {/* Sort Direction Toggle */}
+                <button
+                  onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                  className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center"
+                  title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                >
+                  {sortDirection === "asc" ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </button>
 
-                  {/* Filter Button */}
-                  <div className="flex items-center gap-2">
-                  {/* Sort Direction Toggle */}
-                  <button
-                    onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                    className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center"
-                    title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowFilterMenu(!showFilterMenu)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
                   >
-                    {sortDirection === "asc" ? (
-                      <ChevronUp className="w-5 h-5" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5" />
-                    )}
+                    <Filter className="w-4 h-4" />
+                    Filter
                   </button>
 
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowFilterMenu(!showFilterMenu)}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
-                    >
-                      <Filter className="w-4 h-4" />
-                      Filter
-                    </button>
-
-                    {/* Filter Dropdown */}
-                    {showFilterMenu && (
-                      <>
-                        {/* Backdrop */}
-                        <div 
-                          className="fixed inset-0 z-40"
-                          onClick={() => setShowFilterMenu(false)}
-                        />
-                        
-                        {/* Menu */}
-                        <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
-                          <button 
-                            onClick={() => handleSortSelect("price")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Price
-                          </button>
-                          <button 
-                            onClick={() => handleSortSelect("date")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Date
-                          </button>
-                          <button 
-                            onClick={() => handleSortSelect("messages")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Messages
-                          </button>
-                          <button 
-                            onClick={() => handleSortSelect("beds")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Beds
-                          </button>
-                          <button 
-                            onClick={() => handleSortSelect("duration")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Duration
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  {/* Filter Dropdown */}
+                  {showFilterMenu && (
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowFilterMenu(false)}
+                      />
+                      
+                      {/* Menu */}
+                      <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
+                        <button 
+                          onClick={() => handleSortSelect("price")}
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Price
+                        </button>
+                        <button 
+                          onClick={() => handleSortSelect("date")}
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Date
+                        </button>
+                        <button 
+                          onClick={() => handleSortSelect("messages")}
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Messages
+                        </button>
+                        <button 
+                          onClick={() => handleSortSelect("beds")}
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Beds
+                        </button>
+                        <button 
+                          onClick={() => handleSortSelect("duration")}
+                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Duration
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-              </div>
+            </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedProperties.map((property) => (
-                  <Link 
-                    key={property.id} 
-                    href={`/dashboard/property/${property.id}`}
-                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group"
-                  >
-                    {/* Property Image */}
-                    <div className="relative h-48 bg-gray-200 overflow-hidden">
-                      <img 
-                        src={property.image} 
-                        alt={property.address}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-                      <div className="absolute top-3 right-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          property.status === "Available" 
-                            ? "bg-green-500 text-white" 
-                            : "bg-yellow-500 text-black"
-                        }`}>
-                          {property.status}
-                        </span>
+            {/* Rent/Sale Toggle - Below Title */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-10">
+              <button
+                onClick={() => setPropertyType("rent")}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                  propertyType === "rent"
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:text-black"
+                }`}
+              >
+                Rent
+              </button>
+              <button
+                onClick={() => setPropertyType("sale")}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                  propertyType === "sale"
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:text-black"
+                }`}
+              >
+                Sale
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sortedProperties.map((property) => (
+              <Link 
+                key={property.id} 
+                href={`/dashboard/property/${property.id}`}
+                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group"
+              >
+                {/* Property Image */}
+                <div className="relative h-48 bg-gray-200 overflow-hidden">
+                  <img 
+                    src={property.image} 
+                    alt={property.address}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute top-3 right-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      property.status === "Available" 
+                        ? "bg-green-500 text-white" 
+                        : "bg-yellow-500 text-black"
+                    }`}>
+                      {property.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Property Info */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
+                      <div className="flex items-start gap-1 text-gray-600 text-sm">
+                        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span>{property.address}</span>
                       </div>
                     </div>
-
-                    {/* Property Info */}
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-3 gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
-                          <div className="flex items-start gap-1 text-gray-600 text-sm">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <span>{property.address}</span>
-                          </div>
-                        </div>
-                        
-                        {/* Interested Tenants Badges */}
-                        {property.chatCount > 0 && (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <div className="flex -space-x-2">
-                              {property.interestedTenants.slice(0, 3).map((tenant, idx) => (
-                                <img
-                                  key={idx}
-                                  src={tenant.avatar}
-                                  alt={tenant.name}
-                                  className="w-8 h-8 rounded-full border-2 border-white"
-                                  title={tenant.name}
-                                />
-                              ))}
-                              {property.chatCount > 3 && (
-                                <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
-                                </div>
-                              )}
+                    
+                    {/* Interested Tenants Badges */}
+                    {property.chatCount > 0 && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex -space-x-2">
+                          {property.interestedTenants.slice(0, 3).map((tenant, idx) => (
+                            <img
+                              key={idx}
+                              src={tenant.avatar}
+                              alt={tenant.name}
+                              className="w-8 h-8 rounded-full border-2 border-white"
+                              title={tenant.name}
+                            />
+                          ))}
+                          {property.chatCount > 3 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
+                    )}
+                  </div>
 
-                      {/* Property Details */}
-                      <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200">
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Bed className="w-4 h-4" />
-                          <span className="text-sm font-medium">{property.beds} BD</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Bath className="w-4 h-4" />
-                          <span className="text-sm font-medium">{property.baths} BA</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Ruler className="w-4 h-4" />
-                          <span className="text-sm font-medium">{property.sqft} sq.ft</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Dog className="w-4 h-4" />
-                          <span className="text-sm font-medium">{property.pets}</span>
-                        </div>
-                      </div>
+                  {/* Property Details */}
+                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Bed className="w-4 h-4" />
+                      <span className="text-sm font-medium">{property.beds} BD</span>
                     </div>
-                  </Link>
-                ))}
-              </div>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Bath className="w-4 h-4" />
+                      <span className="text-sm font-medium">{property.baths} BA</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Ruler className="w-4 h-4" />
+                      <span className="text-sm font-medium">{property.sqft} sq.ft</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Dog className="w-4 h-4" />
+                      <span className="text-sm font-medium">{property.pets}</span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
 
-              {/* Add Property Button */}
-              <div className="mt-8 text-center">
-                <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all">
-                  + Add New Property
-                </button>
-              </div>
-            </>
-          )}
+          {/* Add Property Button */}
+          <div className="mt-8 text-center">
+            <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all">
+              + Add New Property
+            </button>
+          </div>
+        </>
+      )}
 
-          {/* Analytics Tab */}
-          {activeTab === "analytics" && (
-            <>
-              <div className="mb-10">
-                <h2 className="text-4xl font-bold text-black mb-2">Analytics</h2>
-                <p className="text-lg text-gray-600">Track your performance metrics</p>
-              </div>
+      {/* Analytics Tab */}
+      {activeTab === "analytics" && (
+        <>
+          <div className="mb-10">
+            <h2 className="text-4xl font-bold text-black mb-2">Analytics</h2>
+            <p className="text-lg text-gray-600">Track your performance metrics</p>
+          </div>
 
-              <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
-                <BarChart3 className="w-20 h-20 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-2xl font-bold text-black mb-2">Analytics Coming Soon</h3>
-                <p className="text-gray-600">
-                  Track conversion rates, response times, and lead quality with real-time insights.
-                </p>
-              </div>
-            </>
-          )}
+          <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
+            <BarChart3 className="w-20 h-20 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-2xl font-bold text-black mb-2">Analytics Coming Soon</h3>
+            <p className="text-gray-600">
+              Track conversion rates, response times, and lead quality with real-time insights.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
