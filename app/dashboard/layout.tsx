@@ -259,7 +259,7 @@ export default function DashboardLayout({
           </nav>
 
           {/* Settings at Bottom */}
-          <div className="p-6 pt-0 border-t border-gray-200">
+          <div className="p-6 pt-0">
             <Link href="/dashboard?tab=settings">
               <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
                 activeTab === "settings" && pathname === "/dashboard"
