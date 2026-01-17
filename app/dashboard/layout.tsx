@@ -18,6 +18,9 @@ export default function DashboardLayout({
   const [chatWidth, setChatWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
 
+  // Check if we're on the contract editor page
+  const isContractEditor = pathname.includes('/contract/');
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
@@ -46,6 +49,11 @@ export default function DashboardLayout({
       document.body.style.userSelect = '';
     };
   }, [isResizing]);
+
+  // If we're on contract editor, render without sidebar and AI chat
+  if (isContractEditor) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
