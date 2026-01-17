@@ -50,9 +50,96 @@ export default function DashboardLayout({
     };
   }, [isResizing]);
 
-  // If we're on contract editor, render without sidebar and AI chat
+  // Listen for AI chat toggle from contract editor
+  useEffect(() => {
+    const handleToggleAIChat = () => {
+      setShowAIChat(prev => !prev);
+    };
+
+    window.addEventListener('toggleAIChat', handleToggleAIChat);
+    return () => window.removeEventListener('toggleAIChat', handleToggleAIChat);
+  }, []);
+
+  // If we're on contract editor, render without sidebar but WITH AI chat
   if (isContractEditor) {
-    return <>{children}</>;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Main Content - No sidebar, no left margin */}
+        <main 
+          className="transition-all duration-300"
+          style={{ marginRight: showAIChat ? `${chatWidth}px` : '0' }}
+        >
+          {children}
+        </main>
+
+        {/* AI Chat Panel - Resizable */}
+        <aside 
+          className={`fixed right-0 top-[73px] h-[calc(100vh-73px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
+            showAIChat ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          style={{ width: `${chatWidth}px` }}
+        >
+          {/* Resize Handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 bg-gray-200 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+            onMouseDown={() => setIsResizing(true)}
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-4 -translate-x-1.5" />
+          </div>
+
+          {/* Header */}
+          <div className="p-6 border-b border-gray-100 pl-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-black">AI Assistant</h2>
+              <button
+                onClick={() => setShowAIChat(false)}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 pl-8">
+            {/* AI Welcome Message */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100">
+                  <p className="text-gray-800 text-base mb-2">
+                    Hi! I can help you with your contract:
+                  </p>
+                  <ul className="space-y-1 text-base text-gray-600">
+                    <li>• Suggest legal clauses</li>
+                    <li>• Review contract terms</li>
+                    <li>• Answer legal questions</li>
+                    <li>• Check for missing sections</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Input */}
+          <div className="p-4 border-t border-gray-100 bg-white pl-8">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Ask about the contract..."
+                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+              />
+              <button className="w-10 h-10 bg-black text-white rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    );
   }
 
   return (
