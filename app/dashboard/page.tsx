@@ -224,14 +224,14 @@ export default function DashboardPage() {
                   <Link 
                     key={property.id} 
                     href={`/dashboard/property/${property.id}`}
-                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer block"
+                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group"
                   >
                     {/* Property Image */}
-                    <div className="relative h-48 bg-gray-200 overflow-hidden group">
+                    <div className="relative h-48 bg-gray-200 overflow-hidden">
                       <img 
                         src={property.image} 
                         alt={property.address}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
                       <div className="absolute top-3 right-3">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -247,7 +247,7 @@ export default function DashboardPage() {
                     {/* Property Info */}
                     <div className="p-6">
                       <div className="mb-3">
-                        <h3 className="text-2xl font-bold text-black mb-1">{property.price}</h3>
+                        <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
                         <div className="flex items-start gap-1 text-gray-600 text-sm">
                           <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                           <span>{property.address}</span>
