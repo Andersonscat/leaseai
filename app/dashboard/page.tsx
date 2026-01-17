@@ -2,19 +2,12 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, X } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "properties";
-  
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [sortBy, setSortBy] = useState<string>("default");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [bedsFilter, setBedsFilter] = useState<string>("all");
-  const [petsFilter, setPetsFilter] = useState<string>("all");
-  const [messagesFilter, setMessagesFilter] = useState<string>("all");
 
   // Mock properties data with detailed info
   const properties = [
@@ -160,74 +153,6 @@ export default function DashboardPage() {
     }
   ];
 
-  // Filter and sort properties
-  const getFilteredAndSortedProperties = () => {
-    let filtered = [...properties];
-
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(p => p.status === statusFilter);
-    }
-
-    // Apply messages filter
-    if (messagesFilter === "with-messages") {
-      filtered = filtered.filter(p => p.chatCount > 0);
-    } else if (messagesFilter === "no-messages") {
-      filtered = filtered.filter(p => p.chatCount === 0);
-    }
-
-    // Apply bedrooms filter
-    if (bedsFilter !== "all") {
-      if (bedsFilter === "4+") {
-        filtered = filtered.filter(p => p.beds >= 4);
-      } else {
-        filtered = filtered.filter(p => p.beds === parseInt(bedsFilter));
-      }
-    }
-
-    // Apply pets filter
-    if (petsFilter !== "all") {
-      filtered = filtered.filter(p => p.pets === petsFilter);
-    }
-
-    // Apply sorting
-    switch (sortBy) {
-      case "messages-high":
-        filtered.sort((a, b) => b.chatCount - a.chatCount);
-        break;
-      case "messages-low":
-        filtered.sort((a, b) => a.chatCount - b.chatCount);
-        break;
-      case "price-high":
-        filtered.sort((a, b) => {
-          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
-          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
-          return priceB - priceA;
-        });
-        break;
-      case "price-low":
-        filtered.sort((a, b) => {
-          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
-          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
-          return priceA - priceB;
-        });
-        break;
-      case "beds-high":
-        filtered.sort((a, b) => b.beds - a.beds);
-        break;
-      case "beds-low":
-        filtered.sort((a, b) => a.beds - b.beds);
-        break;
-      default:
-        // default order
-        break;
-    }
-
-    return filtered;
-  };
-
-  const filteredProperties = getFilteredAndSortedProperties();
-
   return (
     <div className="p-10">
           {/* Inbox Tab */}
@@ -318,143 +243,13 @@ export default function DashboardPage() {
           {/* Properties Tab */}
           {activeTab === "properties" && (
             <>
-              <div className="mb-10 flex items-center justify-between">
-                <div>
-                  <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
-                  <p className="text-lg text-gray-600">Manage your real estate listings</p>
-                </div>
-                
-                {/* Filter Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
-                  >
-                    <Filter className="w-4 h-4" />
-                    Filter
-                  </button>
-
-                  {/* Filter Dropdown Menu */}
-                  {showFilterMenu && (
-                    <>
-                      {/* Backdrop */}
-                      <div 
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowFilterMenu(false)}
-                      />
-                      
-                      <div className="absolute right-0 top-full mt-2 w-[200px] bg-white rounded-xl shadow-2xl border border-gray-200 py-3 z-50">
-                        {/* Sort By */}
-                        <div className="px-4 py-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Sort by</label>
-                          <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="default">Default</option>
-                            <option value="messages-high">Most Messages</option>
-                            <option value="messages-low">Least Messages</option>
-                            <option value="price-high">Highest Price</option>
-                            <option value="price-low">Lowest Price</option>
-                            <option value="beds-high">Most Rooms</option>
-                            <option value="beds-low">Least Rooms</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-100 my-2" />
-
-                        {/* Messages Filter */}
-                        <div className="px-4 py-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Messages</label>
-                          <select
-                            value={messagesFilter}
-                            onChange={(e) => setMessagesFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="all">All</option>
-                            <option value="with-messages">With Messages</option>
-                            <option value="no-messages">No Messages</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-100 my-2" />
-
-                        {/* Status Filter */}
-                        <div className="px-4 py-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-                          <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="all">All</option>
-                            <option value="Available">Available</option>
-                            <option value="Pending">Pending</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-100 my-2" />
-
-                        {/* Bedrooms Filter */}
-                        <div className="px-4 py-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Rooms</label>
-                          <select
-                            value={bedsFilter}
-                            onChange={(e) => setBedsFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="all">Any</option>
-                            <option value="1">1 Room</option>
-                            <option value="2">2 Rooms</option>
-                            <option value="3">3 Rooms</option>
-                            <option value="4+">4+ Rooms</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-100 my-2" />
-
-                        {/* Pets Filter */}
-                        <div className="px-4 py-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Pets</label>
-                          <select
-                            value={petsFilter}
-                            onChange={(e) => setPetsFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
-                          >
-                            <option value="all">All</option>
-                            <option value="Allowed">Allowed</option>
-                            <option value="No pets">Not Allowed</option>
-                            <option value="Cats only">Cats Only</option>
-                            <option value="Dogs only">Dogs Only</option>
-                          </select>
-                        </div>
-
-                        <div className="h-px bg-gray-100 my-2" />
-
-                        {/* Reset Button */}
-                        <div className="px-4 py-2">
-                          <button
-                            onClick={() => {
-                              setSortBy("default");
-                              setStatusFilter("all");
-                              setMessagesFilter("all");
-                              setBedsFilter("all");
-                              setPetsFilter("all");
-                            }}
-                            className="w-full py-2 text-sm text-gray-600 hover:text-black font-medium transition-colors"
-                          >
-                            Reset All
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+              <div className="mb-10">
+                <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
+                <p className="text-lg text-gray-600">Manage your real estate listings</p>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredProperties.map((property) => (
+                {properties.map((property) => (
                   <Link 
                     key={property.id} 
                     href={`/dashboard/property/${property.id}`}
