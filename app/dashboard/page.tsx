@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
   const [contractSearch, setContractSearch] = useState("");
   const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantFilter, setTenantFilter] = useState<"all" | "current" | "pending" | "late" | "archived">("all");
 
   // Mock tenants data
   const tenants = [
@@ -25,7 +26,7 @@ export default function DashboardPage() {
       email: "john.smith@email.com",
       phone: "+1-425-3250400",
       property: "123 Main Street, Bellevue, WA",
-      status: "Active",
+      status: "Current",
       leaseStart: "Jan 1, 2024",
       leaseEnd: "Dec 31, 2024",
       rentAmount: "$3,500/mo",
@@ -40,12 +41,12 @@ export default function DashboardPage() {
       email: "emily.davis@email.com",
       phone: "+1-206-5551234",
       property: "789 Pine Road, Redmond, WA",
-      status: "Active",
+      status: "Late Payment",
       leaseStart: "Feb 1, 2024",
       leaseEnd: "Jan 31, 2025",
       rentAmount: "$5,800/mo",
-      paymentStatus: "Pending",
-      lastPayment: "15 days ago",
+      paymentStatus: "Overdue",
+      lastPayment: "35 days ago",
       moveInDate: "Feb 1, 2024"
     },
     {
@@ -55,7 +56,7 @@ export default function DashboardPage() {
       email: "sarah.j@email.com",
       phone: "+1-425-5559876",
       property: "555 Maple Drive, Bellevue, WA",
-      status: "Active",
+      status: "Current",
       leaseStart: "Mar 15, 2024",
       leaseEnd: "Mar 14, 2025",
       rentAmount: "$6,500/mo",
@@ -70,13 +71,43 @@ export default function DashboardPage() {
       email: "mike.chen@email.com",
       phone: "+1-206-5554321",
       property: "456 Oak Avenue, Seattle, WA",
-      status: "Past",
+      status: "Archived",
       leaseStart: "Dec 1, 2023",
       leaseEnd: "Nov 30, 2024",
       rentAmount: "$4,200/mo",
       paymentStatus: "Completed",
       lastPayment: "30 days ago",
       moveInDate: "Dec 1, 2023"
+    },
+    {
+      id: 5,
+      name: "David Lee",
+      avatar: "https://ui-avatars.com/api/?name=David+Lee&background=8B5CF6&color=fff",
+      email: "david.lee@email.com",
+      phone: "+1-425-5552468",
+      property: "321 Cedar Lane, Kirkland, WA",
+      status: "Pending",
+      leaseStart: "Feb 1, 2024",
+      leaseEnd: "Jan 31, 2025",
+      rentAmount: "$4,800/mo",
+      paymentStatus: "Deposit Paid",
+      lastPayment: "1 week ago",
+      moveInDate: "Feb 1, 2024"
+    },
+    {
+      id: 6,
+      name: "Anna White",
+      avatar: "https://ui-avatars.com/api/?name=Anna+White&background=EC4899&color=fff",
+      email: "anna.white@email.com",
+      phone: "+1-206-5557890",
+      property: "777 Elm Street, Bellevue, WA",
+      status: "Current",
+      leaseStart: "Jan 15, 2024",
+      leaseEnd: "Jan 14, 2025",
+      rentAmount: "$3,200/mo",
+      paymentStatus: "Paid",
+      lastPayment: "1 week ago",
+      moveInDate: "Jan 15, 2024"
     },
   ];
 
@@ -1032,6 +1063,62 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* Filter Buttons */}
+            <div className="mb-6">
+              <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setTenantFilter("all")}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    tenantFilter === "all"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setTenantFilter("current")}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    tenantFilter === "current"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Current
+                </button>
+                <button
+                  onClick={() => setTenantFilter("pending")}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    tenantFilter === "pending"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setTenantFilter("late")}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    tenantFilter === "late"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Late Payment
+                </button>
+                <button
+                  onClick={() => setTenantFilter("archived")}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    tenantFilter === "archived"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
+            </div>
+
             {/* Search Bar */}
             <div className="mb-6">
               <div className="relative">
@@ -1050,12 +1137,22 @@ export default function DashboardPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tenants
                 .filter((tenant) => {
+                  // Filter by search
                   const searchLower = tenantSearch.toLowerCase();
-                  return (
+                  const matchesSearch = (
                     tenant.name.toLowerCase().includes(searchLower) ||
                     tenant.email.toLowerCase().includes(searchLower) ||
                     tenant.property.toLowerCase().includes(searchLower)
                   );
+
+                  // Filter by status
+                  if (tenantFilter === "all") return matchesSearch;
+                  if (tenantFilter === "current") return matchesSearch && tenant.status === "Current";
+                  if (tenantFilter === "pending") return matchesSearch && tenant.status === "Pending";
+                  if (tenantFilter === "late") return matchesSearch && tenant.status === "Late Payment";
+                  if (tenantFilter === "archived") return matchesSearch && tenant.status === "Archived";
+                  
+                  return matchesSearch;
                 })
                 .map((tenant) => (
                   <div
@@ -1073,8 +1170,12 @@ export default function DashboardPage() {
                         <div>
                           <h3 className="font-bold text-black text-lg">{tenant.name}</h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            tenant.status === "Active" 
+                            tenant.status === "Current" 
                               ? "bg-green-100 text-green-700"
+                              : tenant.status === "Pending"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : tenant.status === "Late Payment"
+                              ? "bg-red-100 text-red-700"
                               : "bg-gray-100 text-gray-700"
                           }`}>
                             {tenant.status}
@@ -1145,11 +1246,19 @@ export default function DashboardPage() {
             {/* Empty state */}
             {tenants.filter((tenant) => {
               const searchLower = tenantSearch.toLowerCase();
-              return (
+              const matchesSearch = (
                 tenant.name.toLowerCase().includes(searchLower) ||
                 tenant.email.toLowerCase().includes(searchLower) ||
                 tenant.property.toLowerCase().includes(searchLower)
               );
+
+              if (tenantFilter === "all") return matchesSearch;
+              if (tenantFilter === "current") return matchesSearch && tenant.status === "Current";
+              if (tenantFilter === "pending") return matchesSearch && tenant.status === "Pending";
+              if (tenantFilter === "late") return matchesSearch && tenant.status === "Late Payment";
+              if (tenantFilter === "archived") return matchesSearch && tenant.status === "Archived";
+              
+              return matchesSearch;
             }).length === 0 && (
               <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
                 <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
