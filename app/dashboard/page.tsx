@@ -362,12 +362,6 @@ export default function DashboardPage() {
                             Beds
                           </button>
                           <button 
-                            onClick={() => handleSortSelect("period")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Period
-                          </button>
-                          <button 
                             onClick={() => handleSortSelect("duration")}
                             className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                           >
