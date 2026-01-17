@@ -350,18 +350,6 @@ export default function DashboardPage() {
                             Date
                           </button>
                           <button 
-                            onClick={() => handleSortSelect("old")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Old
-                          </button>
-                          <button 
-                            onClick={() => handleSortSelect("new")}
-                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            New
-                          </button>
-                          <button 
                             onClick={() => handleSortSelect("messages")}
                             className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                           >
