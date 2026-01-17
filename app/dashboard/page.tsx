@@ -1131,10 +1131,12 @@ export default function DashboardPage() {
                         <MessageSquare className="w-4 h-4" />
                         Message
                       </button>
-                      <button className="flex-1 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium">
-                        <FileText className="w-4 h-4" />
-                        Details
-                      </button>
+                      <Link href={`/dashboard/tenant/${tenant.id}`} className="flex-1">
+                        <button className="w-full px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium">
+                          <FileText className="w-4 h-4" />
+                          Details
+                        </button>
+                      </Link>
                     </div>
                   </div>
                 ))}
