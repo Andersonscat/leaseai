@@ -328,119 +328,127 @@ export default function DashboardPage() {
                 <div className="relative">
                   <button
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-semibold"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
                   >
-                    <Filter className="w-5 h-5" />
+                    <Filter className="w-4 h-4" />
                     Filter
                   </button>
 
                   {/* Filter Dropdown Menu */}
                   {showFilterMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 z-50">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-black">Filters</h3>
-                        <button
-                          onClick={() => setShowFilterMenu(false)}
-                          className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-
-                      <div className="space-y-6">
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowFilterMenu(false)}
+                      />
+                      
+                      <div className="absolute right-0 top-full mt-2 w-[200px] bg-white rounded-xl shadow-2xl border border-gray-200 py-4 z-50">
                         {/* Sort By */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Sort By</label>
+                        <div className="px-4 py-2">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">SORT BY</label>
                           <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="default">Default</option>
-                            <option value="messages-high">Messages (High to Low)</option>
-                            <option value="messages-low">Messages (Low to High)</option>
-                            <option value="price-high">Price (High to Low)</option>
-                            <option value="price-low">Price (Low to High)</option>
-                            <option value="beds-high">Bedrooms (Most to Least)</option>
-                            <option value="beds-low">Bedrooms (Least to Most)</option>
+                            <option value="messages-high">Most Messages</option>
+                            <option value="messages-low">Least Messages</option>
+                            <option value="price-high">Highest Price</option>
+                            <option value="price-low">Lowest Price</option>
+                            <option value="beds-high">Most Beds</option>
+                            <option value="beds-low">Least Beds</option>
                           </select>
                         </div>
 
+                        <div className="h-px bg-gray-200 my-2" />
+
                         {/* Status Filter */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                        <div className="px-4 py-2">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">STATUS</label>
                           <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
-                            <option value="all">All Status</option>
+                            <option value="all">All</option>
                             <option value="Available">Available</option>
                             <option value="Pending">Pending</option>
                           </select>
                         </div>
 
+                        <div className="h-px bg-gray-200 my-2" />
+
                         {/* Messages Filter */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Messages</label>
+                        <div className="px-4 py-2">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">MESSAGES</label>
                           <select
                             value={messagesFilter}
                             onChange={(e) => setMessagesFilter(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
-                            <option value="all">All Properties</option>
+                            <option value="all">All</option>
                             <option value="with-messages">With Messages</option>
                             <option value="no-messages">No Messages</option>
                           </select>
                         </div>
 
+                        <div className="h-px bg-gray-200 my-2" />
+
                         {/* Bedrooms Filter */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Bedrooms</label>
+                        <div className="px-4 py-2">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">BEDROOMS</label>
                           <select
                             value={bedsFilter}
                             onChange={(e) => setBedsFilter(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="all">Any</option>
-                            <option value="1">1 Bedroom</option>
-                            <option value="2">2 Bedrooms</option>
-                            <option value="3">3 Bedrooms</option>
-                            <option value="4+">4+ Bedrooms</option>
+                            <option value="1">1 Bed</option>
+                            <option value="2">2 Beds</option>
+                            <option value="3">3 Beds</option>
+                            <option value="4+">4+ Beds</option>
                           </select>
                         </div>
 
+                        <div className="h-px bg-gray-200 my-2" />
+
                         {/* Pets Filter */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Policy</label>
+                        <div className="px-4 py-2">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1.5">PETS</label>
                           <select
                             value={petsFilter}
                             onChange={(e) => setPetsFilter(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
                           >
                             <option value="all">All</option>
-                            <option value="Allowed">Pets Allowed</option>
-                            <option value="No pets">No Pets</option>
+                            <option value="Allowed">Allowed</option>
+                            <option value="No pets">Not Allowed</option>
                             <option value="Cats only">Cats Only</option>
                             <option value="Dogs only">Dogs Only</option>
                           </select>
                         </div>
 
+                        <div className="h-px bg-gray-200 my-2" />
+
                         {/* Reset Button */}
-                        <button
-                          onClick={() => {
-                            setSortBy("default");
-                            setStatusFilter("all");
-                            setMessagesFilter("all");
-                            setBedsFilter("all");
-                            setPetsFilter("all");
-                          }}
-                          className="w-full py-2 text-gray-600 hover:text-black font-semibold transition-colors"
-                        >
-                          Reset All Filters
-                        </button>
+                        <div className="px-4 py-2">
+                          <button
+                            onClick={() => {
+                              setSortBy("default");
+                              setStatusFilter("all");
+                              setMessagesFilter("all");
+                              setBedsFilter("all");
+                              setPetsFilter("all");
+                            }}
+                            className="w-full py-2 text-sm text-gray-600 hover:text-black font-medium transition-colors"
+                          >
+                            Reset All
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
