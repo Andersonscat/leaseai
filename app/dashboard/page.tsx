@@ -11,6 +11,7 @@ export default function DashboardPage() {
   
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [selectedSort, setSelectedSort] = useState<string>("default");
 
   // Mock properties data with detailed info
   const properties = [
@@ -156,6 +157,55 @@ export default function DashboardPage() {
     }
   ];
 
+  // Sort properties based on selected filter and direction
+  const getSortedProperties = () => {
+    let sorted = [...properties];
+
+    switch (selectedSort) {
+      case "price":
+        sorted.sort((a, b) => {
+          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
+          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
+          return sortDirection === "asc" ? priceA - priceB : priceB - priceA;
+        });
+        break;
+      
+      case "messages":
+        sorted.sort((a, b) => {
+          return sortDirection === "asc" ? a.chatCount - b.chatCount : b.chatCount - a.chatCount;
+        });
+        break;
+      
+      case "beds":
+        sorted.sort((a, b) => {
+          return sortDirection === "asc" ? a.beds - b.beds : b.beds - a.beds;
+        });
+        break;
+      
+      case "date":
+      case "old":
+      case "new":
+        // Sort by ID (assuming ID represents date/age)
+        sorted.sort((a, b) => {
+          return sortDirection === "asc" ? a.id - b.id : b.id - a.id;
+        });
+        break;
+      
+      default:
+        // Keep original order
+        break;
+    }
+
+    return sorted;
+  };
+
+  const sortedProperties = getSortedProperties();
+
+  const handleSortSelect = (sortType: string) => {
+    setSelectedSort(sortType);
+    setShowFilterMenu(false);
+  };
+
   return (
     <div className="p-10">
           {/* Inbox Tab */}
@@ -287,28 +337,52 @@ export default function DashboardPage() {
                         
                         {/* Menu */}
                         <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("price")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Price
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("date")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Date
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("old")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Old
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("new")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             New
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("messages")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Messages
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("beds")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Beds
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("period")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Period
                           </button>
-                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                          <button 
+                            onClick={() => handleSortSelect("duration")}
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
                             Duration
                           </button>
                         </div>
@@ -319,7 +393,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {properties.map((property) => (
+                {sortedProperties.map((property) => (
                   <Link 
                     key={property.id} 
                     href={`/dashboard/property/${property.id}`}
