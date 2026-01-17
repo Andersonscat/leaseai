@@ -240,7 +240,7 @@ export default function TenantDetailPage() {
       {activeTab === "messages" && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
           {/* Messages */}
-          <div className="p-6 h-[600px] overflow-y-auto space-y-4">
+          <div className="p-6 pb-8 h-[600px] overflow-y-auto space-y-4">
             {messages.map((message) => (
               <div key={message.id}>
                 {/* Date divider */}
