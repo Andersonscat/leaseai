@@ -325,7 +325,10 @@ export default function PropertyPage() {
             {chats.map((chat) => (
               <div 
                 key={chat.id}
-                onClick={() => setSelectedChat(chat.id)}
+                onClick={() => {
+                  setSelectedChat(chat.id);
+                  setShowAllChats(false);
+                }}
                 className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all cursor-pointer"
               >
                 <img 
