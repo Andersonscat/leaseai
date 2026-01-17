@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Send } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 export default function PropertyPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const propertyId = parseInt(params.id as string);
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showAllChats, setShowAllChats] = useState(false);
+
+  // Check if we should open All Chats on mount
+  useEffect(() => {
+    const openChats = searchParams.get('openChats');
+    if (openChats === 'true') {
+      setShowAllChats(true);
+    }
+  }, [searchParams]);
 
   // Mock property data
   const properties = [

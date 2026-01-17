@@ -681,8 +681,12 @@ export default function DashboardPage() {
                     
                     {/* Interested Tenants Badges */}
                     {property.chatCount > 0 && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <div className="flex -space-x-2">
+                      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.preventDefault()}>
+                        <Link 
+                          href={`/dashboard/property/${property.id}?openChats=true`}
+                          className="flex -space-x-2 hover:opacity-80 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {property.interestedTenants.slice(0, 3).map((tenant, idx) => (
                             <img
                               key={idx}
@@ -697,7 +701,7 @@ export default function DashboardPage() {
                               <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
                             </div>
                           )}
-                        </div>
+                        </Link>
                       </div>
                     )}
                   </div>
