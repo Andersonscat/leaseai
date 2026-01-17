@@ -1,12 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, X } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "properties";
+  
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [sortBy, setSortBy] = useState<string>("default");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [bedsFilter, setBedsFilter] = useState<string>("all");
+  const [petsFilter, setPetsFilter] = useState<string>("all");
+  const [messagesFilter, setMessagesFilter] = useState<string>("all");
 
   // Mock properties data with detailed info
   const properties = [
@@ -152,6 +160,74 @@ export default function DashboardPage() {
     }
   ];
 
+  // Filter and sort properties
+  const getFilteredAndSortedProperties = () => {
+    let filtered = [...properties];
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(p => p.status === statusFilter);
+    }
+
+    // Apply messages filter
+    if (messagesFilter === "with-messages") {
+      filtered = filtered.filter(p => p.chatCount > 0);
+    } else if (messagesFilter === "no-messages") {
+      filtered = filtered.filter(p => p.chatCount === 0);
+    }
+
+    // Apply bedrooms filter
+    if (bedsFilter !== "all") {
+      if (bedsFilter === "4+") {
+        filtered = filtered.filter(p => p.beds >= 4);
+      } else {
+        filtered = filtered.filter(p => p.beds === parseInt(bedsFilter));
+      }
+    }
+
+    // Apply pets filter
+    if (petsFilter !== "all") {
+      filtered = filtered.filter(p => p.pets === petsFilter);
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case "messages-high":
+        filtered.sort((a, b) => b.chatCount - a.chatCount);
+        break;
+      case "messages-low":
+        filtered.sort((a, b) => a.chatCount - b.chatCount);
+        break;
+      case "price-high":
+        filtered.sort((a, b) => {
+          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
+          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
+          return priceB - priceA;
+        });
+        break;
+      case "price-low":
+        filtered.sort((a, b) => {
+          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
+          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
+          return priceA - priceB;
+        });
+        break;
+      case "beds-high":
+        filtered.sort((a, b) => b.beds - a.beds);
+        break;
+      case "beds-low":
+        filtered.sort((a, b) => a.beds - b.beds);
+        break;
+      default:
+        // default order
+        break;
+    }
+
+    return filtered;
+  };
+
+  const filteredProperties = getFilteredAndSortedProperties();
+
   return (
     <div className="p-10">
           {/* Inbox Tab */}
@@ -242,13 +318,135 @@ export default function DashboardPage() {
           {/* Properties Tab */}
           {activeTab === "properties" && (
             <>
-              <div className="mb-10">
-                <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
-                <p className="text-lg text-gray-600">Manage your real estate listings</p>
+              <div className="mb-10 flex items-center justify-between">
+                <div>
+                  <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
+                  <p className="text-lg text-gray-600">Manage your real estate listings</p>
+                </div>
+                
+                {/* Filter Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowFilterMenu(!showFilterMenu)}
+                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-semibold"
+                  >
+                    <Filter className="w-5 h-5" />
+                    Filter
+                  </button>
+
+                  {/* Filter Dropdown Menu */}
+                  {showFilterMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 z-50">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold text-black">Filters</h3>
+                        <button
+                          onClick={() => setShowFilterMenu(false)}
+                          className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {/* Sort By */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Sort By</label>
+                          <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                          >
+                            <option value="default">Default</option>
+                            <option value="messages-high">Messages (High to Low)</option>
+                            <option value="messages-low">Messages (Low to High)</option>
+                            <option value="price-high">Price (High to Low)</option>
+                            <option value="price-low">Price (Low to High)</option>
+                            <option value="beds-high">Bedrooms (Most to Least)</option>
+                            <option value="beds-low">Bedrooms (Least to Most)</option>
+                          </select>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                          <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                          >
+                            <option value="all">All Status</option>
+                            <option value="Available">Available</option>
+                            <option value="Pending">Pending</option>
+                          </select>
+                        </div>
+
+                        {/* Messages Filter */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Messages</label>
+                          <select
+                            value={messagesFilter}
+                            onChange={(e) => setMessagesFilter(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                          >
+                            <option value="all">All Properties</option>
+                            <option value="with-messages">With Messages</option>
+                            <option value="no-messages">No Messages</option>
+                          </select>
+                        </div>
+
+                        {/* Bedrooms Filter */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Bedrooms</label>
+                          <select
+                            value={bedsFilter}
+                            onChange={(e) => setBedsFilter(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                          >
+                            <option value="all">Any</option>
+                            <option value="1">1 Bedroom</option>
+                            <option value="2">2 Bedrooms</option>
+                            <option value="3">3 Bedrooms</option>
+                            <option value="4+">4+ Bedrooms</option>
+                          </select>
+                        </div>
+
+                        {/* Pets Filter */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Pet Policy</label>
+                          <select
+                            value={petsFilter}
+                            onChange={(e) => setPetsFilter(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                          >
+                            <option value="all">All</option>
+                            <option value="Allowed">Pets Allowed</option>
+                            <option value="No pets">No Pets</option>
+                            <option value="Cats only">Cats Only</option>
+                            <option value="Dogs only">Dogs Only</option>
+                          </select>
+                        </div>
+
+                        {/* Reset Button */}
+                        <button
+                          onClick={() => {
+                            setSortBy("default");
+                            setStatusFilter("all");
+                            setMessagesFilter("all");
+                            setBedsFilter("all");
+                            setPetsFilter("all");
+                          }}
+                          className="w-full py-2 text-gray-600 hover:text-black font-semibold transition-colors"
+                        >
+                          Reset All Filters
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {properties.map((property) => (
+                {filteredProperties.map((property) => (
                   <Link 
                     key={property.id} 
                     href={`/dashboard/property/${property.id}`}
