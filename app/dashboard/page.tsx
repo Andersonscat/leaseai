@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -10,6 +10,7 @@ export default function DashboardPage() {
   const activeTab = searchParams.get("tab") || "properties";
   
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Mock properties data with detailed info
   const properties = [
@@ -252,53 +253,68 @@ export default function DashboardPage() {
                 </div>
                 
                 {/* Filter Button */}
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
+                <div className="flex items-center gap-2">
+                  {/* Sort Direction Toggle */}
+                  <button
+                    onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+                    className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center"
+                    title={sortDirection === "asc" ? "Ascending" : "Descending"}
                   >
-                    <Filter className="w-4 h-4" />
-                    Filter
+                    {sortDirection === "asc" ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5" />
+                    )}
                   </button>
 
-                  {/* Filter Dropdown */}
-                  {showFilterMenu && (
-                    <>
-                      {/* Backdrop */}
-                      <div 
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowFilterMenu(false)}
-                      />
-                      
-                      {/* Menu */}
-                      <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Price
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Date
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Old
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          New
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Messages
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Beds
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Period
-                        </button>
-                        <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          Duration
-                        </button>
-                      </div>
-                    </>
-                  )}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowFilterMenu(!showFilterMenu)}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filter
+                    </button>
+
+                    {/* Filter Dropdown */}
+                    {showFilterMenu && (
+                      <>
+                        {/* Backdrop */}
+                        <div 
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowFilterMenu(false)}
+                        />
+                        
+                        {/* Menu */}
+                        <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Price
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Date
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Old
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            New
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Messages
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Beds
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Period
+                          </button>
+                          <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                            Duration
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
