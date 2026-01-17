@@ -12,11 +12,13 @@ export default function DashboardPage() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedSort, setSelectedSort] = useState<string>("default");
+  const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
 
   // Mock properties data with detailed info
   const properties = [
     {
       id: 1,
+      type: "rent",
       image: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
       images: [
         "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
@@ -42,13 +44,14 @@ export default function DashboardPage() {
     },
     {
       id: 2,
+      type: "sale",
       image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
       images: [
         "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
         "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800"
       ],
       address: "456 Oak Avenue, Seattle, WA",
-      price: "$4,200/mo",
+      price: "$850,000",
       beds: 3,
       baths: 2.5,
       sqft: "1,850",
@@ -65,6 +68,7 @@ export default function DashboardPage() {
     },
     {
       id: 3,
+      type: "rent",
       image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
       images: [
         "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
@@ -90,12 +94,13 @@ export default function DashboardPage() {
     },
     {
       id: 4,
+      type: "sale",
       image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
       images: [
         "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800"
       ],
       address: "321 Elm Street, Kirkland, WA",
-      price: "$2,900/mo",
+      price: "$425,000",
       beds: 1,
       baths: 1,
       sqft: "850",
@@ -110,6 +115,7 @@ export default function DashboardPage() {
     },
     {
       id: 5,
+      type: "rent",
       image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
       images: [
         "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800"
@@ -135,6 +141,7 @@ export default function DashboardPage() {
     },
     {
       id: 6,
+      type: "rent",
       image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800",
       images: [
         "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800"
@@ -159,7 +166,9 @@ export default function DashboardPage() {
 
   // Sort properties based on selected filter and direction
   const getSortedProperties = () => {
-    let sorted = [...properties];
+    // First filter by property type
+    let filtered = properties.filter(p => p.type === propertyType);
+    let sorted = [...filtered];
 
     switch (selectedSort) {
       case "price":
@@ -302,8 +311,33 @@ export default function DashboardPage() {
                   <p className="text-lg text-gray-600">Manage your real estate listings</p>
                 </div>
                 
-                {/* Filter Button */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
+                  {/* Rent/Sale Toggle */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setPropertyType("rent")}
+                      className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                        propertyType === "rent"
+                          ? "bg-black text-white"
+                          : "text-gray-700 hover:text-black"
+                      }`}
+                    >
+                      Rent
+                    </button>
+                    <button
+                      onClick={() => setPropertyType("sale")}
+                      className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                        propertyType === "sale"
+                          ? "bg-black text-white"
+                          : "text-gray-700 hover:text-black"
+                      }`}
+                    >
+                      Sale
+                    </button>
+                  </div>
+
+                  {/* Filter Button */}
+                  <div className="flex items-center gap-2">
                   {/* Sort Direction Toggle */}
                   <button
                     onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
@@ -372,6 +406,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
+              </div>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
