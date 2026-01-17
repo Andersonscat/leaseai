@@ -11,7 +11,7 @@ export default function DashboardPage() {
   
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [selectedSort, setSelectedSort] = useState<string>("default");
+  const [selectedSort, setSelectedSort] = useState<string>("none");
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
 
   // Mock properties data with detailed info
@@ -369,6 +369,19 @@ export default function DashboardPage() {
     setShowFilterMenu(false);
   };
 
+  // Get display name for filter
+  const getFilterDisplayName = () => {
+    switch (selectedSort) {
+      case "price": return "Price";
+      case "date": return "Date";
+      case "messages": return "Messages";
+      case "beds": return "Beds";
+      case "duration": return "Duration";
+      case "none": return "Filter";
+      default: return "Filter";
+    }
+  };
+
   return (
     <div className="p-10">
       {/* Inbox Tab */}
@@ -509,7 +522,7 @@ export default function DashboardPage() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm cursor-pointer"
                   >
                     <Filter className="w-4 h-4" />
-                    Filter
+                    {getFilterDisplayName()}
                   </button>
 
                   {/* Filter Dropdown */}
@@ -524,32 +537,62 @@ export default function DashboardPage() {
                       {/* Menu */}
                       <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
                         <button 
+                          onClick={() => handleSortSelect("none")}
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "none" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          None
+                        </button>
+                        <button 
                           onClick={() => handleSortSelect("price")}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "price" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           Price
                         </button>
                         <button 
                           onClick={() => handleSortSelect("date")}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "date" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           Date
                         </button>
                         <button 
                           onClick={() => handleSortSelect("messages")}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "messages" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           Messages
                         </button>
                         <button 
                           onClick={() => handleSortSelect("beds")}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "beds" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           Beds
                         </button>
                         <button 
                           onClick={() => handleSortSelect("duration")}
-                          className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                            selectedSort === "duration" 
+                              ? "bg-gray-100 text-black font-semibold" 
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           Duration
                         </button>
