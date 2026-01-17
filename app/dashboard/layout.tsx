@@ -255,6 +255,9 @@ export default function DashboardLayout({
             </div>
           </Link>
 
+          {/* Divider */}
+          <div className="my-4 border-t border-gray-200"></div>
+
           <Link href="/dashboard?tab=settings">
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
               activeTab === "settings" && pathname === "/dashboard"
