@@ -56,9 +56,9 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-gray-50">
         {/* Header - Same as dashboard */}
         <header className="bg-black sticky top-0 z-50">
-          <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="container mx-auto px-6 py-5 flex justify-between items-center">
             <Link href="/dashboard">
-              <h1 className="text-2xl font-bold text-white cursor-pointer">LeaseAI</h1>
+              <h1 className="text-3xl font-bold text-white cursor-pointer">LeaseAI</h1>
             </Link>
             <div className="flex items-center gap-4">
               <button
@@ -73,7 +73,9 @@ export default function DashboardLayout({
                   Upgrade
                 </button>
               </Link>
-              <UserButton afterSignOutUrl="/" />
+              <div className="scale-110">
+                <UserButton afterSignOutUrl="/" />
+              </div>
             </div>
           </div>
         </header>
@@ -88,7 +90,7 @@ export default function DashboardLayout({
 
         {/* AI Chat Panel - Resizable */}
         <aside 
-          className={`fixed right-0 top-[73px] h-[calc(100vh-73px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
+          className={`fixed right-0 top-[81px] h-[calc(100vh-81px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
             showAIChat ? 'translate-x-0' : 'translate-x-full'
           }`}
           style={{ width: `${chatWidth}px` }}
@@ -160,9 +162,9 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-black sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="container mx-auto px-6 py-5 flex justify-between items-center">
           <Link href="/dashboard">
-            <h1 className="text-2xl font-bold text-white cursor-pointer">LeaseAI</h1>
+            <h1 className="text-3xl font-bold text-white cursor-pointer">LeaseAI</h1>
           </Link>
           <div className="flex items-center gap-4">
             <button
@@ -177,13 +179,15 @@ export default function DashboardLayout({
                 Upgrade
               </button>
             </Link>
-            <UserButton afterSignOutUrl="/" />
+            <div className="scale-110">
+              <UserButton afterSignOutUrl="/" />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Sidebar */}
-      <aside className="fixed left-0 top-[73px] w-64 h-[calc(100vh-73px)] bg-white border-r border-gray-200 p-6 overflow-y-auto z-40">
+      <aside className="fixed left-0 top-[81px] w-64 h-[calc(100vh-81px)] bg-white border-r border-gray-200 p-6 overflow-y-auto z-40">
         <nav className="space-y-2">
           <Link href="/dashboard?tab=inbox">
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
@@ -263,7 +267,7 @@ export default function DashboardLayout({
 
       {/* AI Chat Panel - Resizable */}
       <aside 
-        className={`fixed right-0 top-[73px] h-[calc(100vh-73px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
+        className={`fixed right-0 top-[81px] h-[calc(100vh-81px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
           showAIChat ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: `${chatWidth}px` }}
