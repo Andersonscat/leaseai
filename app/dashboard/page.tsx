@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -13,6 +13,58 @@ export default function DashboardPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedSort, setSelectedSort] = useState<string>("none");
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
+
+  // Mock contracts data
+  const contracts = [
+    {
+      id: 1,
+      name: "Lease_123MainSt_JohnSmith",
+      property: "123 Main Street, Bellevue, WA",
+      tenant: "John Smith",
+      status: "Active",
+      startDate: "Jan 1, 2024",
+      endDate: "Dec 31, 2024",
+      lastModified: "2 weeks ago",
+      created: "3 months ago",
+      isPrimary: true
+    },
+    {
+      id: 2,
+      name: "Lease_789PineRd_EmilyDavis",
+      property: "789 Pine Road, Redmond, WA",
+      tenant: "Emily Davis",
+      status: "Pending",
+      startDate: "Feb 1, 2024",
+      endDate: "Jan 31, 2025",
+      lastModified: "1 day ago",
+      created: "1 week ago",
+      isPrimary: false
+    },
+    {
+      id: 3,
+      name: "Sale_456OakAve_MikeChen",
+      property: "456 Oak Avenue, Seattle, WA",
+      tenant: "Mike Chen",
+      status: "Completed",
+      startDate: "Dec 1, 2023",
+      endDate: "Nov 30, 2024",
+      lastModified: "1 month ago",
+      created: "5 months ago",
+      isPrimary: false
+    },
+    {
+      id: 4,
+      name: "Lease_555MapleDr_SarahJohnson",
+      property: "555 Maple Drive, Bellevue, WA",
+      tenant: "Sarah Johnson",
+      status: "Active",
+      startDate: "Mar 15, 2024",
+      endDate: "Mar 14, 2025",
+      lastModified: "3 days ago",
+      created: "2 months ago",
+      isPrimary: false
+    },
+  ];
 
   // Mock properties data with detailed info
   const properties = [
@@ -383,7 +435,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-10">
+    <div className="p-10 min-w-0">
       {/* Inbox Tab */}
       {activeTab === "inbox" && (
             <>
@@ -643,12 +695,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Properties Grid */}
+          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
             {sortedProperties.map((property) => (
               <Link 
                 key={property.id} 
                 href={`/dashboard/property/${property.id}`}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group"
+                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group w-full"
               >
                 {/* Property Image */}
                 <div className="relative h-48 bg-gray-200 overflow-hidden">
@@ -735,6 +788,133 @@ export default function DashboardPage() {
             <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all">
               + Add New Property
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Contracts Tab */}
+      {activeTab === "contracts" && (
+        <>
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-4xl font-bold text-black mb-2">Contracts</h2>
+                <p className="text-lg text-gray-600">Manage your lease and sale agreements</p>
+              </div>
+              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Add Contract
+              </button>
+            </div>
+
+            {/* Info Banner */}
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-green-800">
+                You have <strong>{contracts.length} contracts</strong> saved out of <strong>10</strong> available slots.
+              </p>
+            </div>
+
+            {/* Contracts Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
+                <div className="col-span-3">Contract</div>
+                <div className="col-span-3">Property</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-2">Last Modified</div>
+                <div className="col-span-1">Created</div>
+                <div className="col-span-1"></div>
+              </div>
+
+              {/* Table Rows */}
+              <div className="divide-y divide-gray-200">
+                {contracts.map((contract) => (
+                  <div 
+                    key={contract.id}
+                    className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
+                  >
+                    {/* Contract Name */}
+                    <div className="col-span-3 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-black truncate group-hover:text-gray-700 transition-colors">
+                            {contract.name}
+                          </p>
+                          {contract.isPrimary && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold flex-shrink-0">
+                              <Star className="w-3 h-3 fill-current" />
+                              PRIMARY
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">{contract.tenant}</p>
+                      </div>
+                    </div>
+
+                    {/* Property */}
+                    <div className="col-span-3 flex items-center">
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800 truncate">{contract.property}</p>
+                        <p className="text-xs text-gray-500">{contract.startDate} - {contract.endDate}</p>
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-2 flex items-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                        contract.status === "Active" 
+                          ? "bg-green-100 text-green-700"
+                          : contract.status === "Pending"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}>
+                        {contract.status === "Active" && <CheckCircle className="w-3 h-3" />}
+                        {contract.status === "Pending" && <Clock className="w-3 h-3" />}
+                        {contract.status === "Completed" && <XCircle className="w-3 h-3" />}
+                        {contract.status}
+                      </span>
+                    </div>
+
+                    {/* Last Modified */}
+                    <div className="col-span-2 flex items-center">
+                      <p className="text-sm text-gray-600">{contract.lastModified}</p>
+                    </div>
+
+                    {/* Created */}
+                    <div className="col-span-1 flex items-center">
+                      <p className="text-sm text-gray-600">{contract.created}</p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-1 flex items-center justify-end">
+                      <button className="w-8 h-8 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+                        <MoreVertical className="w-5 h-5 text-gray-600" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Empty state if no contracts */}
+            {contracts.length === 0 && (
+              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-black mb-2">No contracts yet</h3>
+                <p className="text-gray-600 mb-6">
+                  Create your first contract to get started with managing lease agreements.
+                </p>
+                <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
+                  Create Contract
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
