@@ -73,7 +73,7 @@ export default function DashboardLayout({
                   Upgrade
                 </button>
               </Link>
-              <div className="scale-110">
+              <div className="scale-125">
                 <UserButton afterSignOutUrl="/" />
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function DashboardLayout({
                 Upgrade
               </button>
             </Link>
-            <div className="scale-110">
+            <div className="scale-125">
               <UserButton afterSignOutUrl="/" />
             </div>
           </div>
