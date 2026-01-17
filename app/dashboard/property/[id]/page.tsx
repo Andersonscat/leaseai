@@ -186,6 +186,9 @@ export default function PropertyPage() {
 
   const selectedChatData = chats.find(c => c.id === selectedChat);
 
+  console.log("Selected chat ID:", selectedChat);
+  console.log("Selected chat data:", selectedChatData);
+
   const handleSendMessage = () => {
     if (messageInput.trim()) {
       console.log("Sending message:", messageInput);
@@ -313,7 +316,10 @@ export default function PropertyPage() {
             {chats.map((chat) => (
               <div 
                 key={chat.id}
-                onClick={() => setSelectedChat(chat.id)}
+                onClick={() => {
+                  console.log("Chat clicked:", chat.id, chat.name);
+                  setSelectedChat(chat.id);
+                }}
                 className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all cursor-pointer"
               >
                 <img 
@@ -337,12 +343,13 @@ export default function PropertyPage() {
             ))}
           </div>
         </div>
-      </div>
+        </div>
+        {/* End of Left Content */}
 
-      {/* Chat Sidebar */}
-      {selectedChat && selectedChatData && (
-        <div className="w-[450px] flex-shrink-0">
-          <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
+        {/* Chat Sidebar */}
+        {selectedChat && selectedChatData && (
+          <div className="w-[450px] flex-shrink-0">
+            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
             {/* Chat Header */}
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -409,7 +416,8 @@ export default function PropertyPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+      {/* End of Flex Container */}
     </div>
   );
 }
