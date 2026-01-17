@@ -167,7 +167,8 @@ export default function DashboardLayout({
           <div className="flex items-center gap-4">
             <button
               onClick={() => setShowAIChat(!showAIChat)}
-              className="flex items-center gap-2 text-white hover:text-gray-300 transition-colors"
+              className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
+              title="AI Assistant"
             >
               <Sparkles className="w-5 h-5" />
             </button>
