@@ -493,7 +493,7 @@ export default function DashboardPage() {
                 {/* Sort Direction Toggle */}
                 <button
                   onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                  className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center"
+                  className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center cursor-pointer"
                   title={sortDirection === "asc" ? "Ascending" : "Descending"}
                 >
                   {sortDirection === "asc" ? (
@@ -506,7 +506,7 @@ export default function DashboardPage() {
                 <div className="relative">
                   <button 
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm cursor-pointer"
                   >
                     <Filter className="w-4 h-4" />
                     Filter
@@ -563,21 +563,27 @@ export default function DashboardPage() {
             {/* Rent/Sale Toggle - Below Title */}
             <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-10">
               <button
-                onClick={() => setPropertyType("rent")}
-                className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                onClick={() => {
+                  console.log("Rent button clicked");
+                  setPropertyType("rent");
+                }}
+                className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
                   propertyType === "rent"
-                    ? "bg-black text-white"
-                    : "text-gray-700 hover:text-black"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-gray-700 hover:bg-gray-200"
                 }`}
               >
                 Rent
               </button>
               <button
-                onClick={() => setPropertyType("sale")}
-                className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                onClick={() => {
+                  console.log("Sale button clicked");
+                  setPropertyType("sale");
+                }}
+                className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
                   propertyType === "sale"
-                    ? "bg-black text-white"
-                    : "text-gray-700 hover:text-black"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-gray-700 hover:bg-gray-200"
                 }`}
               >
                 Sale
