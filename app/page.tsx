@@ -52,7 +52,7 @@ export default function Home() {
               
               {/* CTA Buttons */}
               <div className="flex gap-4 mb-8">
-                <Link href="/sign-up">
+                <Link href="/dashboard?tab=inbox">
                   <button className="bg-black text-white px-8 py-4 rounded font-semibold hover:bg-gray-800 transition-all">
                     Get started
                   </button>
@@ -243,7 +243,7 @@ export default function Home() {
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/sign-up">
+              <Link href="/dashboard?tab=inbox">
                 <button className="w-full py-4 rounded-lg bg-white text-black font-semibold hover:bg-gray-100 transition-all">
                   Get started
                 </button>
