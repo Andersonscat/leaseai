@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { UserButton } from "@clerk/nextjs";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText } from "lucide-react";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -215,6 +215,17 @@ export default function DashboardLayout({
             }`}>
               <FileText className="w-5 h-5" />
               <span>Contracts</span>
+            </div>
+          </Link>
+          
+          <Link href="/dashboard?tab=tenants">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              activeTab === "tenants" && pathname === "/dashboard"
+                ? "bg-gray-100 text-black" 
+                : "hover:bg-gray-50 text-gray-700"
+            }`}>
+              <Users className="w-5 h-5" />
+              <span>Tenants</span>
             </div>
           </Link>
           

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -14,6 +14,71 @@ export default function DashboardPage() {
   const [selectedSort, setSelectedSort] = useState<string>("none");
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
   const [contractSearch, setContractSearch] = useState("");
+  const [tenantSearch, setTenantSearch] = useState("");
+
+  // Mock tenants data
+  const tenants = [
+    {
+      id: 1,
+      name: "John Smith",
+      avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
+      email: "john.smith@email.com",
+      phone: "+1-425-3250400",
+      property: "123 Main Street, Bellevue, WA",
+      status: "Active",
+      leaseStart: "Jan 1, 2024",
+      leaseEnd: "Dec 31, 2024",
+      rentAmount: "$3,500/mo",
+      paymentStatus: "Paid",
+      lastPayment: "2 days ago",
+      moveInDate: "Jan 1, 2024"
+    },
+    {
+      id: 2,
+      name: "Emily Davis",
+      avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff",
+      email: "emily.davis@email.com",
+      phone: "+1-206-5551234",
+      property: "789 Pine Road, Redmond, WA",
+      status: "Active",
+      leaseStart: "Feb 1, 2024",
+      leaseEnd: "Jan 31, 2025",
+      rentAmount: "$5,800/mo",
+      paymentStatus: "Pending",
+      lastPayment: "15 days ago",
+      moveInDate: "Feb 1, 2024"
+    },
+    {
+      id: 3,
+      name: "Sarah Johnson",
+      avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
+      email: "sarah.j@email.com",
+      phone: "+1-425-5559876",
+      property: "555 Maple Drive, Bellevue, WA",
+      status: "Active",
+      leaseStart: "Mar 15, 2024",
+      leaseEnd: "Mar 14, 2025",
+      rentAmount: "$6,500/mo",
+      paymentStatus: "Paid",
+      lastPayment: "5 days ago",
+      moveInDate: "Mar 15, 2024"
+    },
+    {
+      id: 4,
+      name: "Mike Chen",
+      avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff",
+      email: "mike.chen@email.com",
+      phone: "+1-206-5554321",
+      property: "456 Oak Avenue, Seattle, WA",
+      status: "Past",
+      leaseStart: "Dec 1, 2023",
+      leaseEnd: "Nov 30, 2024",
+      rentAmount: "$4,200/mo",
+      paymentStatus: "Completed",
+      lastPayment: "30 days ago",
+      moveInDate: "Dec 1, 2023"
+    },
+  ];
 
   // Mock contracts data
   const contracts = [
@@ -946,6 +1011,152 @@ export default function DashboardPage() {
                 <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
                   Create Contract
                 </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Tenants Tab */}
+      {activeTab === "tenants" && (
+        <>
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-4xl font-bold text-black mb-2">Tenants</h2>
+                <p className="text-lg text-gray-600">Manage your current and past tenants</p>
+              </div>
+              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Add Tenant
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search tenants by name, property, or email..."
+                  value={tenantSearch}
+                  onChange={(e) => setTenantSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Tenants Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tenants
+                .filter((tenant) => {
+                  const searchLower = tenantSearch.toLowerCase();
+                  return (
+                    tenant.name.toLowerCase().includes(searchLower) ||
+                    tenant.email.toLowerCase().includes(searchLower) ||
+                    tenant.property.toLowerCase().includes(searchLower)
+                  );
+                })
+                .map((tenant) => (
+                  <div
+                    key={tenant.id}
+                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={tenant.avatar}
+                          alt={tenant.name}
+                          className="w-14 h-14 rounded-full"
+                        />
+                        <div>
+                          <h3 className="font-bold text-black text-lg">{tenant.name}</h3>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            tenant.status === "Active" 
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}>
+                            {tenant.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Info */}
+                    <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Mail className="w-4 h-4" />
+                        <span className="truncate">{tenant.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Phone className="w-4 h-4" />
+                        <span>{tenant.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <MapPin className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{tenant.property}</span>
+                      </div>
+                    </div>
+
+                    {/* Lease Info */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Rent:</span>
+                        <span className="font-semibold text-black">{tenant.rentAmount}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Lease:</span>
+                        <span className="text-gray-900">{tenant.leaseStart} - {tenant.leaseEnd}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Payment:</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          tenant.paymentStatus === "Paid"
+                            ? "bg-green-100 text-green-700"
+                            : tenant.paymentStatus === "Pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}>
+                          {tenant.paymentStatus === "Paid" && <CheckCircle className="w-3 h-3" />}
+                          {tenant.paymentStatus === "Pending" && <Clock className="w-3 h-3" />}
+                          {tenant.paymentStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <button className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm font-medium">
+                        <MessageSquare className="w-4 h-4" />
+                        Message
+                      </button>
+                      <button className="flex-1 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium">
+                        <FileText className="w-4 h-4" />
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Empty state */}
+            {tenants.filter((tenant) => {
+              const searchLower = tenantSearch.toLowerCase();
+              return (
+                tenant.name.toLowerCase().includes(searchLower) ||
+                tenant.email.toLowerCase().includes(searchLower) ||
+                tenant.property.toLowerCase().includes(searchLower)
+              );
+            }).length === 0 && (
+              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-black mb-2">No tenants found</h3>
+                <p className="text-gray-600">
+                  {tenantSearch ? "Try adjusting your search terms." : "Add your first tenant to get started."}
+                </p>
               </div>
             )}
           </div>
