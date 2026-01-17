@@ -91,31 +91,23 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <main className={`ml-64 transition-all duration-300 ${showAIChat ? 'mr-[500px]' : 'mr-0'}`}>
+      <main className={`ml-64 transition-all duration-300 ${showAIChat ? 'mr-[400px]' : 'mr-0'}`}>
         {children}
       </main>
 
-      {/* AI Chat Panel - Cursor Style (Sidebar, not overlay) */}
-      <aside className={`fixed right-0 top-0 h-full w-[500px] bg-white border-l border-gray-200 shadow-2xl z-40 flex flex-col transition-transform duration-300 ${
+      {/* AI Chat Panel - Uber Style */}
+      <aside className={`fixed right-0 top-[73px] h-[calc(100vh-73px)] w-[400px] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
         showAIChat ? 'translate-x-0' : 'translate-x-full'
       }`}>
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-black">AI Assistant</h2>
-                <p className="text-sm text-gray-500">Ask me anything</p>
-              </div>
-            </div>
+            <h2 className="text-xl font-semibold text-black">AI Assistant</h2>
             <button
               onClick={() => setShowAIChat(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -123,18 +115,15 @@ export default function DashboardLayout({
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
           {/* AI Welcome Message */}
           <div className="flex gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
             <div className="flex-1">
-              <div className="bg-gray-100 rounded-2xl rounded-tl-none px-4 py-3">
-                <p className="text-gray-800">
+              <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100">
+                <p className="text-gray-800 text-sm mb-2">
                   Hi! I'm your AI assistant. I can help you with:
                 </p>
-                <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                <ul className="space-y-1 text-sm text-gray-600">
                   <li>• Drafting messages to tenants</li>
                   <li>• Analyzing property performance</li>
                   <li>• Answering real estate questions</li>
@@ -146,14 +135,14 @@ export default function DashboardLayout({
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-100 bg-white">
           <div className="flex gap-2">
             <input
               type="text"
               placeholder="Ask AI anything..."
-              className="flex-1 px-4 py-3 bg-gray-100 border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
             />
-            <button className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-opacity">
+            <button className="w-10 h-10 bg-black text-white rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
