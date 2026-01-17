@@ -1256,7 +1256,7 @@ export default function DashboardPage() {
                 .map((tenant) => (
                   <div
                     key={tenant.id}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                   >
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -1332,7 +1332,7 @@ export default function DashboardPage() {
                         Message
                       </button>
                       <Link href={`/dashboard/tenant/${tenant.id}`} className="flex-1">
-                        <button className="w-full px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium">
+                        <button className="w-full px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium cursor-pointer">
                           <FileText className="w-4 h-4" />
                           Details
                         </button>
