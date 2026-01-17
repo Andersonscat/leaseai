@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Send } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -10,6 +10,8 @@ export default function PropertyPage() {
   const propertyId = parseInt(params.id as string);
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [selectedChat, setSelectedChat] = useState<number | null>(null);
+  const [messageInput, setMessageInput] = useState("");
 
   // Mock property data
   const properties = [
@@ -124,7 +126,12 @@ export default function PropertyPage() {
       avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
       lastMessage: "Is this property still available?",
       time: "2 hours ago",
-      unread: 2
+      unread: 2,
+      messages: [
+        { id: 1, text: "Hi! I'm interested in this property.", sender: "tenant", time: "10:30 AM" },
+        { id: 2, text: "Is this property still available?", sender: "tenant", time: "10:31 AM" },
+        { id: 3, text: "Yes, it's available! Would you like to schedule a viewing?", sender: "landlord", time: "10:45 AM" },
+      ]
     },
     {
       id: 2,
@@ -132,7 +139,13 @@ export default function PropertyPage() {
       avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
       lastMessage: "Can we schedule a viewing for this weekend?",
       time: "5 hours ago",
-      unread: 0
+      unread: 0,
+      messages: [
+        { id: 1, text: "Hello! This looks like a great property.", sender: "tenant", time: "9:00 AM" },
+        { id: 2, text: "Can we schedule a viewing for this weekend?", sender: "tenant", time: "9:01 AM" },
+        { id: 3, text: "Sure! Saturday or Sunday works best?", sender: "landlord", time: "9:15 AM" },
+        { id: 4, text: "Saturday around 2 PM would be perfect!", sender: "tenant", time: "9:20 AM" },
+      ]
     },
     {
       id: 3,
@@ -140,7 +153,11 @@ export default function PropertyPage() {
       avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff",
       lastMessage: "What are the lease terms?",
       time: "1 day ago",
-      unread: 1
+      unread: 1,
+      messages: [
+        { id: 1, text: "What are the lease terms?", sender: "tenant", time: "Yesterday" },
+        { id: 2, text: "Standard 12-month lease. We can discuss details.", sender: "landlord", time: "Yesterday" },
+      ]
     },
     {
       id: 4,
@@ -148,7 +165,12 @@ export default function PropertyPage() {
       avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff",
       lastMessage: "Are pets allowed in this property?",
       time: "2 days ago",
-      unread: 0
+      unread: 0,
+      messages: [
+        { id: 1, text: "Are pets allowed in this property?", sender: "tenant", time: "2 days ago" },
+        { id: 2, text: "Yes, pets are welcome with a deposit!", sender: "landlord", time: "2 days ago" },
+        { id: 3, text: "Great! I have a small dog.", sender: "tenant", time: "2 days ago" },
+      ]
     }
   ];
 
@@ -160,6 +182,15 @@ export default function PropertyPage() {
 
   const prevImage = () => {
     setCurrentImageIndex((prev) => (prev - 1 + property.images.length) % property.images.length);
+  };
+
+  const selectedChatData = chats.find(c => c.id === selectedChat);
+
+  const handleSendMessage = () => {
+    if (messageInput.trim()) {
+      console.log("Sending message:", messageInput);
+      setMessageInput("");
+    }
   };
 
   return (
@@ -174,8 +205,10 @@ export default function PropertyPage() {
         </Link>
       </div>
 
-      {/* Main Content */}
-      <div>
+      {/* Main Content with Chat Sidebar */}
+      <div className="flex gap-6">
+        {/* Left Content - Property Details */}
+        <div className={`flex-1 transition-all ${selectedChat ? 'mr-0' : ''}`}>
         {/* Image Gallery */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-lg mb-8">
           <div className="relative h-[500px] bg-gray-200 group">
@@ -280,6 +313,7 @@ export default function PropertyPage() {
             {chats.map((chat) => (
               <div 
                 key={chat.id}
+                onClick={() => setSelectedChat(chat.id)}
                 className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all cursor-pointer"
               >
                 <img 
@@ -304,6 +338,78 @@ export default function PropertyPage() {
           </div>
         </div>
       </div>
+
+      {/* Chat Sidebar */}
+      {selectedChat && selectedChatData && (
+        <div className="w-[450px] flex-shrink-0">
+          <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
+            {/* Chat Header */}
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={selectedChatData.avatar} 
+                  alt={selectedChatData.name}
+                  className="w-12 h-12 rounded-full"
+                />
+                <div>
+                  <h3 className="font-bold text-black">{selectedChatData.name}</h3>
+                  <p className="text-sm text-gray-500">Active now</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedChat(null)}
+                className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {selectedChatData.messages.map((message) => (
+                <div 
+                  key={message.id}
+                  className={`flex ${message.sender === 'landlord' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[70%] ${
+                    message.sender === 'landlord' 
+                      ? 'bg-black text-white' 
+                      : 'bg-gray-100 text-black'
+                  } rounded-2xl px-4 py-3`}>
+                    <p className="text-sm">{message.text}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.sender === 'landlord' ? 'text-gray-300' : 'text-gray-500'
+                    }`}>
+                      {message.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Message Input */}
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-3 rounded-xl bg-gray-100 border-none focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-all"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }
