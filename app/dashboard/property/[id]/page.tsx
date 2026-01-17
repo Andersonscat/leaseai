@@ -310,7 +310,14 @@ export default function PropertyPage() {
 
         {/* Interested Tenants / Chats */}
         <div className="bg-white rounded-3xl p-8 shadow-lg">
-          <h2 className="text-2xl font-bold text-black mb-6">Interested Tenants ({chats.length})</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-black">Interested Tenants ({chats.length})</h2>
+            {selectedChat && (
+              <span className="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold">
+                Chat #{selectedChat} selected
+              </span>
+            )}
+          </div>
           
           <div className="grid md:grid-cols-2 gap-4">
             {chats.map((chat) => (
@@ -345,6 +352,14 @@ export default function PropertyPage() {
         </div>
         </div>
         {/* End of Left Content */}
+
+        {/* Chat Sidebar - Debug */}
+        {selectedChat && (
+          <div className="w-[450px] flex-shrink-0 bg-red-100 p-4">
+            <p>Chat panel should be here. Selected ID: {selectedChat}</p>
+            <p>Has data: {selectedChatData ? 'Yes' : 'No'}</p>
+          </div>
+        )}
 
         {/* Chat Sidebar */}
         {selectedChat && selectedChatData && (
