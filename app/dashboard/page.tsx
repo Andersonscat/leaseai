@@ -1390,6 +1390,115 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      {/* Settings Tab */}
+      {activeTab === "settings" && (
+        <>
+          <div className="mb-10">
+            <h2 className="text-4xl font-bold text-black mb-2">Settings</h2>
+            <p className="text-lg text-gray-600">Manage your account and preferences</p>
+          </div>
+
+          <div className="space-y-6">
+            {/* Profile Section */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+              <h3 className="text-2xl font-bold text-black mb-6">Profile</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="John Doe"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    placeholder="john@example.com"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 (555) 123-4567"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
+                  Save Changes
+                </button>
+              </div>
+            </div>
+
+            {/* Notifications Section */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+              <h3 className="text-2xl font-bold text-black mb-6">Notifications</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-semibold text-black">Email Notifications</p>
+                    <p className="text-sm text-gray-600">Receive updates about new messages and leads</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-semibold text-black">SMS Notifications</p>
+                    <p className="text-sm text-gray-600">Get text alerts for urgent matters</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="font-semibold text-black">Weekly Reports</p>
+                    <p className="text-sm text-gray-600">Summary of your activity and performance</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Security Section */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+              <h3 className="text-2xl font-bold text-black mb-6">Security</h3>
+              <div className="space-y-4">
+                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
+                  Change Password
+                </button>
+                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
+                  Two-Factor Authentication
+                </button>
+                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
+                  Connected Accounts
+                </button>
+              </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-red-200">
+              <h3 className="text-2xl font-bold text-red-600 mb-6">Danger Zone</h3>
+              <div className="space-y-4">
+                <button className="w-full px-6 py-3 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all">
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
