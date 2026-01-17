@@ -28,7 +28,12 @@ export default function DashboardPage() {
       description: "Beautiful modern home with stunning views. Recently renovated with high-end finishes throughout. Open concept living space perfect for entertaining.",
       amenities: ["WiFi", "Air Conditioning", "Parking", "Dishwasher", "Washer/Dryer", "Hardwood Floors"],
       features: ["Central AC", "Stainless Steel Appliances", "Granite Countertops", "Walk-in Closets", "Balcony", "Storage Space"],
-      rules: ["No smoking", "Pets allowed with deposit", "Maximum 4 occupants", "12 month lease minimum"]
+      rules: ["No smoking", "Pets allowed with deposit", "Maximum 4 occupants", "12 month lease minimum"],
+      interestedTenants: [
+        { name: "John Smith", avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff" },
+        { name: "Sarah Johnson", avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff" },
+      ],
+      chatCount: 2
     },
     {
       id: 2,
@@ -47,7 +52,11 @@ export default function DashboardPage() {
       description: "Spacious family home in quiet neighborhood. Large backyard perfect for entertaining. Close to schools and parks.",
       amenities: ["WiFi", "Central Heating", "2-Car Garage", "Dishwasher", "Washer/Dryer", "Fireplace"],
       features: ["Open Kitchen", "Master Suite", "Hardwood Floors", "Fenced Yard", "Patio", "Updated Bathroom"],
-      rules: ["No smoking", "No pets", "Maximum 6 occupants", "Credit check required"]
+      rules: ["No smoking", "No pets", "Maximum 6 occupants", "Credit check required"],
+      interestedTenants: [
+        { name: "Mike Chen", avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff" },
+      ],
+      chatCount: 1
     },
     {
       id: 3,
@@ -66,7 +75,13 @@ export default function DashboardPage() {
       description: "Luxury estate with premium finishes. Smart home features throughout. Private backyard with pool and entertainment area.",
       amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage", "Wine Cellar", "Home Theater"],
       features: ["Gourmet Kitchen", "Spa Bathroom", "Walk-in Closets", "Home Office", "Gym Space", "Security System"],
-      rules: ["No smoking", "Cats allowed only", "Maximum 8 occupants", "Background check required"]
+      rules: ["No smoking", "Cats allowed only", "Maximum 8 occupants", "Background check required"],
+      interestedTenants: [
+        { name: "Emily Davis", avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff" },
+        { name: "David Lee", avatar: "https://ui-avatars.com/api/?name=David+Lee&background=8B5CF6&color=fff" },
+        { name: "Anna White", avatar: "https://ui-avatars.com/api/?name=Anna+White&background=EC4899&color=fff" },
+      ],
+      chatCount: 3
     },
     {
       id: 4,
@@ -84,7 +99,9 @@ export default function DashboardPage() {
       description: "Cozy studio apartment perfect for professionals. Modern amenities and great location near downtown.",
       amenities: ["WiFi", "Air Conditioning", "Parking Spot", "Dishwasher", "In-unit Laundry"],
       features: ["Hardwood Floors", "Updated Kitchen", "Large Windows", "Storage", "Bike Storage"],
-      rules: ["No smoking", "No pets", "Maximum 2 occupants", "First and last month required"]
+      rules: ["No smoking", "No pets", "Maximum 2 occupants", "First and last month required"],
+      interestedTenants: [],
+      chatCount: 0
     },
     {
       id: 5,
@@ -102,7 +119,14 @@ export default function DashboardPage() {
       description: "Executive home with panoramic views. High-end finishes and designer touches throughout. Perfect for luxury living.",
       amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Wine Room", "Gym"],
       features: ["Chef's Kitchen", "Master Suite", "Home Theater", "Office", "Guest Suite", "Landscaped Yard"],
-      rules: ["No smoking", "Pets allowed with approval", "Maximum 8 occupants", "References required"]
+      rules: ["No smoking", "Pets allowed with approval", "Maximum 8 occupants", "References required"],
+      interestedTenants: [
+        { name: "Tom Brown", avatar: "https://ui-avatars.com/api/?name=Tom+Brown&background=06B6D4&color=fff" },
+        { name: "Lisa Green", avatar: "https://ui-avatars.com/api/?name=Lisa+Green&background=84CC16&color=fff" },
+        { name: "Mark Wilson", avatar: "https://ui-avatars.com/api/?name=Mark+Wilson&background=F97316&color=fff" },
+        { name: "Sophie Taylor", avatar: "https://ui-avatars.com/api/?name=Sophie+Taylor&background=A855F7&color=fff" },
+      ],
+      chatCount: 4
     },
     {
       id: 6,
@@ -120,7 +144,11 @@ export default function DashboardPage() {
       description: "Charming townhouse with modern updates. Great for dog owners with nearby parks and trails.",
       amenities: ["WiFi", "Central Heating", "Parking", "Dishwasher", "Washer/Dryer Hookup"],
       features: ["Updated Kitchen", "Patio", "Storage", "Hardwood Floors", "Walk-in Closet"],
-      rules: ["No smoking", "Dogs allowed (max 2)", "Maximum 4 occupants", "Yard maintenance required"]
+      rules: ["No smoking", "Dogs allowed (max 2)", "Maximum 4 occupants", "Yard maintenance required"],
+      interestedTenants: [
+        { name: "Chris Martin", avatar: "https://ui-avatars.com/api/?name=Chris+Martin&background=14B8A6&color=fff" },
+      ],
+      chatCount: 1
     }
   ];
 
@@ -246,12 +274,36 @@ export default function DashboardPage() {
 
                     {/* Property Info */}
                     <div className="p-6">
-                      <div className="mb-3">
-                        <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
-                        <div className="flex items-start gap-1 text-gray-600 text-sm">
-                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                          <span>{property.address}</span>
+                      <div className="flex items-start justify-between mb-3 gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
+                          <div className="flex items-start gap-1 text-gray-600 text-sm">
+                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span>{property.address}</span>
+                          </div>
                         </div>
+                        
+                        {/* Interested Tenants Badges */}
+                        {property.chatCount > 0 && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <div className="flex -space-x-2">
+                              {property.interestedTenants.slice(0, 3).map((tenant, idx) => (
+                                <img
+                                  key={idx}
+                                  src={tenant.avatar}
+                                  alt={tenant.name}
+                                  className="w-8 h-8 rounded-full border-2 border-white"
+                                  title={tenant.name}
+                                />
+                              ))}
+                              {property.chatCount > 3 && (
+                                <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Property Details */}
