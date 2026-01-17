@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedSort, setSelectedSort] = useState<string>("none");
   const [propertyType, setPropertyType] = useState<"rent" | "sale">("rent");
+  const [propertySearch, setPropertySearch] = useState("");
   const [contractSearch, setContractSearch] = useState("");
   const [contractFilter, setContractFilter] = useState<"all" | "active" | "pending" | "completed" | "draft">("all");
   const [tenantSearch, setTenantSearch] = useState("");
@@ -484,6 +485,24 @@ export default function DashboardPage() {
   const getSortedProperties = () => {
     // First filter by property type
     let filtered = properties.filter(p => p.type === propertyType);
+    
+    // Then filter by search query
+    if (propertySearch.trim()) {
+      const searchLower = propertySearch.toLowerCase();
+      filtered = filtered.filter(property => 
+        property.address.toLowerCase().includes(searchLower) ||
+        property.price.toLowerCase().includes(searchLower) ||
+        property.beds.toString().includes(searchLower) ||
+        property.baths.toString().includes(searchLower) ||
+        property.sqft.toLowerCase().includes(searchLower) ||
+        property.pets.toLowerCase().includes(searchLower) ||
+        property.status.toLowerCase().includes(searchLower) ||
+        property.description.toLowerCase().includes(searchLower) ||
+        property.amenities.some(a => a.toLowerCase().includes(searchLower)) ||
+        property.features.some(f => f.toLowerCase().includes(searchLower))
+      );
+    }
+    
     let sorted = [...filtered];
 
     switch (selectedSort) {
@@ -767,37 +786,50 @@ export default function DashboardPage() {
 
             {/* Rent/Sale Toggle - Below Title */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit">
-                  <button
-                    onClick={() => {
-                      console.log("Rent button clicked");
-                      setPropertyType("rent");
-                    }}
-                    className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                      propertyType === "rent"
-                        ? "bg-black text-white shadow-sm"
-                        : "text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    Rent
-                  </button>
-                  <button
-                    onClick={() => {
-                      console.log("Sale button clicked");
-                      setPropertyType("sale");
-                    }}
-                    className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                      propertyType === "sale"
-                        ? "bg-black text-white shadow-sm"
-                        : "text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    Sale
-                  </button>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-6">
+                <button
+                  onClick={() => {
+                    console.log("Rent button clicked");
+                    setPropertyType("rent");
+                  }}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    propertyType === "rent"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Rent
+                </button>
+                <button
+                  onClick={() => {
+                    console.log("Sale button clicked");
+                    setPropertyType("sale");
+                  }}
+                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+                    propertyType === "sale"
+                      ? "bg-black text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Sale
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search properties by address, price, or features..."
+                    value={propertySearch}
+                    onChange={(e) => setPropertySearch(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                  />
                 </div>
-                
-                {/* Property Count */}
+              </div>
+              
+              <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-600">
                   Showing {sortedProperties.length} {propertyType === "rent" ? "rental" : "sale"} properties
                 </p>
@@ -806,8 +838,30 @@ export default function DashboardPage() {
           </div>
 
           {/* Properties Grid */}
-          <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            {sortedProperties.map((property) => (
+          {sortedProperties.length === 0 ? (
+            <div className="bg-white rounded-2xl p-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-bold text-black mb-2">No properties found</h3>
+              <p className="text-gray-600 mb-4">
+                {propertySearch.trim() 
+                  ? "Try adjusting your search terms or clear the search to see all properties." 
+                  : `No ${propertyType === "rent" ? "rental" : "sale"} properties available at the moment.`
+                }
+              </p>
+              {propertySearch.trim() && (
+                <button
+                  onClick={() => setPropertySearch("")}
+                  className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all"
+                >
+                  Clear Search
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+              {sortedProperties.map((property) => (
               <Link 
                 key={property.id} 
                 href={`/dashboard/property/${property.id}`}
@@ -892,6 +946,7 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
+          )}
 
           {/* Add Property Button */}
           <div className="mt-8 text-center">
