@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
-import { ArrowLeft, Download, Share2, Clock, Check, MoreVertical, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, Share2, Clock, Check, MoreVertical, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered } from "lucide-react";
 import Link from "next/link";
 
 export default function ContractEditorPage() {
@@ -115,36 +114,8 @@ Tenant: _______________________ Date: _____`
     document.body.removeChild(element);
   };
 
-  const toggleAIChat = () => {
-    window.dispatchEvent(new CustomEvent('toggleAIChat'));
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Header with Logo */}
-      <div className="bg-black sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <Link href="/dashboard?tab=contracts">
-            <h1 className="text-2xl font-bold text-white cursor-pointer">LeaseAI</h1>
-          </Link>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleAIChat}
-              className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
-              title="AI Assistant"
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
-            <Link href="/billing">
-              <button className="bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded font-semibold text-sm transition-all">
-                Upgrade
-              </button>
-            </Link>
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
-      </div>
-
       {/* Editor Header - Google Docs style */}
       <header className="bg-white border-b border-gray-200 sticky top-[73px] z-40">
         <div className="px-4 py-3">

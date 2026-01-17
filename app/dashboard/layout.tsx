@@ -50,20 +50,34 @@ export default function DashboardLayout({
     };
   }, [isResizing]);
 
-  // Listen for AI chat toggle from contract editor
-  useEffect(() => {
-    const handleToggleAIChat = () => {
-      setShowAIChat(prev => !prev);
-    };
-
-    window.addEventListener('toggleAIChat', handleToggleAIChat);
-    return () => window.removeEventListener('toggleAIChat', handleToggleAIChat);
-  }, []);
-
   // If we're on contract editor, render without sidebar but WITH AI chat
   if (isContractEditor) {
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Header - Same as dashboard */}
+        <header className="bg-black sticky top-0 z-50">
+          <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+            <Link href="/dashboard">
+              <h1 className="text-2xl font-bold text-white cursor-pointer">LeaseAI</h1>
+            </Link>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowAIChat(!showAIChat)}
+                className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
+                title="AI Assistant"
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
+              <Link href="/billing">
+                <button className="bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded font-semibold text-sm transition-all">
+                  Upgrade
+                </button>
+              </Link>
+              <UserButton afterSignOutUrl="/" />
+            </div>
+          </div>
+        </header>
+
         {/* Main Content - No sidebar, no left margin */}
         <main 
           className="transition-all duration-300"
