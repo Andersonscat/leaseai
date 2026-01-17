@@ -307,7 +307,18 @@ export default function PropertyPage() {
 
         {/* Interested Tenants / Chats */}
         <div className="bg-white rounded-3xl p-8 shadow-lg">
-          <h2 className="text-2xl font-bold text-black mb-6">Interested Tenants ({chats.length})</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-black">Interested Tenants ({chats.length})</h2>
+            <button 
+              onClick={() => {
+                // TODO: Open all chats view
+                console.log("All chats clicked");
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
+            >
+              All chats
+            </button>
+          </div>
           
           <div className="grid md:grid-cols-2 gap-4">
             {chats.map((chat) => (
