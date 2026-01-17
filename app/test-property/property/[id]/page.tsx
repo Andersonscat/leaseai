@@ -412,6 +412,17 @@ export default function PropertyPage() {
             {/* Chat Header */}
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
+                {/* Back button */}
+                <button
+                  onClick={() => {
+                    setSelectedChat(null);
+                    setShowAllChats(true);
+                  }}
+                  className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all mr-2"
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-600" />
+                </button>
+                
                 <img 
                   src={selectedChatData.avatar} 
                   alt={selectedChatData.name}
