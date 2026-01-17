@@ -12,6 +12,7 @@ export default function PropertyPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
+  const [showAllChats, setShowAllChats] = useState(false);
 
   // Mock property data
   const properties = [
@@ -311,8 +312,8 @@ export default function PropertyPage() {
             <h2 className="text-2xl font-bold text-black">Interested Tenants ({chats.length})</h2>
             <button 
               onClick={() => {
-                // TODO: Open all chats view
-                console.log("All chats clicked");
+                setShowAllChats(true);
+                setSelectedChat(null);
               }}
               className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
             >
@@ -350,6 +351,59 @@ export default function PropertyPage() {
         </div>
         </div>
         {/* End of Left Content */}
+
+        {/* All Chats Sidebar (WhatsApp style) */}
+        {showAllChats && (
+          <div className="w-[450px] flex-shrink-0">
+            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-200px)] flex flex-col sticky top-6">
+              {/* Header */}
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-black">All Chats</h3>
+                <button 
+                  onClick={() => setShowAllChats(false)}
+                  className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              {/* Chats List */}
+              <div className="flex-1 overflow-y-auto">
+                {chats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    onClick={() => {
+                      setSelectedChat(chat.id);
+                      setShowAllChats(false);
+                    }}
+                    className="flex items-center gap-4 p-4 border-b border-gray-100 hover:bg-gray-50 transition-all cursor-pointer"
+                  >
+                    <div className="relative">
+                      <img 
+                        src={chat.avatar} 
+                        alt={chat.name}
+                        className="w-14 h-14 rounded-full"
+                      />
+                      {chat.unread > 0 && (
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                          {chat.unread}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="font-bold text-black">{chat.name}</h4>
+                        <span className="text-xs text-gray-400">{chat.time}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 truncate">{chat.lastMessage}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Chat Sidebar */}
         {selectedChat && selectedChatData && (
