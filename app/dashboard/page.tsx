@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -243,9 +242,17 @@ export default function DashboardPage() {
           {/* Properties Tab */}
           {activeTab === "properties" && (
             <>
-              <div className="mb-10">
-                <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
-                <p className="text-lg text-gray-600">Manage your real estate listings</p>
+              <div className="mb-10 flex items-center justify-between">
+                <div>
+                  <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
+                  <p className="text-lg text-gray-600">Manage your real estate listings</p>
+                </div>
+                
+                {/* Filter Button */}
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm">
+                  <Filter className="w-4 h-4" />
+                  Filter
+                </button>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
