@@ -917,20 +917,6 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Search Bar */}
-            <div className="mb-6">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search contracts by name, tenant, or property..."
-                  value={contractSearch}
-                  onChange={(e) => setContractSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
-
             {/* Contract Filters */}
             <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-6">
               {["all", "active", "pending", "completed", "draft"].map((filter) => (
@@ -946,6 +932,20 @@ export default function DashboardPage() {
                   {filter}
                 </button>
               ))}
+            </div>
+
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search contracts by name, tenant, or property..."
+                  value={contractSearch}
+                  onChange={(e) => setContractSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                />
+              </div>
             </div>
 
             {/* Contracts Table */}
