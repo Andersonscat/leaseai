@@ -1,24 +1,28 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/test-property(.*)",
-  "/test-db(.*)",    // Database connection test
-  "/dashboard(.*)",  // Temporarily public for testing
-  "/billing(.*)",    // Temporarily public for testing
-]);
+// Public routes that don't require authentication
+const publicRoutes = ['/', '/login', '/signup', '/test-db', '/test-properties'];
 
-export default clerkMiddleware((auth, request) => {
-  if (!isPublicRoute(request)) {
-    auth().protect();
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Check if the route is public
+  const isPublicRoute = publicRoutes.some(route => 
+    pathname === route || pathname.startsWith(route)
+  );
+  
+  if (isPublicRoute) {
+    return NextResponse.next();
   }
-});
+  
+  // For now, allow all routes (we'll add auth check later)
+  // TODO: Check for Supabase session
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

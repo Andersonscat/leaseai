@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserButton } from "@clerk/nextjs";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -17,6 +18,25 @@ export default function DashboardLayout({
   const [showAIChat, setShowAIChat] = useState(false);
   const [chatWidth, setChatWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+  const [user, setUser] = useState<any>(null);
+
+  // Load user on mount
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    loadUser();
+  }, [supabase]);
+
+  // Handle logout
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  };
 
   // Check if we're on the contract editor page
   const isContractEditor = pathname.includes('/contract/');
@@ -74,7 +94,9 @@ export default function DashboardLayout({
                 </button>
               </Link>
               <div className="scale-125 flex items-center justify-center">
-                <UserButton afterSignOutUrl="/" />
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-blue-700 transition-all" title={user?.email || 'User'}>
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </div>
               </div>
             </div>
           </div>
@@ -180,7 +202,9 @@ export default function DashboardLayout({
               </button>
             </Link>
             <div className="scale-125 flex items-center justify-center">
-              <UserButton afterSignOutUrl="/" />
+              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-blue-700 transition-all" title={user?.email || 'User'}>
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
             </div>
           </div>
         </div>
@@ -271,12 +295,13 @@ export default function DashboardLayout({
               </div>
             </Link>
 
-            <Link href="/sign-out">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:bg-red-50 text-red-600 cursor-pointer">
-                <LogOut className="w-5 h-5" />
-                <span>Log Out</span>
-              </div>
-            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:bg-red-50 text-red-600 cursor-pointer"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Log Out</span>
+            </button>
           </div>
         </div>
       </aside>
