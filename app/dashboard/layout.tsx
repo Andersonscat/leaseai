@@ -116,32 +116,16 @@ export default function DashboardLayout({
                     <div className="absolute right-0 top-12 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
                       {/* User Info */}
                       <div className="px-4 py-3 border-b border-gray-200">
-                        <p className="font-semibold text-gray-800">{user?.user_metadata?.full_name || 'User'}</p>
-                        <p className="text-sm text-gray-500">{user?.email}</p>
+                        <p className="font-semibold text-gray-900">{user?.user_metadata?.full_name || 'User'}</p>
+                        <p className="text-sm text-gray-600">{user?.email}</p>
                       </div>
                       
-                      {/* Menu Items */}
-                      <Link href="/dashboard?tab=settings" onClick={() => setShowUserMenu(false)}>
-                        <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
-                          <Settings className="w-4 h-4" />
-                          <span>Settings</span>
-                        </div>
-                      </Link>
-                      
-                      <Link href="/billing" onClick={() => setShowUserMenu(false)}>
-                        <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
-                          <CreditCard className="w-4 h-4" />
-                          <span>Billing</span>
-                        </div>
-                      </Link>
-                      
-                      <div className="border-t border-gray-200 my-2"></div>
-                      
+                      {/* Log Out */}
                       <div 
                         onClick={handleLogout}
-                        className="px-4 py-2 hover:bg-red-50 cursor-pointer flex items-center gap-2 text-red-600"
+                        className="px-4 py-3 hover:bg-red-50 cursor-pointer flex items-center gap-3 text-red-600 font-medium transition-all"
                       >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-5 h-5" />
                         <span>Log Out</span>
                       </div>
                     </div>
@@ -273,32 +257,16 @@ export default function DashboardLayout({
                   <div className="absolute right-0 top-12 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
                     {/* User Info */}
                     <div className="px-4 py-3 border-b border-gray-200">
-                      <p className="font-semibold text-gray-800">{user?.user_metadata?.full_name || 'User'}</p>
-                      <p className="text-sm text-gray-500">{user?.email}</p>
+                      <p className="font-semibold text-gray-900">{user?.user_metadata?.full_name || 'User'}</p>
+                      <p className="text-sm text-gray-600">{user?.email}</p>
                     </div>
                     
-                    {/* Menu Items */}
-                    <Link href="/dashboard?tab=settings" onClick={() => setShowUserMenu(false)}>
-                      <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
-                        <Settings className="w-4 h-4" />
-                        <span>Settings</span>
-                      </div>
-                    </Link>
-                    
-                    <Link href="/billing" onClick={() => setShowUserMenu(false)}>
-                      <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
-                        <CreditCard className="w-4 h-4" />
-                        <span>Billing</span>
-                      </div>
-                    </Link>
-                    
-                    <div className="border-t border-gray-200 my-2"></div>
-                    
+                    {/* Log Out */}
                     <div 
                       onClick={handleLogout}
-                      className="px-4 py-2 hover:bg-red-50 cursor-pointer flex items-center gap-2 text-red-600"
+                      className="px-4 py-3 hover:bg-red-50 cursor-pointer flex items-center gap-3 text-red-600 font-medium transition-all"
                     >
-                      <LogOut className="w-4 h-4" />
+                      <LogOut className="w-5 h-5" />
                       <span>Log Out</span>
                     </div>
                   </div>
