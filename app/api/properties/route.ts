@@ -1,9 +1,36 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+// Helper to create authenticated Supabase client
+function createAuthenticatedClient() {
+  const cookieStore = cookies();
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+}
 
 // GET - Fetch all properties for the current user
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const supabase = createAuthenticatedClient();
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // 'rent' or 'sale'
     
@@ -33,17 +60,24 @@ export async function GET(request: Request) {
 }
 
 // POST - Create a new property
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const supabase = createAuthenticatedClient();
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const body = await request.json();
     
-    // TODO: Get user_id from auth session
-    // For now, you'll need to add user_id from Clerk or Supabase Auth
     const { data, error } = await supabase
       .from('properties')
       .insert([
         {
-          user_id: body.user_id, // Replace with actual auth user ID
+          user_id: user.id, // Use authenticated user's ID
           type: body.type,
           address: body.address,
           price: body.price,
