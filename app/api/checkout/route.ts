@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -7,9 +8,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 export async function POST(req: NextRequest) {
-  const { userId } = auth();
+  const supabase = createRouteHandlerClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
       ],
       success_url: `${req.headers.get("origin")}/dashboard?success=true`,
       cancel_url: `${req.headers.get("origin")}/billing?canceled=true`,
-      client_reference_id: userId,
+      client_reference_id: user.id,
     });
 
     return NextResponse.json({ url: session.url });
