@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign } from "lucide-react";
 import Link from "next/link";
@@ -18,80 +18,468 @@ export default function DashboardPage() {
   const [contractFilter, setContractFilter] = useState<"all" | "active" | "pending" | "completed" | "draft">("all");
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantFilter, setTenantFilter] = useState<"all" | "current" | "pending" | "late" | "archived">("all");
-  
-  // State for properties loaded from Supabase
-  const [properties, setProperties] = useState<any[]>([]);
-  const [loadingProperties, setLoadingProperties] = useState(true);
 
-  // Load properties from Supabase when component mounts or propertyType changes
-  useEffect(() => {
-    const fetchProperties = async () => {
-      setLoadingProperties(true);
-      try {
-        const response = await fetch(`/api/properties?type=${propertyType}`);
-        const data = await response.json();
-        setProperties(data.properties || []);
-      } catch (error) {
-        console.error('Error fetching properties:', error);
-        setProperties([]);
-      } finally {
-        setLoadingProperties(false);
-      }
-    };
+  // Mock tenants data
+  const tenants = [
+    {
+      id: 1,
+      name: "John Smith",
+      avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
+      email: "john.smith@email.com",
+      phone: "+1-425-3250400",
+      property: "123 Main Street, Bellevue, WA",
+      status: "Current",
+      leaseStart: "Jan 1, 2024",
+      leaseEnd: "Dec 31, 2024",
+      rentAmount: "$3,500/mo",
+      paymentStatus: "Paid",
+      lastPayment: "2 days ago",
+      moveInDate: "Jan 1, 2024"
+    },
+    {
+      id: 2,
+      name: "Emily Davis",
+      avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff",
+      email: "emily.davis@email.com",
+      phone: "+1-206-5551234",
+      property: "789 Pine Road, Redmond, WA",
+      status: "Late Payment",
+      leaseStart: "Feb 1, 2024",
+      leaseEnd: "Jan 31, 2025",
+      rentAmount: "$5,800/mo",
+      paymentStatus: "Overdue",
+      lastPayment: "35 days ago",
+      moveInDate: "Feb 1, 2024"
+    },
+    {
+      id: 3,
+      name: "Sarah Johnson",
+      avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
+      email: "sarah.j@email.com",
+      phone: "+1-425-5559876",
+      property: "555 Maple Drive, Bellevue, WA",
+      status: "Current",
+      leaseStart: "Mar 15, 2024",
+      leaseEnd: "Mar 14, 2025",
+      rentAmount: "$6,500/mo",
+      paymentStatus: "Paid",
+      lastPayment: "5 days ago",
+      moveInDate: "Mar 15, 2024"
+    },
+    {
+      id: 4,
+      name: "Mike Chen",
+      avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff",
+      email: "mike.chen@email.com",
+      phone: "+1-206-5554321",
+      property: "456 Oak Avenue, Seattle, WA",
+      status: "Archived",
+      leaseStart: "Dec 1, 2023",
+      leaseEnd: "Nov 30, 2024",
+      rentAmount: "$4,200/mo",
+      paymentStatus: "Completed",
+      lastPayment: "30 days ago",
+      moveInDate: "Dec 1, 2023"
+    },
+    {
+      id: 5,
+      name: "David Lee",
+      avatar: "https://ui-avatars.com/api/?name=David+Lee&background=8B5CF6&color=fff",
+      email: "david.lee@email.com",
+      phone: "+1-425-5552468",
+      property: "321 Cedar Lane, Kirkland, WA",
+      status: "Pending",
+      leaseStart: "Feb 1, 2024",
+      leaseEnd: "Jan 31, 2025",
+      rentAmount: "$4,800/mo",
+      paymentStatus: "Deposit Paid",
+      lastPayment: "1 week ago",
+      moveInDate: "Feb 1, 2024"
+    },
+    {
+      id: 6,
+      name: "Anna White",
+      avatar: "https://ui-avatars.com/api/?name=Anna+White&background=EC4899&color=fff",
+      email: "anna.white@email.com",
+      phone: "+1-206-5557890",
+      property: "777 Elm Street, Bellevue, WA",
+      status: "Current",
+      leaseStart: "Jan 15, 2024",
+      leaseEnd: "Jan 14, 2025",
+      rentAmount: "$3,200/mo",
+      paymentStatus: "Paid",
+      lastPayment: "1 week ago",
+      moveInDate: "Jan 15, 2024"
+    },
+  ];
 
-    fetchProperties();
-  }, [propertyType]);
+  // Mock contracts data
+  const contracts = [
+    {
+      id: 1,
+      name: "Lease_123MainSt_JohnSmith",
+      property: "123 Main Street, Bellevue, WA",
+      tenant: "John Smith",
+      status: "Active",
+      startDate: "Jan 1, 2024",
+      endDate: "Dec 31, 2024",
+      lastModified: "2 weeks ago",
+      created: "3 months ago",
+      isPrimary: true
+    },
+    {
+      id: 2,
+      name: "Lease_789PineRd_EmilyDavis",
+      property: "789 Pine Road, Redmond, WA",
+      tenant: "Emily Davis",
+      status: "Pending",
+      startDate: "Feb 1, 2024",
+      endDate: "Jan 31, 2025",
+      lastModified: "1 day ago",
+      created: "1 week ago",
+      isPrimary: false
+    },
+    {
+      id: 3,
+      name: "Sale_456OakAve_MikeChen",
+      property: "456 Oak Avenue, Seattle, WA",
+      tenant: "Mike Chen",
+      status: "Completed",
+      startDate: "Dec 1, 2023",
+      endDate: "Nov 30, 2024",
+      lastModified: "1 month ago",
+      created: "5 months ago",
+      isPrimary: false
+    },
+    {
+      id: 4,
+      name: "Lease_555MapleDr_SarahJohnson",
+      property: "555 Maple Drive, Bellevue, WA",
+      tenant: "Sarah Johnson",
+      status: "Active",
+      startDate: "Mar 15, 2024",
+      endDate: "Mar 14, 2025",
+      lastModified: "3 days ago",
+      created: "2 months ago",
+      isPrimary: false
+    },
+    {
+      id: 5,
+      name: "Draft_NewLease_Unsigned",
+      property: "321 Cedar Lane, Seattle, WA",
+      tenant: "David Wilson",
+      status: "Draft",
+      startDate: "Apr 1, 2024",
+      endDate: "Mar 31, 2025",
+      lastModified: "2 hours ago",
+      created: "Today",
+      isPrimary: false
+    },
+  ];
 
-  // State for tenants loaded from Supabase
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [loadingTenants, setLoadingTenants] = useState(true);
-
-  // Load tenants from Supabase when component mounts or tenantFilter changes
-  useEffect(() => {
-    const fetchTenants = async () => {
-      setLoadingTenants(true);
-      try {
-        const statusParam = tenantFilter === 'all' ? '' : `?status=${tenantFilter}`;
-        const response = await fetch(`/api/tenants${statusParam}`);
-        const data = await response.json();
-        setTenants(data.tenants || []);
-      } catch (error) {
-        console.error('Error fetching tenants:', error);
-        setTenants([]);
-      } finally {
-        setLoadingTenants(false);
-      }
-    };
-
-    fetchTenants();
-  }, [tenantFilter]);
-
-
-  // State for contracts loaded from Supabase
-  const [contracts, setContracts] = useState<any[]>([]);
-  const [loadingContracts, setLoadingContracts] = useState(true);
-
-  // Load contracts from Supabase when component mounts or contractFilter changes
-  useEffect(() => {
-    const fetchContracts = async () => {
-      setLoadingContracts(true);
-      try {
-        const statusParam = contractFilter === 'all' ? '' : `?status=${contractFilter}`;
-        const response = await fetch(`/api/contracts${statusParam}`);
-        const data = await response.json();
-        setContracts(data.contracts || []);
-      } catch (error) {
-        console.error('Error fetching contracts:', error);
-        setContracts([]);
-      } finally {
-        setLoadingContracts(false);
-      }
-    };
-
-    fetchContracts();
-  }, [contractFilter]);
-
-
+  // Mock properties data with detailed info
+  const properties = [
+    {
+      id: 1,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+        "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800"
+      ],
+      address: "123 Main Street, Bellevue, WA",
+      price: "$3,500/mo",
+      beds: 2,
+      baths: 2,
+      sqft: "1,245",
+      pets: "Allowed",
+      status: "Available",
+      description: "Beautiful modern home with stunning views. Recently renovated with high-end finishes throughout. Open concept living space perfect for entertaining.",
+      amenities: ["WiFi", "Air Conditioning", "Parking", "Dishwasher", "Washer/Dryer", "Hardwood Floors"],
+      features: ["Central AC", "Stainless Steel Appliances", "Granite Countertops", "Walk-in Closets", "Balcony", "Storage Space"],
+      rules: ["No smoking", "Pets allowed with deposit", "Maximum 4 occupants", "12 month lease minimum"],
+      interestedTenants: [
+        { name: "John Smith", avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff" },
+        { name: "Sarah Johnson", avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff" },
+      ],
+      chatCount: 2
+    },
+    {
+      id: 2,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800"
+      ],
+      address: "456 Oak Avenue, Seattle, WA",
+      price: "$850,000",
+      beds: 3,
+      baths: 2.5,
+      sqft: "1,850",
+      pets: "No pets",
+      status: "Available",
+      description: "Spacious family home in quiet neighborhood. Large backyard perfect for entertaining. Close to schools and parks.",
+      amenities: ["WiFi", "Central Heating", "2-Car Garage", "Dishwasher", "Washer/Dryer", "Fireplace"],
+      features: ["Open Kitchen", "Master Suite", "Hardwood Floors", "Fenced Yard", "Patio", "Updated Bathroom"],
+      rules: ["No smoking", "No pets", "Maximum 6 occupants", "Credit check required"],
+      interestedTenants: [
+        { name: "Mike Chen", avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff" },
+      ],
+      chatCount: 1
+    },
+    {
+      id: 3,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800"
+      ],
+      address: "789 Pine Road, Redmond, WA",
+      price: "$5,800/mo",
+      beds: 4,
+      baths: 3,
+      sqft: "2,650",
+      pets: "Cats only",
+      status: "Pending",
+      description: "Luxury estate with premium finishes. Smart home features throughout. Private backyard with pool and entertainment area.",
+      amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage", "Wine Cellar", "Home Theater"],
+      features: ["Gourmet Kitchen", "Spa Bathroom", "Walk-in Closets", "Home Office", "Gym Space", "Security System"],
+      rules: ["No smoking", "Cats allowed only", "Maximum 8 occupants", "Background check required"],
+      interestedTenants: [
+        { name: "Emily Davis", avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff" },
+        { name: "David Lee", avatar: "https://ui-avatars.com/api/?name=David+Lee&background=8B5CF6&color=fff" },
+        { name: "Anna White", avatar: "https://ui-avatars.com/api/?name=Anna+White&background=EC4899&color=fff" },
+      ],
+      chatCount: 3
+    },
+    {
+      id: 4,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800"
+      ],
+      address: "321 Elm Street, Kirkland, WA",
+      price: "$425,000",
+      beds: 1,
+      baths: 1,
+      sqft: "850",
+      pets: "No pets",
+      status: "Available",
+      description: "Cozy studio apartment perfect for professionals. Modern amenities and great location near downtown.",
+      amenities: ["WiFi", "Air Conditioning", "Parking Spot", "Dishwasher", "In-unit Laundry"],
+      features: ["Hardwood Floors", "Updated Kitchen", "Large Windows", "Storage", "Bike Storage"],
+      rules: ["No smoking", "No pets", "Maximum 2 occupants", "First and last month required"],
+      interestedTenants: [],
+      chatCount: 0
+    },
+    {
+      id: 5,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800"
+      ],
+      address: "555 Maple Drive, Bellevue, WA",
+      price: "$6,500/mo",
+      beds: 4,
+      baths: 3.5,
+      sqft: "3,495",
+      pets: "Allowed",
+      status: "Available",
+      description: "Executive home with panoramic views. High-end finishes and designer touches throughout. Perfect for luxury living.",
+      amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Wine Room", "Gym"],
+      features: ["Chef's Kitchen", "Master Suite", "Home Theater", "Office", "Guest Suite", "Landscaped Yard"],
+      rules: ["No smoking", "Pets allowed with approval", "Maximum 8 occupants", "References required"],
+      interestedTenants: [
+        { name: "Tom Brown", avatar: "https://ui-avatars.com/api/?name=Tom+Brown&background=06B6D4&color=fff" },
+        { name: "Lisa Green", avatar: "https://ui-avatars.com/api/?name=Lisa+Green&background=84CC16&color=fff" },
+        { name: "Mark Wilson", avatar: "https://ui-avatars.com/api/?name=Mark+Wilson&background=F97316&color=fff" },
+        { name: "Sophie Taylor", avatar: "https://ui-avatars.com/api/?name=Sophie+Taylor&background=A855F7&color=fff" },
+      ],
+      chatCount: 4
+    },
+    {
+      id: 6,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800",
+      images: [
+        "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800"
+      ],
+      address: "987 Cedar Lane, Issaquah, WA",
+      price: "$3,200/mo",
+      beds: 2,
+      baths: 1.5,
+      sqft: "1,120",
+      pets: "Dogs only",
+      status: "Available",
+      description: "Charming townhouse with modern updates. Great for dog owners with nearby parks and trails.",
+      amenities: ["WiFi", "Central Heating", "Parking", "Dishwasher", "Washer/Dryer Hookup"],
+      features: ["Updated Kitchen", "Patio", "Storage", "Hardwood Floors", "Walk-in Closet"],
+      rules: ["No smoking", "Dogs allowed (max 2)", "Maximum 4 occupants", "Yard maintenance required"],
+      interestedTenants: [
+        { name: "Chris Martin", avatar: "https://ui-avatars.com/api/?name=Chris+Martin&background=14B8A6&color=fff" },
+      ],
+      chatCount: 1
+    },
+    // Additional Rent properties
+    {
+      id: 7,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800",
+      images: ["https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800"],
+      address: "234 Sunset Boulevard, Seattle, WA",
+      price: "$4,800/mo",
+      beds: 3,
+      baths: 2.5,
+      sqft: "2,100",
+      pets: "Allowed",
+      status: "Available",
+      description: "Modern family home with great natural light.",
+      amenities: ["WiFi", "Parking", "Dishwasher", "Washer/Dryer"],
+      features: ["Open Kitchen", "Hardwood Floors", "Patio"],
+      rules: ["No smoking", "Pets allowed", "12 month lease"],
+      interestedTenants: [
+        { name: "Alex Turner", avatar: "https://ui-avatars.com/api/?name=Alex+Turner&background=8B5CF6&color=fff" },
+      ],
+      chatCount: 1
+    },
+    {
+      id: 8,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800",
+      images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800"],
+      address: "789 Lakeview Drive, Kirkland, WA",
+      price: "$5,200/mo",
+      beds: 4,
+      baths: 3,
+      sqft: "2,800",
+      pets: "No pets",
+      status: "Available",
+      description: "Stunning lakefront property with private dock.",
+      amenities: ["WiFi", "Lake Access", "2-Car Garage", "Fireplace"],
+      features: ["Lake View", "Updated Kitchen", "Master Suite"],
+      rules: ["No smoking", "No pets", "Background check required"],
+      interestedTenants: [],
+      chatCount: 0
+    },
+    {
+      id: 9,
+      type: "rent",
+      image: "https://images.unsplash.com/photo-1598228723793-52759bba239c?w=800",
+      images: ["https://images.unsplash.com/photo-1598228723793-52759bba239c?w=800"],
+      address: "456 Park Avenue, Redmond, WA",
+      price: "$3,800/mo",
+      beds: 2,
+      baths: 2,
+      sqft: "1,450",
+      pets: "Cats only",
+      status: "Pending",
+      description: "Cozy apartment near tech hub.",
+      amenities: ["WiFi", "Gym", "Pool", "Parking"],
+      features: ["Balcony", "Modern Appliances", "Storage"],
+      rules: ["No smoking", "Cats only", "6 month minimum"],
+      interestedTenants: [
+        { name: "Rachel Moore", avatar: "https://ui-avatars.com/api/?name=Rachel+Moore&background=EC4899&color=fff" },
+        { name: "Kevin Park", avatar: "https://ui-avatars.com/api/?name=Kevin+Park&background=14B8A6&color=fff" },
+      ],
+      chatCount: 2
+    },
+    // Additional Sale properties
+    {
+      id: 10,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=800",
+      images: ["https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=800"],
+      address: "123 Highland Avenue, Bellevue, WA",
+      price: "$1,250,000",
+      beds: 5,
+      baths: 4,
+      sqft: "3,800",
+      pets: "Allowed",
+      status: "Available",
+      description: "Luxury estate with mountain views.",
+      amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage"],
+      features: ["Chef's Kitchen", "Home Theater", "Wine Cellar"],
+      rules: [],
+      interestedTenants: [
+        { name: "James Wilson", avatar: "https://ui-avatars.com/api/?name=James+Wilson&background=F59E0B&color=fff" },
+        { name: "Maria Garcia", avatar: "https://ui-avatars.com/api/?name=Maria+Garcia&background=EF4444&color=fff" },
+        { name: "David Kim", avatar: "https://ui-avatars.com/api/?name=David+Kim&background=3B82F6&color=fff" },
+      ],
+      chatCount: 3
+    },
+    {
+      id: 11,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800",
+      images: ["https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800"],
+      address: "567 Woodland Road, Seattle, WA",
+      price: "$675,000",
+      beds: 3,
+      baths: 2.5,
+      sqft: "2,200",
+      pets: "No pets",
+      status: "Available",
+      description: "Charming craftsman with original details.",
+      amenities: ["WiFi", "2-Car Garage", "Fireplace"],
+      features: ["Hardwood Floors", "Updated Kitchen", "Fenced Yard"],
+      rules: [],
+      interestedTenants: [
+        { name: "Jennifer Lee", avatar: "https://ui-avatars.com/api/?name=Jennifer+Lee&background=10B981&color=fff" },
+      ],
+      chatCount: 1
+    },
+    {
+      id: 12,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=800",
+      images: ["https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=800"],
+      address: "890 Riverside Drive, Bellevue, WA",
+      price: "$2,100,000",
+      beds: 6,
+      baths: 5.5,
+      sqft: "5,200",
+      pets: "Allowed",
+      status: "Pending",
+      description: "Waterfront estate with private beach access.",
+      amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Boat Dock"],
+      features: ["Gourmet Kitchen", "Home Gym", "Theater Room", "Guest House"],
+      rules: [],
+      interestedTenants: [
+        { name: "Robert Chen", avatar: "https://ui-avatars.com/api/?name=Robert+Chen&background=8B5CF6&color=fff" },
+        { name: "Amanda White", avatar: "https://ui-avatars.com/api/?name=Amanda+White&background=EC4899&color=fff" },
+        { name: "Michael Brown", avatar: "https://ui-avatars.com/api/?name=Michael+Brown&background=F97316&color=fff" },
+        { name: "Linda Davis", avatar: "https://ui-avatars.com/api/?name=Linda+Davis&background=06B6D4&color=fff" },
+      ],
+      chatCount: 4
+    },
+    {
+      id: 13,
+      type: "sale",
+      image: "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=800",
+      images: ["https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=800"],
+      address: "345 Maple Street, Redmond, WA",
+      price: "$525,000",
+      beds: 3,
+      baths: 2,
+      sqft: "1,800",
+      pets: "Dogs only",
+      status: "Available",
+      description: "Move-in ready home in family neighborhood.",
+      amenities: ["WiFi", "Central Heating", "2-Car Garage"],
+      features: ["Open Floor Plan", "Updated Bathrooms", "Large Backyard"],
+      rules: [],
+      interestedTenants: [
+        { name: "Daniel Martinez", avatar: "https://ui-avatars.com/api/?name=Daniel+Martinez&background=14B8A6&color=fff" },
+        { name: "Patricia Lopez", avatar: "https://ui-avatars.com/api/?name=Patricia+Lopez&background=A855F7&color=fff" },
+      ],
+      chatCount: 2
+    }
+  ];
 
   // Sort properties based on selected filter and direction
   const getSortedProperties = () => {
@@ -110,8 +498,8 @@ export default function DashboardPage() {
         property.pets.toLowerCase().includes(searchLower) ||
         property.status.toLowerCase().includes(searchLower) ||
         property.description.toLowerCase().includes(searchLower) ||
-        property.amenities?.some((a: string) => a.toLowerCase().includes(searchLower)) ||
-        property.features?.some((f: string) => f.toLowerCase().includes(searchLower))
+        property.amenities.some(a => a.toLowerCase().includes(searchLower)) ||
+        property.features.some(f => f.toLowerCase().includes(searchLower))
       );
     }
     
@@ -156,29 +544,6 @@ export default function DashboardPage() {
   };
 
   const sortedProperties = getSortedProperties();
-
-  // Filter tenants by search
-  const filteredTenants = tenants.filter(tenant => {
-    if (!tenantSearch.trim()) return true;
-    const searchLower = tenantSearch.toLowerCase();
-    return (
-      tenant.name?.toLowerCase().includes(searchLower) ||
-      tenant.email?.toLowerCase().includes(searchLower) ||
-      tenant.phone?.toLowerCase().includes(searchLower) ||
-      tenant.property_address?.toLowerCase().includes(searchLower)
-    );
-  });
-
-  // Filter contracts by search
-  const filteredContracts = contracts.filter(contract => {
-    if (!contractSearch.trim()) return true;
-    const searchLower = contractSearch.toLowerCase();
-    return (
-      contract.name?.toLowerCase().includes(searchLower) ||
-      contract.property_address?.toLowerCase().includes(searchLower) ||
-      contract.tenant_name?.toLowerCase().includes(searchLower)
-    );
-  });
 
   const handleSortSelect = (sortType: string) => {
     setSelectedSort(sortType);
@@ -505,23 +870,9 @@ export default function DashboardPage() {
                 {/* Property Image */}
                 <div className="relative h-48 bg-gray-200 overflow-hidden">
                   <img 
-                    src={
-                      property.images?.[0] 
-                        ? property.images[0].includes('?') 
-                          ? property.images[0] 
-                          : `${property.images[0]}?w=800`
-                        : property.image 
-                          ? property.image.includes('?')
-                            ? property.image
-                            : `${property.image}?w=800`
-                          : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'
-                    }
+                    src={property.image} 
                     alt={property.address}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://via.placeholder.com/800x600/e5e7eb/6b7280?text=Property+Image';
-                    }}
                   />
                   <div className="absolute top-3 right-3">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -553,7 +904,7 @@ export default function DashboardPage() {
                           className="flex -space-x-2 hover:opacity-80 transition-opacity"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {property.interestedTenants?.slice(0, 3).map((tenant: any, idx: number) => (
+                          {property.interestedTenants.slice(0, 3).map((tenant, idx) => (
                             <img
                               key={idx}
                               src={tenant.avatar}

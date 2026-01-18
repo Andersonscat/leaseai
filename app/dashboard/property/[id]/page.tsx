@@ -8,12 +8,37 @@ import { useParams, useSearchParams } from "next/navigation";
 export default function PropertyPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const propertyId = parseInt(params.id as string);
+  const propertyId = params.id as string;
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showAllChats, setShowAllChats] = useState(false);
+  
+  // State for property loaded from Supabase
+  const [property, setProperty] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load property from Supabase
+  useEffect(() => {
+    const fetchProperty = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/properties/${propertyId}`);
+        const data = await response.json();
+        setProperty(data.property);
+      } catch (error) {
+        console.error('Error fetching property:', error);
+        setProperty(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (propertyId) {
+      fetchProperty();
+    }
+  }, [propertyId]);
 
   // Check if we should open All Chats on mount
   useEffect(() => {
@@ -23,274 +48,72 @@ export default function PropertyPage() {
     }
   }, [searchParams]);
 
-  // Mock property data
-  const properties = [
-    {
-      id: 1,
-      image: "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=1200",
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200",
-        "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=1200",
-        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200"
-      ],
-      address: "123 Main Street, Bellevue, WA",
-      price: "$3,500/mo",
-      beds: 2,
-      baths: 2,
-      sqft: "1,245",
-      pets: "Allowed",
-      status: "Available",
-      description: "Beautiful modern home with stunning views. Recently renovated with high-end finishes throughout. Open concept living space perfect for entertaining.",
-      amenities: ["WiFi", "Air Conditioning", "Parking", "Dishwasher", "Washer/Dryer", "Hardwood Floors"],
-    },
-    {
-      id: 2,
-      image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200",
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200"
-      ],
-      address: "456 Oak Avenue, Seattle, WA",
-      price: "$850,000",
-      beds: 3,
-      baths: 2.5,
-      sqft: "1,850",
-      pets: "No pets",
-      status: "Available",
-      description: "Spacious family home in quiet neighborhood. Large backyard perfect for entertaining.",
-      amenities: ["WiFi", "Central Heating", "2-Car Garage", "Dishwasher", "Washer/Dryer", "Fireplace"],
-    },
-    {
-      id: 3,
-      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200",
-        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200"
-      ],
-      address: "789 Pine Road, Redmond, WA",
-      price: "$5,800/mo",
-      beds: 4,
-      baths: 3,
-      sqft: "2,650",
-      pets: "Cats only",
-      status: "Pending",
-      description: "Luxury estate with premium finishes. Smart home features throughout. Private backyard with pool and entertainment area.",
-      amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage", "Wine Cellar", "Home Theater"],
-    },
-    {
-      id: 4,
-      image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200"
-      ],
-      address: "321 Elm Street, Kirkland, WA",
-      price: "$425,000",
-      beds: 1,
-      baths: 1,
-      sqft: "850",
-      pets: "No pets",
-      status: "Available",
-      description: "Cozy studio apartment perfect for professionals. Modern amenities and great location near downtown.",
-      amenities: ["WiFi", "Air Conditioning", "Parking Spot", "Dishwasher", "In-unit Laundry"],
-    },
-    {
-      id: 5,
-      image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200"
-      ],
-      address: "555 Maple Drive, Bellevue, WA",
-      price: "$6,500/mo",
-      beds: 4,
-      baths: 3.5,
-      sqft: "3,495",
-      pets: "Allowed",
-      status: "Available",
-      description: "Executive home with panoramic views. High-end finishes and designer touches throughout. Perfect for luxury living.",
-      amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Wine Room", "Gym"],
-    },
-    {
-      id: 6,
-      image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800",
-      images: [
-        "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=1200"
-      ],
-      address: "987 Cedar Lane, Issaquah, WA",
-      price: "$3,200/mo",
-      beds: 2,
-      baths: 1.5,
-      sqft: "1,120",
-      pets: "Dogs only",
-      status: "Available",
-      description: "Charming townhouse with modern updates. Great for dog owners with nearby parks and trails.",
-      amenities: ["WiFi", "Central Heating", "Parking", "Dishwasher", "Washer/Dryer Hookup"],
-    },
-    {
-      id: 7,
-      image: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800",
-      images: ["https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200"],
-      address: "234 Sunset Boulevard, Seattle, WA",
-      price: "$4,800/mo",
-      beds: 3,
-      baths: 2.5,
-      sqft: "2,100",
-      pets: "Allowed",
-      status: "Available",
-      description: "Modern family home with great natural light. Open concept with hardwood floors.",
-      amenities: ["WiFi", "Parking", "Dishwasher", "Washer/Dryer"],
-    },
-    {
-      id: 8,
-      image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800",
-      images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200"],
-      address: "789 Lakeview Drive, Kirkland, WA",
-      price: "$5,200/mo",
-      beds: 4,
-      baths: 3,
-      sqft: "2,800",
-      pets: "No pets",
-      status: "Available",
-      description: "Stunning lakefront property with private dock access.",
-      amenities: ["WiFi", "Lake Access", "2-Car Garage", "Fireplace"],
-    },
-    {
-      id: 9,
-      image: "https://images.unsplash.com/photo-1598228723793-52759bba239c?w=800",
-      images: ["https://images.unsplash.com/photo-1598228723793-52759bba239c?w=1200"],
-      address: "456 Park Avenue, Redmond, WA",
-      price: "$3,800/mo",
-      beds: 2,
-      baths: 2,
-      sqft: "1,450",
-      pets: "Cats only",
-      status: "Pending",
-      description: "Cozy apartment near tech hub. Perfect for tech professionals.",
-      amenities: ["WiFi", "Gym", "Pool", "Parking"],
-    },
-    {
-      id: 10,
-      image: "https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=800",
-      images: ["https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200"],
-      address: "123 Highland Avenue, Bellevue, WA",
-      price: "$1,250,000",
-      beds: 5,
-      baths: 4,
-      sqft: "3,800",
-      pets: "Allowed",
-      status: "Available",
-      description: "Luxury estate with mountain views and smart home features.",
-      amenities: ["WiFi", "Smart Home", "Pool", "3-Car Garage"],
-    },
-    {
-      id: 11,
-      image: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800",
-      images: ["https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200"],
-      address: "567 Woodland Road, Seattle, WA",
-      price: "$675,000",
-      beds: 3,
-      baths: 2.5,
-      sqft: "2,200",
-      pets: "No pets",
-      status: "Available",
-      description: "Charming craftsman with original details and modern updates.",
-      amenities: ["WiFi", "2-Car Garage", "Fireplace"],
-    },
-    {
-      id: 12,
-      image: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=800",
-      images: ["https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200"],
-      address: "890 Riverside Drive, Bellevue, WA",
-      price: "$2,100,000",
-      beds: 6,
-      baths: 5.5,
-      sqft: "5,200",
-      pets: "Allowed",
-      status: "Pending",
-      description: "Waterfront estate with private beach access and boat dock.",
-      amenities: ["WiFi", "Smart Home", "Pool & Spa", "4-Car Garage", "Boat Dock"],
-    },
-    {
-      id: 13,
-      image: "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=800",
-      images: ["https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1200"],
-      address: "345 Maple Street, Redmond, WA",
-      price: "$525,000",
-      beds: 3,
-      baths: 2,
-      sqft: "1,800",
-      pets: "Dogs only",
-      status: "Available",
-      description: "Move-in ready home in family neighborhood with large backyard.",
-      amenities: ["WiFi", "Central Heating", "2-Car Garage"],
-    }
-  ];
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading property...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Mock chat data
+  // Property not found
+  if (!property) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-black mb-4">Property not found</h2>
+          <Link href="/dashboard?tab=properties">
+            <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
+              Back to Properties
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const nextImage = () => {
+    if (property?.images) {
+      setCurrentImageIndex((prev) => (prev + 1) % property.images.length);
+    }
+  };
+
+  const prevImage = () => {
+    if (property?.images) {
+      setCurrentImageIndex((prev) => (prev - 1 + property.images.length) % property.images.length);
+    }
+  };
+
+  // Mock chats data (interested tenants)
   const chats = [
     {
       id: 1,
       name: "John Smith",
       avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
-      lastMessage: "Is this property still available?",
+      lastMessage: "Hi, I'm interested in this property. Is it still available?",
       time: "2 hours ago",
       unread: 2,
       messages: [
-        { id: 1, text: "Hi! I'm interested in this property.", sender: "tenant", time: "10:30 AM" },
-        { id: 2, text: "Is this property still available?", sender: "tenant", time: "10:31 AM" },
-        { id: 3, text: "Yes, it's available! Would you like to schedule a viewing?", sender: "landlord", time: "10:45 AM" },
+        { id: 1, sender: "tenant", text: "Hi, I'm interested in this property.", time: "2:30 PM" },
+        { id: 2, sender: "tenant", text: "Is it still available?", time: "2:31 PM" },
       ]
     },
     {
       id: 2,
       name: "Sarah Johnson",
       avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
-      lastMessage: "Can we schedule a viewing for this weekend?",
+      lastMessage: "What's the move-in date?",
       time: "5 hours ago",
-      unread: 0,
-      messages: [
-        { id: 1, text: "Hello! This looks like a great property.", sender: "tenant", time: "9:00 AM" },
-        { id: 2, text: "Can we schedule a viewing for this weekend?", sender: "tenant", time: "9:01 AM" },
-        { id: 3, text: "Sure! Saturday or Sunday works best?", sender: "landlord", time: "9:15 AM" },
-        { id: 4, text: "Saturday around 2 PM would be perfect!", sender: "tenant", time: "9:20 AM" },
-      ]
-    },
-    {
-      id: 3,
-      name: "Mike Chen",
-      avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff",
-      lastMessage: "What are the lease terms?",
-      time: "1 day ago",
       unread: 1,
       messages: [
-        { id: 1, text: "What are the lease terms?", sender: "tenant", time: "Yesterday" },
-        { id: 2, text: "Standard 12-month lease. We can discuss details.", sender: "landlord", time: "Yesterday" },
+        { id: 1, sender: "tenant", text: "What's the move-in date?", time: "11:00 AM" },
       ]
     },
-    {
-      id: 4,
-      name: "Emily Davis",
-      avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff",
-      lastMessage: "Are pets allowed in this property?",
-      time: "2 days ago",
-      unread: 0,
-      messages: [
-        { id: 1, text: "Are pets allowed in this property?", sender: "tenant", time: "2 days ago" },
-        { id: 2, text: "Yes, pets are welcome with a deposit!", sender: "landlord", time: "2 days ago" },
-        { id: 3, text: "Great! I have a small dog.", sender: "tenant", time: "2 days ago" },
-      ]
-    }
   ];
-
-  const property = properties.find(p => p.id === propertyId) || properties[0];
-
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % property.images.length);
-  };
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + property.images.length) % property.images.length);
-  };
 
   const selectedChatData = chats.find(c => c.id === selectedChat);
 

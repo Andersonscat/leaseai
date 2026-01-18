@@ -1,117 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, DollarSign, FileText, MessageSquare, Download, Send } from "lucide-react";
 import Link from "next/link";
 
 export default function TenantDetailPage() {
   const params = useParams();
-  const tenantId = parseInt(params.id as string);
+  const tenantId = params.id as string;
   const [activeTab, setActiveTab] = useState("overview");
   const [messageInput, setMessageInput] = useState("");
+  
+  // State for tenant loaded from Supabase
+  const [tenant, setTenant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock tenant data
-  const tenants = [
-    {
-      id: 1,
-      name: "John Smith",
-      avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
-      email: "john.smith@email.com",
-      phone: "+1-425-3250400",
-      property: "123 Main Street, Bellevue, WA",
-      status: "Active",
-      leaseStart: "Jan 1, 2024",
-      leaseEnd: "Dec 31, 2024",
-      rentAmount: "$3,500",
-      paymentStatus: "Paid",
-      moveInDate: "Jan 1, 2024",
-      emergencyContact: "Jane Smith - +1-425-5550000",
-      notes: "Excellent tenant, always pays on time. Requested early lease renewal.",
-    },
-    {
-      id: 2,
-      name: "Emily Davis",
-      avatar: "https://ui-avatars.com/api/?name=Emily+Davis&background=EF4444&color=fff",
-      email: "emily.davis@email.com",
-      phone: "+1-206-5551234",
-      property: "789 Pine Road, Redmond, WA",
-      status: "Late Payment",
-      leaseStart: "Feb 1, 2024",
-      leaseEnd: "Jan 31, 2025",
-      rentAmount: "$5,800",
-      paymentStatus: "Overdue",
-      moveInDate: "Feb 1, 2024",
-      emergencyContact: "Mark Davis - +1-206-5559876",
-      notes: "Payment overdue by 35 days. Follow-up required.",
-    },
-    {
-      id: 3,
-      name: "Sarah Johnson",
-      avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
-      email: "sarah.j@email.com",
-      phone: "+1-425-5559876",
-      property: "555 Maple Drive, Bellevue, WA",
-      status: "Current",
-      leaseStart: "Mar 15, 2024",
-      leaseEnd: "Mar 14, 2025",
-      rentAmount: "$6,500",
-      paymentStatus: "Paid",
-      moveInDate: "Mar 15, 2024",
-      emergencyContact: "Tom Johnson - +1-425-5554321",
-      notes: "Great tenant, very responsive. No issues.",
-    },
-    {
-      id: 4,
-      name: "Mike Chen",
-      avatar: "https://ui-avatars.com/api/?name=Mike+Chen&background=F59E0B&color=fff",
-      email: "mike.chen@email.com",
-      phone: "+1-206-5554321",
-      property: "456 Oak Avenue, Seattle, WA",
-      status: "Archived",
-      leaseStart: "Dec 1, 2023",
-      leaseEnd: "Nov 30, 2024",
-      rentAmount: "$4,200",
-      paymentStatus: "Completed",
-      moveInDate: "Dec 1, 2023",
-      emergencyContact: "Lisa Chen - +1-206-5558765",
-      notes: "Moved out last month. Left property in excellent condition.",
-    },
-    {
-      id: 5,
-      name: "David Lee",
-      avatar: "https://ui-avatars.com/api/?name=David+Lee&background=8B5CF6&color=fff",
-      email: "david.lee@email.com",
-      phone: "+1-425-5552468",
-      property: "321 Cedar Lane, Kirkland, WA",
-      status: "Pending",
-      leaseStart: "Feb 1, 2024",
-      leaseEnd: "Jan 31, 2025",
-      rentAmount: "$4,800",
-      paymentStatus: "Deposit Paid",
-      moveInDate: "Feb 1, 2024",
-      emergencyContact: "Maria Lee - +1-425-5557654",
-      notes: "Application approved, waiting for lease signing.",
-    },
-    {
-      id: 6,
-      name: "Anna White",
-      avatar: "https://ui-avatars.com/api/?name=Anna+White&background=EC4899&color=fff",
-      email: "anna.white@email.com",
-      phone: "+1-206-5557890",
-      property: "777 Elm Street, Bellevue, WA",
-      status: "Current",
-      leaseStart: "Jan 15, 2024",
-      leaseEnd: "Jan 14, 2025",
-      rentAmount: "$3,200",
-      paymentStatus: "Paid",
-      moveInDate: "Jan 15, 2024",
-      emergencyContact: "Robert White - +1-206-5556543",
-      notes: "New tenant, very professional. Works from home.",
-    },
-  ];
+  // Load tenant from Supabase
+  useEffect(() => {
+    const fetchTenant = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/tenants/${tenantId}`);
+        const data = await response.json();
+        setTenant(data.tenant);
+      } catch (error) {
+        console.error('Error fetching tenant:', error);
+        setTenant(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const tenant = tenants.find(t => t.id === tenantId) || tenants[0];
+    if (tenantId) {
+      fetchTenant();
+    }
+  }, [tenantId]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading tenant...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Tenant not found
+  if (!tenant) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-black mb-4">Tenant not found</h2>
+          <Link href="/dashboard?tab=tenants">
+            <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
+              Back to Tenants
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // Mock messages
   const messages = [

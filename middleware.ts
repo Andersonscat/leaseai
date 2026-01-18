@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/test-property(.*)",
+  "/test-db(.*)",    // Database connection test
   "/dashboard(.*)",  // Temporarily public for testing
   "/billing(.*)",    // Temporarily public for testing
 ]);
