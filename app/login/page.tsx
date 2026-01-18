@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import Link from 'next/link';
-import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, Chrome, Facebook as FacebookIcon, Github, Apple } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,6 +33,21 @@ export default function LoginPage() {
       setError(error.message || 'Failed to login');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'facebook' | 'github' | 'apple') => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      setError(error.message || `Failed to login with ${provider}`);
     }
   };
 
@@ -133,6 +148,54 @@ export default function LoginPage() {
           <div className="my-6 flex items-center gap-4">
             <div className="flex-1 border-t border-gray-300"></div>
             <span className="text-sm text-gray-500">OR</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
+
+          {/* Social Login Buttons */}
+          <div className="space-y-3">
+            {/* Google */}
+            <button
+              onClick={() => handleSocialLogin('google')}
+              type="button"
+              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+            >
+              <Chrome className="w-5 h-5 text-blue-600" />
+              <span className="text-gray-700">Continue with Google</span>
+            </button>
+
+            {/* Facebook */}
+            <button
+              onClick={() => handleSocialLogin('facebook')}
+              type="button"
+              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+            >
+              <FacebookIcon className="w-5 h-5 text-blue-700" />
+              <span className="text-gray-700">Continue with Facebook</span>
+            </button>
+
+            {/* GitHub */}
+            <button
+              onClick={() => handleSocialLogin('github')}
+              type="button"
+              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+            >
+              <Github className="w-5 h-5 text-gray-800" />
+              <span className="text-gray-700">Continue with GitHub</span>
+            </button>
+
+            {/* Apple */}
+            <button
+              onClick={() => handleSocialLogin('apple')}
+              type="button"
+              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+            >
+              <Apple className="w-5 h-5 text-gray-800" />
+              <span className="text-gray-700">Continue with Apple</span>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="my-6 flex items-center gap-4">
             <div className="flex-1 border-t border-gray-300"></div>
           </div>
 
