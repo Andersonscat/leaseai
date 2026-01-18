@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createSupabaseClient } from '@/lib/supabase';
 import Link from 'next/link';
 import { Mail, Lock, User, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 
@@ -14,7 +14,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseClient();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
