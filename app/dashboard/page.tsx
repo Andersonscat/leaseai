@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign } from "lucide-react";
 import Link from "next/link";
+import ConversationsInbox from "@/components/ConversationsInbox";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -201,111 +202,7 @@ export default function DashboardPage() {
   return (
     <div className="p-10 min-w-0">
       {/* Inbox Tab */}
-      {activeTab === "inbox" && (
-            <>
-              <div className="mb-10">
-                <h2 className="text-4xl font-bold text-black mb-2">Inbox</h2>
-                <p className="text-lg text-gray-600">Manage your leads and conversations</p>
-              </div>
-
-              {/* Stats Cards */}
-              <div className="grid md:grid-cols-3 gap-6 mb-10">
-                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-gray-600 font-semibold text-sm">NEW LEADS</span>
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                      <Inbox className="w-5 h-5 text-gray-700" />
-                    </div>
-                  </div>
-                  <div className="text-5xl font-bold text-black mb-2">0</div>
-                  <p className="text-gray-500 text-sm">new leads today</p>
-                </div>
-
-                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-gray-600 font-semibold text-sm">CONVERSION</span>
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-gray-700" />
-                    </div>
-                  </div>
-                  <div className="text-5xl font-bold text-black mb-2">—%</div>
-                  <p className="text-gray-500 text-sm">lead to meeting rate</p>
-                </div>
-
-                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-gray-600 font-semibold text-sm">PROPERTIES</span>
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                      <Home className="w-5 h-5 text-gray-700" />
-                    </div>
-                  </div>
-                  <div className="text-5xl font-bold text-black mb-2">{properties.length}</div>
-                  <p className="text-gray-500 text-sm">active listings</p>
-                </div>
-              </div>
-
-              {/* Getting Started */}
-              <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200">
-                <h3 className="text-2xl font-bold text-black mb-8">Getting Started</h3>
-                <div className="space-y-6">
-                  <div className="flex items-start gap-5 p-6 rounded-xl bg-gray-50">
-                    <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
-                      1
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-lg text-black mb-2">Connect your email</h4>
-                      <p className="text-gray-600 mb-4">Sync your inbox to start receiving and managing leads</p>
-                      <button className="text-black font-semibold hover:underline text-sm">
-                        Connect now →
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-5 p-6 rounded-xl opacity-50">
-                    <div className="w-10 h-10 rounded-full bg-gray-300 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
-                      2
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-lg text-gray-500 mb-2">Set up AI agent</h4>
-                      <p className="text-gray-500">Configure auto-responses and lead qualification rules</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-5 p-6 rounded-xl opacity-50">
-                    <div className="w-10 h-10 rounded-full bg-gray-300 text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
-                      3
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-lg text-gray-500 mb-2">Link calendar</h4>
-                      <p className="text-gray-500">Enable automatic meeting scheduling with clients</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Inbox Messages Section */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mt-10">
-                <div className="p-8 border-b border-gray-200">
-                  <h3 className="text-2xl font-bold text-black">Messages</h3>
-                  <p className="text-gray-600 mt-1">Your lead conversations</p>
-                </div>
-                
-                {/* Empty State */}
-                <div className="p-16 text-center">
-                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Mail className="w-10 h-10 text-gray-400" />
-                  </div>
-                  <h4 className="text-xl font-bold text-black mb-2">No messages yet</h4>
-                  <p className="text-gray-600 mb-6">
-                    Connect your email to start receiving and managing lead conversations
-                  </p>
-                  <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
-                    Connect Email
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+      {activeTab === "inbox" && <ConversationsInbox />}
 
       {/* Properties Tab */}
       {activeTab === "properties" && (
@@ -412,7 +309,7 @@ export default function DashboardPage() {
                         >
                           Duration
                         </button>
-                      </div>
+          </div>
                     </>
                   )}
                 </div>
@@ -543,8 +440,8 @@ export default function DashboardPage() {
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <span>{property.address}</span>
                       </div>
-                    </div>
-                    
+            </div>
+
                     {/* Interested Tenants Badges */}
                     {property.chatCount > 0 && (
                       <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.preventDefault()}>
@@ -1108,7 +1005,7 @@ export default function DashboardPage() {
                   </label>
                 </div>
                 <div className="flex items-center justify-between py-3">
-                  <div>
+                <div>
                     <p className="font-semibold text-black">Weekly Reports</p>
                     <p className="text-sm text-gray-600">Summary of your activity and performance</p>
                   </div>
