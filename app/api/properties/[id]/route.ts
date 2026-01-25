@@ -38,6 +38,8 @@ export async function GET(
       .from('properties')
       .select('*')
       .eq('id', params.id)
+      .eq('user_id', user.id) // Only show properties owned by current user
+      .is('deleted_at', null) // Only show non-deleted properties
       .single();
     
     if (error) {
@@ -52,6 +54,139 @@ export async function GET(
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch property' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update a property
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createAuthenticatedClient();
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // First check if property exists and belongs to user
+    const { data: property, error: fetchError } = await supabase
+      .from('properties')
+      .select('id, user_id')
+      .eq('id', params.id)
+      .is('deleted_at', null)
+      .single();
+    
+    if (fetchError || !property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    
+    // Verify ownership
+    if (property.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this property' }, { status: 403 });
+    }
+    
+    // Get the updated data from request body
+    const body = await request.json();
+    
+    // Update the property
+    const { data: updatedProperty, error: updateError } = await supabase
+      .from('properties')
+      .update({
+        address: body.address,
+        price: body.price,
+        beds: body.beds,
+        baths: body.baths,
+        sqft: body.sqft,
+        pets: body.pets,
+        parking: body.parking,
+        parking_available: body.parking_available,
+        description: body.description,
+        status: body.status,
+        images: body.images,
+        amenities: body.amenities,
+        features: body.features,
+        rules: body.rules,
+        walk_score: body.walk_score,
+        transit_score: body.transit_score,
+        lease_term: body.lease_term,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.id)
+      .select()
+      .single();
+    
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      success: true, 
+      property: updatedProperty,
+      message: 'Property updated successfully' 
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to update property' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Soft delete a property (mark as deleted)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createAuthenticatedClient();
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // First check if property exists and belongs to user
+    const { data: property, error: fetchError } = await supabase
+      .from('properties')
+      .select('id, user_id')
+      .eq('id', params.id)
+      .is('deleted_at', null)
+      .single();
+    
+    if (fetchError || !property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    
+    // Verify ownership
+    if (property.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this property' }, { status: 403 });
+    }
+    
+    // Soft delete by setting deleted_at timestamp
+    const { error: deleteError } = await supabase
+      .from('properties')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', params.id);
+    
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Property deleted successfully' 
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete property' },
       { status: 500 }
     );
   }

@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('properties')
       .select('*')
+      .eq('user_id', user.id) // Only show properties owned by current user
+      .is('deleted_at', null) // Only show non-deleted properties
       .order('created_at', { ascending: false });
     
     // Filter by type if provided
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json();
     
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('properties')
       .insert([
         {
@@ -85,12 +87,17 @@ export async function POST(request: NextRequest) {
           baths: body.baths,
           sqft: body.sqft,
           pets: body.pets,
+          parking: body.parking,
+          parking_available: body.parking_available || false,
           status: body.status || 'Available',
           description: body.description,
           amenities: body.amenities,
           features: body.features,
           rules: body.rules,
           images: body.images,
+          walk_score: body.walk_score,
+          transit_score: body.transit_score,
+          lease_term: body.lease_term,
         },
       ])
       .select()

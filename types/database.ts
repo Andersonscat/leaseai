@@ -28,6 +28,7 @@ export interface Database {
 }
 
 export interface Property {
+  // Core fields
   id: string;
   user_id: string;
   type: 'rent' | 'sale';
@@ -39,12 +40,74 @@ export interface Property {
   pets: string;
   status: string;
   description?: string;
+  images?: string[];
+  
+  // Lists and arrays
   amenities?: string[];
   features?: string[];
   rules?: string[];
-  images?: string[];
+  appliances?: string[];
+  utilities?: string[];
+  utilities_included?: string[];
+  community_features?: string[];
+  kitchen_features?: string[];
+  
+  // Parking
+  parking?: string;
+  parking_available?: boolean;
+  garage_type?: string;
+  garage_spaces?: number;
+  parking_spaces_total?: number;
+  
+  // Location scores
+  walk_score?: number | null;
+  transit_score?: number | null;
+  bike_score?: number | null;
+  
+  // Interior details
+  flooring_type?: string;
+  furnished?: boolean;
+  laundry_type?: string;
+  full_bathrooms?: number;
+  half_bathrooms?: number;
+  
+  // Building & condition
+  year_built?: number;
+  property_condition?: string;
+  building_name?: string;
+  
+  // Heating & cooling
+  heating_type?: string;
+  cooling_type?: string;
+  air_conditioning?: boolean;
+  
+  // Lease terms
+  lease_term?: string;
+  available_date?: string;
+  move_in_date?: string;
+  
+  // Financial
+  security_deposit?: string;
+  pet_deposit?: string;
+  utilities_cost?: string;
+  application_fee?: string;
+  
+  // Utilities
+  internet_available?: boolean;
+  
+  // Pet details
+  pet_policy?: {
+    allowed: boolean;
+    types?: string[];
+    deposit?: string;
+    monthly_fee?: string;
+    restrictions?: string;
+  };
+  
+  // Timestamps
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
 }
 
 export interface Tenant {

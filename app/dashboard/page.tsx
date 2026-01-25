@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign } from "lucide-react";
+import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "@/components/ConversationsInbox";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "properties";
+  const successParam = searchParams.get("success");
+  const deletedParam = searchParams.get("deleted");
   
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -20,9 +22,46 @@ export default function DashboardPage() {
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantFilter, setTenantFilter] = useState<"all" | "current" | "pending" | "late" | "archived">("all");
   
+  // Toast notification state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  
+  // Selection mode state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedProperties, setSelectedProperties] = useState<Set<string>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  
   // State for properties loaded from Supabase
   const [properties, setProperties] = useState<any[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
+
+  // Show success toast if redirected after creating or deleting property
+  useEffect(() => {
+    if (successParam === 'property_created') {
+      setToastMessage('✅ Property added successfully!');
+      setShowToast(true);
+      
+      // Auto-hide after 4 seconds
+      setTimeout(() => {
+        setShowToast(false);
+      }, 4000);
+      
+      // Clear URL parameter
+      window.history.replaceState({}, '', '/dashboard?tab=properties');
+    } else if (deletedParam === 'success') {
+      setToastMessage('🗑️ Property deleted successfully!');
+      setShowToast(true);
+      
+      // Auto-hide after 4 seconds
+      setTimeout(() => {
+        setShowToast(false);
+      }, 4000);
+      
+      // Clear URL parameter
+      window.history.replaceState({}, '', '/dashboard?tab=properties');
+    }
+  }, [successParam, deletedParam]);
 
   // Load properties from Supabase when component mounts or propertyType changes
   useEffect(() => {
@@ -199,6 +238,65 @@ export default function DashboardPage() {
     }
   };
 
+  // Selection mode handlers
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedProperties(new Set());
+  };
+
+  const togglePropertySelection = (propertyId: string) => {
+    const newSelection = new Set(selectedProperties);
+    if (newSelection.has(propertyId)) {
+      newSelection.delete(propertyId);
+    } else {
+      newSelection.add(propertyId);
+    }
+    setSelectedProperties(newSelection);
+  };
+
+  const selectAllProperties = () => {
+    if (selectedProperties.size === sortedProperties.length) {
+      setSelectedProperties(new Set());
+    } else {
+      setSelectedProperties(new Set(sortedProperties.map(p => p.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedProperties).map(propertyId =>
+        fetch(`/api/properties/${propertyId}`, { method: 'DELETE' })
+      );
+      
+      const results = await Promise.all(deletePromises);
+      const allSuccessful = results.every(res => res.ok);
+      
+      if (allSuccessful) {
+        setToastMessage(`🗑️ ${selectedProperties.size} properties deleted successfully!`);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
+        
+        // Refresh properties list
+        const response = await fetch(`/api/properties?type=${propertyType}`);
+        const data = await response.json();
+        setProperties(data.properties || []);
+        
+        // Exit selection mode
+        setSelectionMode(false);
+        setSelectedProperties(new Set());
+      } else {
+        alert('Some properties failed to delete. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting properties:', error);
+      alert('Failed to delete properties');
+    } finally {
+      setBulkDeleting(false);
+      setShowBulkDeleteModal(false);
+    }
+  };
+
   return (
     <div className="p-10 min-w-0">
       {/* Inbox Tab */}
@@ -313,6 +411,19 @@ export default function DashboardPage() {
                     </>
                   )}
                 </div>
+
+                {/* Select Button */}
+                <button 
+                  onClick={toggleSelectionMode}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold text-sm cursor-pointer ${
+                    selectionMode 
+                      ? "bg-blue-600 text-white hover:bg-blue-700" 
+                      : "bg-black text-white hover:bg-gray-800"
+                  }`}
+                >
+                  {selectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  {selectionMode ? "Cancel" : "Select"}
+                </button>
               </div>
             </div>
 
@@ -366,11 +477,48 @@ export default function DashboardPage() {
                   Showing {sortedProperties.length} {propertyType === "rent" ? "rental" : "sale"} properties
                 </p>
               </div>
+
+              {/* Bulk Actions Bar */}
+              {selectionMode && selectedProperties.size > 0 && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
+                  <div className="bg-black text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-blue-400" />
+                      <span className="font-semibold text-lg">{selectedProperties.size} selected</span>
+                    </div>
+                    
+                    <div className="h-6 w-px bg-gray-600"></div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={selectAllProperties}
+                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-all"
+                      >
+                        {selectedProperties.size === sortedProperties.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowBulkDeleteModal(true)}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Properties Grid */}
-          {sortedProperties.length === 0 ? (
+          {loadingProperties ? (
+            <div className="bg-white rounded-2xl p-16 text-center">
+              <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
+              <h3 className="text-xl font-bold text-black mb-2">Loading properties...</h3>
+              <p className="text-gray-600">Please wait while we fetch your properties.</p>
+            </div>
+          ) : sortedProperties.length === 0 ? (
             <div className="bg-white rounded-2xl p-16 text-center">
               <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
                 <Search className="w-8 h-8 text-gray-400" />
@@ -394,23 +542,60 @@ export default function DashboardPage() {
           ) : (
             <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
               {sortedProperties.map((property) => (
-              <Link 
+              <div 
                 key={property.id} 
-                href={`/dashboard/property/${property.id}`}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 cursor-pointer block group w-full"
+                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 block group w-full relative"
               >
-                {/* Property Image */}
-                <div className="relative h-48 bg-gray-200 overflow-hidden">
+                {/* Selection Checkbox */}
+                {selectionMode && (
+                  <div className="absolute top-3 left-3 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        togglePropertySelection(property.id);
+                      }}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-lg ${
+                        selectedProperties.has(property.id)
+                          ? "bg-blue-600 text-white"
+                          : "bg-white/90 text-gray-600 hover:bg-white"
+                      }`}
+                    >
+                      {selectedProperties.has(property.id) ? (
+                        <CheckSquare className="w-5 h-5" />
+                      ) : (
+                        <Square className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                <Link 
+                  href={`/dashboard/property/${property.id}`}
+                  className="cursor-pointer block"
+                  onClick={(e) => {
+                    if (selectionMode) {
+                      e.preventDefault();
+                      togglePropertySelection(property.id);
+                    }
+                  }}
+                >
+                  {/* Property Image */}
+                  <div className="relative h-48 bg-gray-200 overflow-hidden">
                   <img 
                     src={
                       property.images?.[0] 
-                        ? property.images[0].includes('?') 
-                          ? property.images[0] 
-                          : `${property.images[0]}?w=800`
+                        ? property.images[0].startsWith('data:image') 
+                          ? property.images[0]  // base64 image
+                          : property.images[0].includes('?') 
+                            ? property.images[0] 
+                            : `${property.images[0]}?w=800`
                         : property.image 
-                          ? property.image.includes('?')
-                            ? property.image
-                            : `${property.image}?w=800`
+                          ? property.image.startsWith('data:image')
+                            ? property.image  // base64 image
+                            : property.image.includes('?')
+                              ? property.image
+                              : `${property.image}?w=800`
                           : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'
                     }
                     alt={property.address}
@@ -489,17 +674,79 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
           )}
 
           {/* Add Property Button */}
           <div className="mt-8 text-center">
-            <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all">
-              + Add New Property
-            </button>
+            <Link href="/dashboard/property/new">
+              <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all cursor-pointer">
+                + Add New Property
+              </button>
+            </Link>
           </div>
+
+          {/* Bulk Delete Confirmation Modal */}
+          {showBulkDeleteModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+                {/* Close button */}
+                <button
+                  onClick={() => !bulkDeleting && setShowBulkDeleteModal(false)}
+                  disabled={bulkDeleting}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+
+                {/* Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-8 h-8 text-red-600" />
+                  </div>
+                </div>
+
+                {/* Title and Message */}
+                <h3 className="text-2xl font-bold text-black text-center mb-3">
+                  Delete {selectedProperties.size} Properties?
+                </h3>
+                <p className="text-gray-600 text-center mb-6">
+                  Are you sure you want to delete <strong>{selectedProperties.size} properties</strong>? This action will mark them as inactive and they won't appear in your listings.
+                </p>
+
+                {/* Buttons */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    disabled={bulkDeleting}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {bulkDeleting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-5 h-5" />
+                        Delete All
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -549,133 +796,14 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Contracts Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-                <div className="col-span-3">Contract</div>
-                <div className="col-span-3">Property</div>
-                <div className="col-span-2">Status</div>
-                <div className="col-span-2">Last Modified</div>
-                <div className="col-span-1">Created</div>
-                <div className="col-span-1"></div>
+            {/* Empty state if no contracts exist at all */}
+            {loadingContracts ? (
+              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
+                <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 className="text-xl font-bold text-black mb-2">Loading contracts...</h3>
+                <p className="text-gray-600">Please wait while we fetch your contracts.</p>
               </div>
-
-              {/* Table Rows */}
-              <div className="divide-y divide-gray-200">
-                {(() => {
-                  const filteredContracts = contracts.filter((contract) => {
-                    const searchLower = contractSearch.toLowerCase();
-                    const matchesSearch = (
-                      contract.name.toLowerCase().includes(searchLower) ||
-                      contract.tenant.toLowerCase().includes(searchLower) ||
-                      contract.property.toLowerCase().includes(searchLower)
-                    );
-
-                    // Apply filter
-                    if (contractFilter === "all") return matchesSearch;
-                    if (contractFilter === "active") return matchesSearch && contract.status === "Active";
-                    if (contractFilter === "pending") return matchesSearch && contract.status === "Pending";
-                    if (contractFilter === "completed") return matchesSearch && contract.status === "Completed";
-                    if (contractFilter === "draft") return matchesSearch && contract.status === "Draft";
-                    
-                    return matchesSearch;
-                  });
-
-                  if (filteredContracts.length === 0) {
-                    return (
-                      <div className="px-6 py-16 text-center">
-                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                          <Search className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-bold text-black mb-2">No contracts found</h3>
-                        <p className="text-gray-600">
-                          Try adjusting your search terms or clear the search to see all contracts.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return filteredContracts.map((contract) => (
-                  <Link 
-                    key={contract.id}
-                    href={`/dashboard/contract/${contract.id}`}
-                    className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
-                  >
-                    {/* Contract Name */}
-                    <div className="col-span-3 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-gray-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-black truncate group-hover:text-gray-700 transition-colors">
-                            {contract.name}
-                          </p>
-                          {contract.isPrimary && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold flex-shrink-0">
-                              <Star className="w-3 h-3 fill-current" />
-                              PRIMARY
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 truncate">{contract.tenant}</p>
-                      </div>
-                    </div>
-
-                    {/* Property */}
-                    <div className="col-span-3 flex items-center">
-                      <div className="min-w-0">
-                        <p className="text-sm text-gray-800 truncate">{contract.property}</p>
-                        <p className="text-xs text-gray-500">{contract.startDate} - {contract.endDate}</p>
-                      </div>
-                    </div>
-
-                    {/* Status */}
-                    <div className="col-span-2 flex items-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                        contract.status === "Active" 
-                          ? "bg-green-100 text-green-700"
-                          : contract.status === "Pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : contract.status === "Completed"
-                          ? "bg-blue-100 text-blue-700"
-                          : contract.status === "Draft"
-                          ? "bg-gray-100 text-gray-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}>
-                        {contract.status === "Active" && <CheckCircle className="w-3 h-3" />}
-                        {contract.status === "Pending" && <Clock className="w-3 h-3" />}
-                        {contract.status === "Completed" && <CheckCircle className="w-3 h-3" />}
-                        {contract.status === "Draft" && <FileText className="w-3 h-3" />}
-                        {contract.status}
-                      </span>
-                    </div>
-
-                    {/* Last Modified */}
-                    <div className="col-span-2 flex items-center">
-                      <p className="text-sm text-gray-600">{contract.lastModified}</p>
-                    </div>
-
-                    {/* Created */}
-                    <div className="col-span-1 flex items-center">
-                      <p className="text-sm text-gray-600">{contract.created}</p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="col-span-1 flex items-center justify-end">
-                      <button className="w-8 h-8 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
-                        <MoreVertical className="w-5 h-5 text-gray-600" />
-                      </button>
-                    </div>
-                  </Link>
-                ));
-                })()}
-              </div>
-            </div>
-
-            {/* Empty state if no contracts */}
-            {contracts.length === 0 && (
+            ) : contracts.length === 0 ? (
               <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
                 <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
                   <FileText className="w-10 h-10 text-gray-400" />
@@ -687,6 +815,131 @@ export default function DashboardPage() {
                 <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
                   Create Contract
                 </button>
+              </div>
+            ) : (
+              /* Contracts Table - only show when contracts exist */
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
+                  <div className="col-span-3">Contract</div>
+                  <div className="col-span-3">Property</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-2">Last Modified</div>
+                  <div className="col-span-1">Created</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {/* Table Rows */}
+                <div className="divide-y divide-gray-200">
+                  {(() => {
+                    const filteredContracts = contracts.filter((contract) => {
+                      const searchLower = contractSearch.toLowerCase();
+                      const matchesSearch = (
+                        contract.name.toLowerCase().includes(searchLower) ||
+                        contract.tenant.toLowerCase().includes(searchLower) ||
+                        contract.property.toLowerCase().includes(searchLower)
+                      );
+
+                      // Apply filter
+                      if (contractFilter === "all") return matchesSearch;
+                      if (contractFilter === "active") return matchesSearch && contract.status === "Active";
+                      if (contractFilter === "pending") return matchesSearch && contract.status === "Pending";
+                      if (contractFilter === "completed") return matchesSearch && contract.status === "Completed";
+                      if (contractFilter === "draft") return matchesSearch && contract.status === "Draft";
+                      
+                      return matchesSearch;
+                    });
+
+                    if (filteredContracts.length === 0) {
+                      return (
+                        <div className="px-6 py-16 text-center">
+                          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                            <Search className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <h3 className="text-xl font-bold text-black mb-2">No contracts found</h3>
+                          <p className="text-gray-600">
+                            Try adjusting your search terms or clear the search to see all contracts.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return filteredContracts.map((contract) => (
+                    <Link 
+                      key={contract.id}
+                      href={`/dashboard/contract/${contract.id}`}
+                      className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
+                    >
+                      {/* Contract Name */}
+                      <div className="col-span-3 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-black truncate group-hover:text-gray-700 transition-colors">
+                              {contract.name}
+                            </p>
+                            {contract.isPrimary && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold flex-shrink-0">
+                                <Star className="w-3 h-3 fill-current" />
+                                PRIMARY
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 truncate">{contract.tenant}</p>
+                        </div>
+                      </div>
+
+                      {/* Property */}
+                      <div className="col-span-3 flex items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-800 truncate">{contract.property}</p>
+                          <p className="text-xs text-gray-500">{contract.startDate} - {contract.endDate}</p>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="col-span-2 flex items-center">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                          contract.status === "Active" 
+                            ? "bg-green-100 text-green-700"
+                            : contract.status === "Pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : contract.status === "Completed"
+                            ? "bg-blue-100 text-blue-700"
+                            : contract.status === "Draft"
+                            ? "bg-gray-100 text-gray-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}>
+                          {contract.status === "Active" && <CheckCircle className="w-3 h-3" />}
+                          {contract.status === "Pending" && <Clock className="w-3 h-3" />}
+                          {contract.status === "Completed" && <CheckCircle className="w-3 h-3" />}
+                          {contract.status === "Draft" && <FileText className="w-3 h-3" />}
+                          {contract.status}
+                        </span>
+                      </div>
+
+                      {/* Last Modified */}
+                      <div className="col-span-2 flex items-center">
+                        <p className="text-sm text-gray-600">{contract.lastModified}</p>
+                      </div>
+
+                      {/* Created */}
+                      <div className="col-span-1 flex items-center">
+                        <p className="text-sm text-gray-600">{contract.created}</p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="col-span-1 flex items-center justify-end">
+                        <button className="w-8 h-8 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+                          <MoreVertical className="w-5 h-5 text-gray-600" />
+                        </button>
+                      </div>
+                    </Link>
+                  ));
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -778,6 +1031,15 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Loading State */}
+            {loadingTenants ? (
+              <div className="bg-white rounded-2xl p-16 text-center">
+                <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 className="text-xl font-bold text-black mb-2">Loading tenants...</h3>
+                <p className="text-gray-600">Please wait while we fetch your tenants.</p>
+              </div>
+            ) : (
+              <>
             {/* Tenants Grid */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tenants
@@ -915,6 +1177,191 @@ export default function DashboardPage() {
                 </p>
               </div>
             )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Calendar Tab */}
+      {activeTab === "calendar" && (
+        <>
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-4xl font-bold text-black mb-2">Calendar</h2>
+                <p className="text-lg text-gray-600">Schedule and manage property viewings</p>
+              </div>
+              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
+                + New Showing
+              </button>
+            </div>
+          </div>
+
+          {/* Calendar View */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* Calendar Header */}
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button className="w-9 h-9 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center justify-center transition-all">
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h3 className="text-xl font-bold text-black">January 2026</h3>
+                <button className="w-9 h-9 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center justify-center transition-all">
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 hover:bg-gray-50 transition-all">
+                Today
+              </button>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="p-6">
+              {/* Weekday Headers */}
+              <div className="grid grid-cols-7 gap-4 mb-4">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                  <div key={day} className="text-center text-sm font-semibold text-gray-600">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Days */}
+              <div className="grid grid-cols-7 gap-4">
+                {/* Empty cells for days before month start */}
+                {[...Array(2)].map((_, i) => (
+                  <div key={`empty-${i}`} className="aspect-square"></div>
+                ))}
+                
+                {/* Days 1-31 */}
+                {[...Array(31)].map((_, i) => {
+                  const day = i + 1;
+                  const hasShowing = [5, 8, 12, 15, 18, 22, 25].includes(day);
+                  const isToday = day === 22;
+                  const isPast = day < 22;
+                  
+                  return (
+                    <div
+                      key={day}
+                      className={`aspect-square border rounded-lg p-2 transition-all ${
+                        isToday 
+                          ? 'bg-black text-white border-black cursor-pointer' 
+                          : isPast
+                          ? 'border-gray-200 bg-gray-50 opacity-70 cursor-pointer hover:border-gray-400'
+                          : 'border-gray-200 hover:border-black cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex flex-col h-full">
+                        <span className={`text-sm font-medium ${
+                          isToday ? 'text-white' : isPast ? 'text-gray-600' : 'text-gray-900'
+                        }`}>
+                          {day}
+                        </span>
+                        {hasShowing && (
+                          <div className="mt-auto">
+                            <div className={`text-xs px-2 py-1 rounded ${
+                              isToday 
+                                ? 'bg-white text-black' 
+                                : isPast
+                                ? 'bg-gray-200 text-gray-600'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {day === 5 ? '2 viewings' : day === 12 ? '3 viewings' : '1 viewing'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Showings List */}
+          <div className="mt-8">
+            <h3 className="text-2xl font-bold text-black mb-4">Upcoming Showings</h3>
+            <div className="space-y-4">
+              {[
+                {
+                  id: 1,
+                  property: '123 Main St, Apt 4B',
+                  tenant: 'John Smith',
+                  date: 'Jan 22, 2026',
+                  time: '2:00 PM',
+                  status: 'confirmed',
+                },
+                {
+                  id: 2,
+                  property: '456 Oak Avenue',
+                  tenant: 'Sarah Johnson',
+                  date: 'Jan 23, 2026',
+                  time: '10:30 AM',
+                  status: 'pending',
+                },
+                {
+                  id: 3,
+                  property: '789 Pine Street',
+                  tenant: 'Michael Brown',
+                  date: 'Jan 25, 2026',
+                  time: '4:00 PM',
+                  status: 'confirmed',
+                },
+              ].map((showing) => (
+                <div
+                  key={showing.id}
+                  className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-lg font-semibold text-black">{showing.property}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          showing.status === 'confirmed'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {showing.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-6 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span>{showing.tenant}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>{showing.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{showing.time}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 hover:bg-gray-50 transition-all">
+                        Reschedule
+                      </button>
+                      <button className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all">
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -1044,6 +1491,21 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-black text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
+            <span className="text-sm font-medium">{toastMessage}</span>
+            <button
+              onClick={() => setShowToast(false)}
+              className="ml-auto hover:opacity-80 transition-opacity"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

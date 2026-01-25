@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon } from "lucide-react";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { BADGE_REFRESH_EVENT } from "@/lib/inbox-badge";
 
 export default function DashboardLayout({
   children,
@@ -22,6 +23,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const supabase = createSupabaseClient();
   const [user, setUser] = useState<any>(null);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Load user on mount
   useEffect(() => {
@@ -31,6 +33,42 @@ export default function DashboardLayout({
     };
     loadUser();
   }, [supabase]);
+
+  // Load unread messages count
+  useEffect(() => {
+    const loadUnreadCount = async () => {
+      if (!user) return;
+      
+      try {
+        const { count, error } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('sender_type', 'tenant') // Only count messages from clients
+          .eq('is_read', false);
+        
+        if (!error && count !== null) {
+          setUnreadCount(count);
+        }
+      } catch (error) {
+        console.error('Error loading unread count:', error);
+      }
+    };
+    
+    loadUnreadCount();
+    
+    // Refresh count every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+    
+    // Listen for manual refresh events (when user opens conversation)
+    const handleRefresh = () => loadUnreadCount();
+    window.addEventListener(BADGE_REFRESH_EVENT, handleRefresh);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(BADGE_REFRESH_EVENT, handleRefresh);
+    };
+  }, [user, supabase]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -283,13 +321,18 @@ export default function DashboardLayout({
           {/* Main Navigation */}
           <nav className="space-y-2 p-6 flex-1">
             <Link href="/dashboard?tab=inbox">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all relative ${
                 activeTab === "inbox" && pathname === "/dashboard"
                   ? "bg-gray-100 text-black" 
                   : "hover:bg-gray-50 text-gray-700"
               }`}>
                 <Inbox className="w-5 h-5" />
                 <span>Inbox</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </div>
             </Link>
             
@@ -323,6 +366,17 @@ export default function DashboardLayout({
               }`}>
                 <Users className="w-5 h-5" />
                 <span>Tenants</span>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard?tab=calendar">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "calendar" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <Calendar className="w-5 h-5" />
+                <span>Calendar</span>
               </div>
             </Link>
             

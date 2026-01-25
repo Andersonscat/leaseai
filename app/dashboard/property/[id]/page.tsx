@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Send } from "lucide-react";
+import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Send, Edit, Car, Calendar, Wifi, Zap, Droplet, Home, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 export default function PropertyPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const propertyId = params.id as string;
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showAllChats, setShowAllChats] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
   
   // State for property loaded from Supabase
   const [property, setProperty] = useState<any>(null);
@@ -40,11 +43,21 @@ export default function PropertyPage() {
     }
   }, [propertyId]);
 
-  // Check if we should open All Chats on mount
+  // Check if we should open All Chats on mount or show update success
   useEffect(() => {
     const openChats = searchParams.get('openChats');
+    const updated = searchParams.get('updated');
+    
     if (openChats === 'true') {
       setShowAllChats(true);
+    }
+    
+    if (updated === 'success') {
+      setShowUpdateSuccess(true);
+      // Hide after 5 seconds
+      setTimeout(() => {
+        setShowUpdateSuccess(false);
+      }, 5000);
     }
   }, [searchParams]);
 
@@ -124,8 +137,67 @@ export default function PropertyPage() {
     }
   };
 
+  const handleGenerateAIDraft = async () => {
+    if (!selectedChatData) return;
+    
+    setGeneratingAI(true);
+    try {
+      // Get last message from tenant
+      const lastTenantMessage = selectedChatData.messages
+        .filter(msg => msg.sender === 'tenant')
+        .slice(-1)[0];
+      
+      if (!lastTenantMessage) {
+        alert('No message to respond to');
+        setGeneratingAI(false);
+        return;
+      }
+
+      // Call AI API to generate response
+      const response = await fetch(`/api/conversations/${selectedChatData.tenantId}/auto-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientMessage: lastTenantMessage.text,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Set AI response in message input
+        setMessageInput(data.aiResponse);
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error generating AI draft:', error);
+      alert('Failed to generate AI draft');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
   return (
     <div className="p-10">
+      {/* Success Notification */}
+      {showUpdateSuccess && (
+        <div className="fixed top-6 right-6 z-50 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-in">
+          <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span className="font-semibold">Property updated successfully!</span>
+          <button 
+            onClick={() => setShowUpdateSuccess(false)}
+            className="ml-2 hover:bg-green-600 rounded-full p-1 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Back Button */}
       <div className="mb-6">
         <Link href="/dashboard?tab=properties">
@@ -187,6 +259,16 @@ export default function PropertyPage() {
                   <span className="text-lg">{property.address}</span>
                 </div>
               </div>
+              
+              {/* Edit Button */}
+              <Link href={`/dashboard/property/edit/${propertyId}`}>
+                <button
+                  className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-all shadow-md hover:shadow-lg"
+                >
+                  <Edit className="w-5 h-5" />
+                  Edit Property
+                </button>
+              </Link>
             </div>
 
             {/* Property Stats */}
@@ -221,16 +303,175 @@ export default function PropertyPage() {
               </p>
             </div>
 
-            {/* Amenities */}
+            {/* Key Features Grid */}
             <div className="mt-8">
-              <h2 className="text-2xl font-bold text-black mb-4">Amenities</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {property.amenities.map((amenity, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-4">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-700">{amenity}</span>
+              <h2 className="text-2xl font-bold text-black mb-4">Key Features</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200">
+                  <Home className="w-6 h-6 text-blue-600 mb-2" />
+                  <div className="text-sm text-gray-600">Property Type</div>
+                  <div className="text-lg font-bold text-black">{property.type === 'rent' ? 'For Rent' : 'For Sale'}</div>
+                </div>
+                
+                {property.parking_available !== undefined && (
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200">
+                    <Car className="w-6 h-6 text-purple-600 mb-2" />
+                    <div className="text-sm text-gray-600">Parking</div>
+                    <div className="text-lg font-bold text-black">
+                      {property.parking_available ? 'Available' : 'Not Available'}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border border-green-200">
+                  <CheckCircle2 className="w-6 h-6 text-green-600 mb-2" />
+                  <div className="text-sm text-gray-600">Status</div>
+                  <div className="text-lg font-bold text-black">{property.status}</div>
+                </div>
+
+                {property.type === 'rent' && (
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-5 border border-orange-200">
+                    <Calendar className="w-6 h-6 text-orange-600 mb-2" />
+                    <div className="text-sm text-gray-600">Lease Term</div>
+                    <div className="text-lg font-bold text-black">12 months</div>
+                  </div>
+                )}
+
+                <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-5 border border-teal-200">
+                  <Droplet className="w-6 h-6 text-teal-600 mb-2" />
+                  <div className="text-sm text-gray-600">Utilities</div>
+                  <div className="text-lg font-bold text-black">Ask Owner</div>
+                </div>
+
+                <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-5 border border-pink-200">
+                  <Wifi className="w-6 h-6 text-pink-600 mb-2" />
+                  <div className="text-sm text-gray-600">Internet</div>
+                  <div className="text-lg font-bold text-black">Ready</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Property Details Table */}
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold text-black mb-4">Property Details</h2>
+              <div className="bg-gray-50 rounded-xl p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Price</span>
+                  <span className="text-black font-bold">{property.price}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Type</span>
+                  <span className="text-black font-semibold capitalize">{property.type}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Bedrooms</span>
+                  <span className="text-black font-semibold">{property.beds}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Bathrooms</span>
+                  <span className="text-black font-semibold">{property.baths}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Square Feet</span>
+                  <span className="text-black font-semibold">{property.sqft} sq.ft</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Pet Policy</span>
+                  <span className="text-black font-semibold">{property.pets}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-gray-200">
+                  <span className="text-gray-600 font-medium">Status</span>
+                  <span className="text-green-600 font-bold">{property.status}</span>
+                </div>
+                {property.parking_available !== undefined && (
+                  <div className="flex justify-between py-3 border-b border-gray-200">
+                    <span className="text-gray-600 font-medium">Parking</span>
+                    <span className="text-black font-semibold">
+                      {property.parking_available ? '✓ Available' : '✗ Not Available'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Amenities */}
+            {property.amenities && property.amenities.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-bold text-black mb-4">Amenities</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {property.amenities.map((amenity, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-700">{amenity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Features */}
+            {property.features && property.features.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-bold text-black mb-4">Additional Features</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {property.features.map((feature, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-blue-50 rounded-xl p-4 border border-blue-100 hover:bg-blue-100 transition-colors">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                      <span className="text-gray-700">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rules */}
+            {property.rules && property.rules.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-bold text-black mb-4">Property Rules</h2>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                  <ul className="space-y-3">
+                    {property.rules.map((rule, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="text-amber-600 font-bold mt-1">•</span>
+                        <span className="text-gray-700 flex-1">{rule}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Location & Neighborhood */}
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold text-black mb-4">Location & Neighborhood</h2>
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <MapPin className="w-6 h-6 text-indigo-600 mt-1" />
+                  <div>
+                    <h3 className="font-bold text-black text-lg mb-1">{property.address}</h3>
+                    <p className="text-gray-600">
+                      Conveniently located with easy access to public transportation, shopping centers, restaurants, and parks.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <div className="text-2xl font-bold text-black">95</div>
+                    <div className="text-sm text-gray-600 mt-1">Walk Score</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <div className="text-2xl font-bold text-black">85</div>
+                    <div className="text-sm text-gray-600 mt-1">Transit Score</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <div className="text-2xl font-bold text-black">5 min</div>
+                    <div className="text-sm text-gray-600 mt-1">To Grocery</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <div className="text-2xl font-bold text-black">10 min</div>
+                    <div className="text-sm text-gray-600 mt-1">To Downtown</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -391,21 +632,60 @@ export default function PropertyPage() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-gray-200">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 rounded-xl bg-gray-100 border-none focus:outline-none focus:ring-2 focus:ring-black"
-                />
+              {/* AI Draft Button - Uber Style */}
+              <div className="mb-3">
                 <button
-                  onClick={handleSendMessage}
-                  className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-all"
+                  onClick={handleGenerateAIDraft}
+                  disabled={generatingAI}
+                  className="w-full py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  <Send className="w-5 h-5" />
+                  {generatingAI ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>Generate AI Draft</span>
+                    </>
+                  )}
                 </button>
+              </div>
+              
+              <div className="flex gap-3 items-end">
+                <textarea
+                  value={messageInput}
+                  onChange={(e) => {
+                    setMessageInput(e.target.value);
+                    // Auto-resize
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 400) + 'px';
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && messageInput.trim()) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Type a message..."
+                  rows={1}
+                  className="flex-1 px-5 py-4 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none text-black text-base font-normal overflow-y-auto leading-relaxed"
+                  style={{ minHeight: '56px', maxHeight: '400px' }}
+                />
+                {messageInput.trim().length > 0 && (
+                  <button
+                    onClick={handleSendMessage}
+                    className="w-14 h-14 bg-black text-white rounded-2xl flex items-center justify-center hover:bg-gray-800 transition-all flex-shrink-0"
+                  >
+                    <Send className="w-6 h-6" />
+                  </button>
+                )}
               </div>
             </div>
           </div>

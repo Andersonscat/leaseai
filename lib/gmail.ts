@@ -32,6 +32,8 @@ interface ParsedLead {
   message: string;
   source: string;
   property_address?: string;
+  messageId?: string; // Gmail message ID for threading
+  threadId?: string; // Gmail thread ID for threading
 }
 
 /**
@@ -93,12 +95,105 @@ function parseEmailBody(body: string, subject: string, from: string): ParsedLead
     const addressMatch = subject.match(/(?:Re:|Inquiry about|Question about)\s*(.+?)(?:\s*-|\s*$)/i);
     const propertyAddress = addressMatch ? addressMatch[1].trim() : undefined;
     
-    // Clean message body (remove signatures, footers, etc)
-    let message = body
-      .replace(/On .+ wrote:/g, '') // Remove email threads
-      .replace(/_{3,}/g, '') // Remove separator lines
-      .replace(/^>.*$/gm, '') // Remove quoted text
-      .trim();
+    // Clean message body - AGGRESSIVELY remove quoted text and old threads
+    let message = body;
+    
+    // Method 1: Remove lines starting with > (quoted text and security warnings)
+    // CRITICAL: Do this FIRST before other processing
+    const lines = message.split('\n');
+    const cleanLines = [];
+    let foundQuotedSection = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      
+      // Skip quoted lines (start with >)
+      if (trimmed.startsWith('>')) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // Skip separator lines
+      if (trimmed.match(/^[-_|=]{3,}$/)) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // Skip university security warnings
+      if (trimmed.includes('Untrusted Sender') || 
+          trimmed.includes('This Message Is From') ||
+          trimmed.includes('Please contact the UW-IT') ||
+          trimmed.includes('for additional information')) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // If we found quoted section and this is empty line, skip
+      if (foundQuotedSection && trimmed === '') {
+        continue;
+      }
+      
+      // Stop if we hit "wrote:" pattern (quoted email)
+      if (trimmed.match(/<.*@.*>.*wrote:/i) || trimmed.match(/On .+ wrote:/i)) {
+        break; // Stop processing - everything after is quoted
+      }
+      
+      cleanLines.push(line);
+    }
+    
+    message = cleanLines.join('\n').trim();
+    
+    // Method 2: Cut at common quote markers if still present
+    const quoteMarkers = [
+      'wrote:',
+      'Original Message',
+      'Forwarded message',
+      'From:',
+      'Sent:',
+    ];
+    
+    for (const marker of quoteMarkers) {
+      const markerIndex = message.toLowerCase().indexOf(marker.toLowerCase());
+      if (markerIndex > 50) { // Only cut if marker is not at the very beginning
+        // Look backwards for "On" or "<email>" before "wrote:"
+        let cutIndex = markerIndex;
+        for (let i = markerIndex - 1; i >= Math.max(0, markerIndex - 100); i--) {
+          if (message[i] === '\n' && message.substring(i + 1, i + 4) === 'On ') {
+            cutIndex = i;
+            break;
+          }
+        }
+        message = message.substring(0, cutIndex).trim();
+        break;
+      }
+    }
+    
+    // Method 3: Remove email signatures
+    message = message.replace(/\n--\s*\n[\s\S]*$/m, '');
+    
+    // Method 4: Take only first meaningful content (first few paragraphs)
+    const paragraphs = message.split('\n\n').filter(p => p.trim().length > 0);
+    if (paragraphs.length > 0) {
+      // Take first 2 paragraphs or until we hit 500 chars
+      let result = '';
+      for (let i = 0; i < Math.min(paragraphs.length, 3); i++) {
+        const para = paragraphs[i].trim();
+        // Skip if paragraph looks like a header or metadata
+        if (para.match(/^(From|To|Subject|Date|Sent):/i)) continue;
+        
+        if (result.length + para.length > 500) {
+          if (result.length === 0 && para.length > 50) {
+            result = para; // Take first paragraph even if long
+          }
+          break;
+        }
+        result += (result ? '\n\n' : '') + para;
+      }
+      message = result || paragraphs[0];
+    }
+    
+    message = message.trim();
     
     // Limit message length
     if (message.length > 1000) {
@@ -211,6 +306,8 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
         message: originalMessage,  // ← ОРИГИНАЛЬНЫЙ ТЕКСТ!
         source: aiParsed.source,
         property_address: aiParsed.property_address,
+        messageId: message.id || undefined,
+        threadId: message.threadId || undefined,
       };
     }
     
@@ -220,7 +317,11 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
     
     if (lead) {
       console.log('Parsed lead (regex):', lead);
-      return lead;
+      return {
+        ...lead,
+        messageId: message.id || undefined,
+        threadId: message.threadId || undefined,
+      };
     }
     
     return null;
@@ -299,5 +400,132 @@ export async function getRecentUnreadMessages(maxResults: number = 10, userId: s
   } catch (error) {
     console.error('Error getting unread messages:', error);
     return [];
+  }
+}
+
+/**
+ * Send email via Gmail API
+ * @param to - Recipient email address
+ * @param subject - Email subject
+ * @param body - Email body (plain text)
+ * @param threadId - Optional: Gmail thread ID to reply to (keeps conversation together)
+ * @param inReplyTo - Optional: Message-ID header for proper threading
+ */
+export async function sendEmail(
+  to: string,
+  subject: string,
+  body: string,
+  options?: {
+    threadId?: string;
+    inReplyTo?: string;
+    userId?: string;
+  }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const gmail = getGmailClient();
+  const userId = options?.userId || 'me';
+  
+  try {
+    console.log('📧 Sending email to:', to);
+    
+    // Get user's email address for "From" header
+    const profile = await gmail.users.getProfile({ userId });
+    const fromEmail = profile.data.emailAddress || '';
+    
+    // Build email message in RFC 2822 format
+    const messageParts = [
+      `From: ${fromEmail}`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=utf-8',
+    ];
+    
+    // Add threading headers if replying
+    if (options?.inReplyTo) {
+      messageParts.push(`In-Reply-To: ${options.inReplyTo}`);
+      messageParts.push(`References: ${options.inReplyTo}`);
+    }
+    
+    // Empty line separates headers from body
+    messageParts.push('');
+    messageParts.push(body);
+    
+    const message = messageParts.join('\r\n');
+    
+    // Encode message in base64url format (required by Gmail API)
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    // Send the email
+    const requestBody: any = {
+      raw: encodedMessage,
+    };
+    
+    // If threadId provided, add it to keep conversation together
+    if (options?.threadId) {
+      requestBody.threadId = options.threadId;
+    }
+    
+    const response = await gmail.users.messages.send({
+      userId,
+      requestBody,
+    });
+    
+    console.log('✅ Email sent successfully:', response.data.id);
+    
+    return {
+      success: true,
+      messageId: response.data.id || undefined,
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error sending email:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to send email',
+    };
+  }
+}
+
+/**
+ * Send auto-reply to a lead
+ * Uses proper email threading to keep conversation organized
+ */
+export async function sendAutoReply(
+  leadEmail: string,
+  leadName: string,
+  replyMessage: string,
+  options?: {
+    threadId?: string;
+    messageId?: string;
+    subject?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const subject = options?.subject 
+      ? `Re: ${options.subject.replace(/^Re:\s*/i, '')}` 
+      : 'Re: Your property inquiry';
+    
+    const result = await sendEmail(
+      leadEmail,
+      subject,
+      replyMessage,
+      {
+        threadId: options?.threadId,
+        inReplyTo: options?.messageId,
+      }
+    );
+    
+    return result;
+    
+  } catch (error: any) {
+    console.error('❌ Error in auto-reply:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 }
