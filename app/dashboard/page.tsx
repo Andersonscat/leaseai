@@ -6,7 +6,10 @@ import { Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filt
 import Link from "next/link";
 import ConversationsInbox from "@/components/ConversationsInbox";
 
-export default function DashboardPage() {
+import { Suspense } from "react";
+
+function DashboardContent() {
+
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "properties";
   const successParam = searchParams.get("success");
@@ -1508,5 +1511,15 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+    </div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

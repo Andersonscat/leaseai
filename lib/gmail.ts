@@ -32,7 +32,9 @@ interface ParsedLead {
   message: string;
   source: string;
   property_address?: string;
+  subject?: string; // Original email subject
   messageId?: string; // Gmail message ID for threading
+  rfcMessageId?: string; // RFC 2822 Message-ID header for threading
   threadId?: string; // Gmail thread ID for threading
 }
 
@@ -135,8 +137,23 @@ function parseEmailBody(body: string, subject: string, from: string): ParsedLead
       }
       
       // Stop if we hit "wrote:" pattern (quoted email)
-      if (trimmed.match(/<.*@.*>.*wrote:/i) || trimmed.match(/On .+ wrote:/i)) {
-        break; // Stop processing - everything after is quoted
+      // Check for quote marker on the line (handling non-breaking spaces and variations)
+      const quoteMatch = trimmed.match(/(On\s+[\s\S]+wrote:|From:\s+[\s\S]+)/i) || 
+                         trimmed.match(/<.+@.+>\s+wrote:/i) ||
+                         trimmed.match(/^On\s+.*,\s+.*at\s+.*wrote:/i); // Specific common pattern
+      
+      if (quoteMatch) {
+         // If marker found, take only text BEFORE it
+         const index = quoteMatch.index || 0;
+         if (index > 0) {
+           cleanLines.push(line.substring(0, index).trim());
+         }
+         break; // Stop processing remaining lines
+      }
+      
+      // Also check for "On [Date], [Time], [Name] wrote:" specifically which might have special spaces
+      if (trimmed.startsWith('On ') && trimmed.includes('wrote:')) {
+         break;
       }
       
       cleanLines.push(line);
@@ -280,6 +297,7 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
     const headers = message.payload?.headers || [];
     const from = headers.find(h => h.name === 'From')?.value || '';
     const subject = headers.find(h => h.name === 'Subject')?.value || '';
+    const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value;
     
     // Get body
     const body = getEmailBody(message);
@@ -306,7 +324,9 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
         message: originalMessage,  // ← ОРИГИНАЛЬНЫЙ ТЕКСТ!
         source: aiParsed.source,
         property_address: aiParsed.property_address,
+        subject: subject, // Pass original subject
         messageId: message.id || undefined,
+        rfcMessageId: rfcMessageId, // Pass proper Message-ID
         threadId: message.threadId || undefined,
       };
     }
@@ -319,7 +339,9 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
       console.log('Parsed lead (regex):', lead);
       return {
         ...lead,
+        subject: subject,
         messageId: message.id || undefined,
+        rfcMessageId: rfcMessageId,
         threadId: message.threadId || undefined,
       };
     }

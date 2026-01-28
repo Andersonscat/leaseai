@@ -187,14 +187,69 @@ export async function POST(
     }
 
     // Return AI response + metadata
+    // 5.5 Handle Function Calls (Calendar Booking)
+    let finalResponse = result.response;
+    let finalAction = result.nextAction;
+
+    if (result.needsFunctionExecution && result.functionCall?.name === 'book_calendar_event') {
+      console.log('📅 AI requests calendar booking:', result.functionCall.args);
+      
+      try {
+        const { createCalendarEvent } = await import('@/lib/calendar-client');
+        const { generateResponseAfterFunction } = await import('@/lib/ai-qualification');
+        
+        const args = result.functionCall.args;
+        const startTime = new Date(args.start_time);
+        const duration = args.duration_minutes || 30;
+        const endTime = new Date(startTime.getTime() + duration * 60000);
+        
+        const event = await createCalendarEvent(
+          startTime.toISOString(),
+          endTime.toISOString(),
+          `Viewing: ${args.property_address}`,
+          `Client: ${args.client_name || tenant.name}\nPhone: ${tenant.phone}\nEmail: ${tenant.email}`,
+          tenant.email || undefined
+        );
+        
+        const postFunctionResult = await generateResponseAfterFunction({
+          tenant: tenant,
+          conversationHistory: conversationHistory,
+          functionResult: {
+            success: true,
+            calendar_link: event.htmlLink,
+            event_time: startTime.toLocaleString('en-US', { 
+              weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' 
+            })
+          }
+        });
+        
+        finalResponse = postFunctionResult.response;
+        console.log('✅ Calendar booking successful');
+      } catch (err: any) {
+        console.error('❌ Calendar booking failed:', err);
+        const { generateResponseAfterFunction } = await import('@/lib/ai-qualification');
+        const errorResult = await generateResponseAfterFunction({
+          tenant: tenant,
+          conversationHistory: conversationHistory,
+          functionResult: {
+            success: false,
+            error: err.message || 'Failed to access calendar'
+          }
+        });
+        finalResponse = errorResult.response;
+        finalAction = 'needs_manual_attention';
+      }
+    }
+
+    // Return AI response + metadata
     return NextResponse.json({
       success: true,
-      aiResponse: result.response,
+      aiResponse: finalResponse,
       extractedData: result.extractedData,
       leadScore: result.extractedData ? calculateLeadScore({ ...tenant, ...result.extractedData }) : tenant.lead_score,
       leadQuality: result.extractedData ? getLeadQuality(calculateLeadScore({ ...tenant, ...result.extractedData })) : tenant.lead_quality,
       matchedProperties: matchedProperties.slice(0, 3), // Top 3 matches
-      nextAction: result.nextAction,
+      nextAction: finalAction,
     });
     
   } catch (error) {

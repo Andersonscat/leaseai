@@ -1,8 +1,6 @@
-import OpenAI from 'openai';
+import { geminiModel } from '@/lib/gemini-client';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const model = geminiModel;
 
 /**
  * System Prompt для AI Auto-responder
@@ -94,35 +92,33 @@ export async function generateAutoResponse(
       systemPrompt += `\n\nДоступные объекты:\n${realtorInfo.properties.join('\n')}`;
     }
     
-    // Формируем историю сообщений для контекста
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      // Добавляем историю переписки (если есть)
-      ...conversationHistory.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
-      // Добавляем текущее сообщение клиента
-      {
-        role: 'user',
-        content: clientMessage,
-      },
-    ];
-    
-    // Вызываем OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Быстрая и дешевая модель
-      messages,
-      temperature: 0.7, // Немного креативности, но не слишком
-      max_tokens: 200, // Ограничиваем длину ответа (короткие ответы)
-      presence_penalty: 0.3, // Избегаем повторений
-      frequency_penalty: 0.3,
+    // Convert history to Gemini format
+    const historyParts = conversationHistory.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+    }));
+
+    // Start chat session
+    const chat = model.startChat({
+        history: [
+            {
+                role: 'user',
+                parts: [{ text: `System Instruction: ${systemPrompt}` }]
+            },
+            {
+                role: 'model',
+                parts: [{ text: 'Understood. I will act as a professional real estate agent following these instructions.' }]
+            },
+            ...historyParts as any
+        ],
+        generationConfig: {
+            maxOutputTokens: 200,
+            temperature: 0.7,
+        }
     });
-    
-    const aiResponse = completion.choices[0]?.message?.content?.trim();
+
+    const result = await chat.sendMessage(clientMessage);
+    const aiResponse = result.response.text();
     
     if (!aiResponse) {
       throw new Error('AI returned empty response');

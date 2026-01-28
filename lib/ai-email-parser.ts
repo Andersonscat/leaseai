@@ -1,5 +1,9 @@
-// AI-Powered Email Parser using OpenAI
+// AI-Powered Email Parser using Gemini
 // This intelligently extracts lead information from any email
+
+import { geminiModel } from '@/lib/gemini-client';
+
+const model = geminiModel;
 
 interface AIParserResult {
   tenant_name: string;
@@ -15,8 +19,7 @@ interface AIParserResult {
 }
 
 /**
- * AI-powered email parsing with GPT-4o-mini
- * Cost: ~$0.002 per email
+ * AI-powered email parsing with Gemini 1.5 Flash
  */
 export async function parseEmailWithAI(
   from: string,
@@ -24,10 +27,10 @@ export async function parseEmailWithAI(
   body: string
 ): Promise<AIParserResult | null> {
   try {
-    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
     
-    if (!openaiApiKey) {
-      console.warn('OPENAI_API_KEY not set, falling back to regex parsing');
+    if (!apiKey) {
+      console.warn('GOOGLE_GEMINI_API_KEY not set, falling back to regex parsing');
       return null;
     }
     
@@ -65,49 +68,42 @@ Example output:
   "move_in_date": "May 1, 2026"
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a JSON-only parser. Return only valid JSON, no explanations.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 500,
-      }),
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }]
     });
 
-    if (!response.ok) {
-      console.error('OpenAI API error:', response.status);
-      return null;
-    }
+    const responseText = result.response.text();
 
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-
-    if (!content) {
-      console.error('No content from OpenAI');
+    if (!responseText) {
+      console.error('No content from Gemini');
       return null;
     }
 
     // Parse JSON response
-    const parsed = JSON.parse(content.trim());
+    let cleanText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Sometimes Gemini adds extra text, try to find JSON block
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanText = jsonMatch[0];
+
+    let parsed: AIParserResult;
+
+    try {
+      parsed = JSON.parse(cleanText);
+    } catch (e) {
+      console.error('Failed to parse JSON from Gemini:', e);
+      return null;
+    }
     
     // Validate required fields
-    if (!parsed.tenant_name || !parsed.tenant_email || !parsed.message) {
+    if (!parsed.tenant_name || (!parsed.tenant_email && !parsed.tenant_phone) || !parsed.message) {
       console.error('Missing required fields from AI parsing');
       return null;
+    }
+
+    // Ensure we have an email - if missing but extracted from 'from', force it
+    if (!parsed.tenant_email) {
+       const emailMatch = from.match(/[\w.-]+@[\w.-]+\.\w+/);
+       if (emailMatch) parsed.tenant_email = emailMatch[0];
     }
 
     console.log('✅ AI parsed email:', {
@@ -125,7 +121,6 @@ Example output:
 
 /**
  * AI-only parser: Always use AI for best accuracy
- * Cost: ~$0.0002 per email (~$0.30/month for 50 emails/day)
  */
 export async function hybridEmailParser(
   from: string,
@@ -195,7 +190,7 @@ function regexParse(
   let message = body
     .replace(/On .+ wrote:/g, '')
     .replace(/_{3,}/g, '')
-    .replace(/^>.*$/gm, '')
+    .replace(/^[>].*$/gm, '')
     .trim();
   
   if (message.length > 1000) {

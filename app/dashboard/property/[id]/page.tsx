@@ -154,7 +154,7 @@ export default function PropertyPage() {
       }
 
       // Call AI API to generate response
-      const response = await fetch(`/api/conversations/${selectedChatData.tenantId}/auto-reply`, {
+      const response = await fetch(`/api/conversations/${selectedChatData.id}/auto-reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -399,7 +399,7 @@ export default function PropertyPage() {
               <div className="mt-8">
                 <h2 className="text-2xl font-bold text-black mb-4">Amenities</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {property.amenities.map((amenity, idx) => (
+                  {property.amenities.map((amenity: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-gray-700">{amenity}</span>
@@ -409,14 +409,13 @@ export default function PropertyPage() {
               </div>
             )}
 
-            {/* Features */}
             {property.features && property.features.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-2xl font-bold text-black mb-4">Additional Features</h2>
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm mb-8">
+                <h2 className="text-2xl font-bold text-black mb-4">Features</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {property.features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-blue-50 rounded-xl p-4 border border-blue-100 hover:bg-blue-100 transition-colors">
-                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  {property.features.map((feature: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="text-gray-700">{feature}</span>
                     </div>
                   ))}
@@ -424,13 +423,12 @@ export default function PropertyPage() {
               </div>
             )}
 
-            {/* Rules */}
-            {property.rules && property.rules.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-2xl font-bold text-black mb-4">Property Rules</h2>
+            {property.house_rules && property.house_rules.length > 0 && (
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm mb-8">
+                <h2 className="text-2xl font-bold text-black mb-4">House Rules</h2>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                   <ul className="space-y-3">
-                    {property.rules.map((rule, idx) => (
+                    {property.house_rules.map((rule: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-3">
                         <span className="text-amber-600 font-bold mt-1">•</span>
                         <span className="text-gray-700 flex-1">{rule}</span>

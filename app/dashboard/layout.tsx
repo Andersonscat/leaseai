@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
 import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar } from "lucide-react";
@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BADGE_REFRESH_EVENT } from "@/lib/inbox-badge";
 
-export default function DashboardLayout({
+function DashboardLayoutContent({
   children,
 }: {
   children: React.ReactNode;
@@ -502,5 +502,13 @@ export default function DashboardLayout({
         </div>
       </aside>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="flex h-screen"><div className="w-64 bg-white border-r border-gray-200" /></div>}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
   );
 }

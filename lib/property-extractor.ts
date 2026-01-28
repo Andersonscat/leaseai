@@ -2,13 +2,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PropertyParameters, PROPERTY_PARAMS_DEFAULT } from '@/types/property-parameters';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
+import { geminiModel } from '@/lib/gemini-client';
 
-// Using flash model for speed and reliability
-const extractionModel = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    generationConfig: { responseMimeType: "application/json" }
-});
+// Using centralized model configuration
+const extractionModel = geminiModel;
 
 const EXTRACTION_SYSTEM_PROMPT = `
 You are a precision Real Estate Data Extractor.

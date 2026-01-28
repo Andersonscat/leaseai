@@ -24,3 +24,18 @@ COMMENT ON COLUMN messages.source IS
 UPDATE messages 
 SET source = 'manual' 
 WHERE source IS NULL;
+
+-- 6. Добавляем поля квалификации в таблицу tenants
+ALTER TABLE tenants
+ADD COLUMN IF NOT EXISTS budget VARCHAR(50),
+ADD COLUMN IF NOT EXISTS budget_min INTEGER,
+ADD COLUMN IF NOT EXISTS budget_max INTEGER,
+ADD COLUMN IF NOT EXISTS move_in_date VARCHAR(50),
+ADD COLUMN IF NOT EXISTS requirements TEXT,
+ADD COLUMN IF NOT EXISTS bedrooms INTEGER,
+ADD COLUMN IF NOT EXISTS property_type VARCHAR(50),
+ADD COLUMN IF NOT EXISTS preferred_neighborhoods TEXT,
+ADD COLUMN IF NOT EXISTS has_pets BOOLEAN,
+ADD COLUMN IF NOT EXISTS qualification_status VARCHAR(20) DEFAULT 'new';
+
+COMMENT ON COLUMN tenants.qualification_status IS 'Status of lead qualification: new, qualifying, qualified, disqualified';

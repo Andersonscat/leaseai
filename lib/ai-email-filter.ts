@@ -1,5 +1,9 @@
 // AI-powered email filtering
-// Uses GPT-4o-mini to intelligently determine if an email is a real lead
+// Uses Gemini 1.5 Flash to intelligently determine if an email is a real lead
+
+import { geminiModel, generateContentWithRetry } from '@/lib/gemini-client';
+
+const model = geminiModel;
 
 interface FilterResult {
   isLead: boolean;
@@ -19,10 +23,10 @@ export async function isRealLeadAI(
   body: string
 ): Promise<FilterResult> {
   try {
-    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
     
-    if (!openaiApiKey) {
-      console.warn('⚠️ OPENAI_API_KEY not set, falling back to regex filter');
+    if (!apiKey) {
+      console.warn('⚠️ GOOGLE_GEMINI_API_KEY not set, falling back to regex filter');
       return fallbackFilter(from, subject, body);
     }
     
@@ -65,53 +69,39 @@ NOT LEADS (isLead: false):
 - "Thanks for showing me the apartment yesterday"
 - "Your listing is now live - Confirmation"`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a JSON-only classifier. Return only valid JSON, no explanations.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 200,
-      }),
+    const result = await generateContentWithRetry(model, {
+      contents: [{ role: "user", parts: [{ text: prompt }] }]
     });
 
-    if (!response.ok) {
-      console.error('❌ OpenAI API error:', response.status);
-      return fallbackFilter(from, subject, body);
-    }
+    const responseText = result.response.text();
 
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-
-    if (!content) {
-      console.error('❌ No content from OpenAI');
+    if (!responseText) {
+      console.error('❌ No content from Gemini');
       return fallbackFilter(from, subject, body);
     }
 
     // Parse JSON response
-    const result: FilterResult = JSON.parse(content.trim());
+    let cleanText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Sometimes Gemini adds extra text, try to find JSON block
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanText = jsonMatch[0];
+
+    let filterResult: FilterResult;
+    try {
+      filterResult = JSON.parse(cleanText);
+    } catch (e) {
+      console.error('❌ Failed to parse JSON from Gemini:', e);
+      return fallbackFilter(from, subject, body);
+    }
     
     // Validate
-    if (typeof result.isLead !== 'boolean') {
+    if (typeof filterResult.isLead !== 'boolean') {
       throw new Error('Invalid response format');
     }
 
-    console.log(`🤖 AI Filter: ${result.isLead ? '✅ LEAD' : '⏭️ SKIP'} - ${result.reason} (${result.confidence}% confidence)`);
+    console.log(`🤖 AI Filter: ${filterResult.isLead ? '✅ LEAD' : '⏭️ SKIP'} - ${filterResult.reason} (${filterResult.confidence}% confidence)`);
 
-    return result;
+    return filterResult;
   } catch (error) {
     console.error('❌ Error in AI filter:', error);
     return fallbackFilter(from, subject, body);

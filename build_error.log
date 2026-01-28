@@ -1,0 +1,145 @@
+
+> leaseai@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.0
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+   Generating static pages (0/21) ...
+Error in GET /api/conversations: n [Error]: Dynamic server usage: Route /api/conversations couldn't be rendered statically because it used cookies. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at l (/Users/assylzhantati/LeaseAI/.next/server/chunks/948.js:1:37209)
+    at u (/Users/assylzhantati/LeaseAI/.next/server/chunks/196.js:56:4125)
+    at /Users/assylzhantati/LeaseAI/.next/server/app/api/conversations/route.js:1:1086
+    at c (/Users/assylzhantati/LeaseAI/.next/server/app/api/conversations/route.js:1:1410)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:34807
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854) {
+  description: "Route /api/conversations couldn't be rendered statically because it used cookies. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (5/21) 
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+ ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/dashboard/property/new". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at o (/Users/assylzhantati/LeaseAI/.next/server/chunks/892.js:1:10634)
+    at s (/Users/assylzhantati/LeaseAI/.next/server/chunks/892.js:1:21568)
+    at f (/Users/assylzhantati/LeaseAI/.next/server/chunks/69.js:1:1929)
+    at nj (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46251)
+    at nM (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47571)
+    at nM (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61546)
+    at nN (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64546)
+    at nB (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:67538)
+    at nD (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:66680)
+    at nN (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64853)
+
+Error occurred prerendering page "/dashboard/property/new". Read more: https://nextjs.org/docs/messages/prerender-error
+
+   Generating static pages (10/21) 
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+ ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/dashboard". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at o (/Users/assylzhantati/LeaseAI/.next/server/chunks/892.js:1:10634)
+    at s (/Users/assylzhantati/LeaseAI/.next/server/chunks/892.js:1:21568)
+    at f (/Users/assylzhantati/LeaseAI/.next/server/chunks/69.js:1:1929)
+    at nj (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46251)
+    at nM (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47571)
+    at nM (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61546)
+    at nN (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64546)
+    at nB (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:67538)
+    at nD (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:66680)
+    at nN (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64853)
+
+Error occurred prerendering page "/dashboard". Read more: https://nextjs.org/docs/messages/prerender-error
+
+   Generating static pages (15/21) 
+🧪 Testing Google Calendar event creation...
+✅ Calendar event created: https://www.google.com/calendar/event?eid=a3NpOGQyZnVhbHBkODhmY2diYm5oMjJoYWcgaG1tbW1tMzI0QG0
+✅ Test event created successfully!
+📅 Event link: https://www.google.com/calendar/event?eid=a3NpOGQyZnVhbHBkODhmY2diYm5oMjJoYWcgaG1tbW1tMzI0QG0
+📧 Attendees: [
+  {
+    email: 'assylzhaninternational@gmail.com',
+    responseStatus: 'needsAction'
+  }
+]
+API Error fetching events: q [Error]: Dynamic server usage: Route /api/calendar/events couldn't be rendered statically because it accessed `request.url`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at Object.get (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:37970)
+    at p (/Users/assylzhantati/LeaseAI/.next/server/app/api/calendar/events/route.js:1:1881)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:34807
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/trace/tracer.js:122:103
+    at NoopContextManager.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062) {
+  description: "Route /api/calendar/events couldn't be rendered statically because it accessed `request.url`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+Error in Gmail callback: q [Error]: Dynamic server usage: Route /api/gmail/callback couldn't be rendered statically because it accessed `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at Object.get (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38424)
+    at u (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/callback/route.js:1:1864)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:34807
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/trace/tracer.js:122:103
+    at NoopContextManager.with (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062) {
+  description: "Route /api/gmail/callback couldn't be rendered statically because it accessed `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+🚀 Starting Debug Agent... 
+📧 Fetching latest email from Gmail... 
+📨 Found message ID: 19c01e40dbfc44d4 
+📝 Email Details: {
+  subject: '2BD',
+  from: 'Asylzhan Tatibayev <assylzhanscat@gmail.com>',
+  snippet: 'Hi Im John, saw your listing on Instagram. I was looking for 2BD apartment in Seattle for around $3000 per month. You have any options?'
+}
+🤖 Calling AI Agent... 
+🤖 AI Qualification started for: assylzhaninternational@gmail.com
+🤖 Calling Gemini API with Function Calling enabled...
+📋 Available tools: [ 'book_calendar_event' ]
+✅ AI Result: {
+  response: "I'm checking on that for you. Could you clarify your preferred move-in date?",
+  nextAction: 'needs_manual_attention'
+}
+❌ AI Qualification Error: m [Error]: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent: [404 Not Found] models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+    at R (/Users/assylzhantati/LeaseAI/.next/server/chunks/258.js:31:2725)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async N (/Users/assylzhantati/LeaseAI/.next/server/chunks/258.js:31:2540)
+    at async P (/Users/assylzhantati/LeaseAI/.next/server/chunks/258.js:76:1561)
+    at async l (/Users/assylzhantati/LeaseAI/.next/server/chunks/437.js:99:177)
+    at async l (/Users/assylzhantati/LeaseAI/.next/server/app/api/debug-agent/route.js:1:2919)
+    at async /Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:34801
+    at async eS.execute (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:25910)
+    at async eS.handle (/Users/assylzhantati/LeaseAI/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:36055)
+    at async exportAppRoute (/Users/assylzhantati/LeaseAI/node_modules/next/dist/export/routes/app-route.js:77:26) {
+  status: 404,
+  statusText: 'Not Found',
+  errorDetails: undefined
+}
+ ✓ Generating static pages (21/21)
+
+> Export encountered errors on following paths:
+	/dashboard/page: /dashboard
+	/dashboard/property/new/page: /dashboard/property/new

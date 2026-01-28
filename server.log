@@ -1,0 +1,66 @@
+
+> leaseai@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+ ⚠ Port 3001 is in use, trying 3002 instead.
+ ⚠ Port 3002 is in use, trying 3003 instead.
+  ▲ Next.js 14.2.0
+  - Local:        http://localhost:3003
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3.2s
+ ✓ Compiled /middleware in 289ms (71 modules)
+ ○ Compiling /api/gmail/sync ...
+ ✓ Compiled /api/gmail/sync in 12.6s (1357 modules)
+⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217
+ ⨯ OpenAIError: Missing credentials. Please pass an `apiKey`, or set the `OPENAI_API_KEY` environment variable.
+    at new OpenAI (webpack-internal:///(rsc)/./node_modules/openai/client.mjs:132:19)
+    at eval (webpack-internal:///(rsc)/./lib/ai-qualification.ts:10:16)
+    at (rsc)/./lib/ai-qualification.ts (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:452:1)
+    at __webpack_require__ (/Users/assylzhantati/LeaseAI/.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./app/api/gmail/sync/route.ts:9:79)
+    at (rsc)/./app/api/gmail/sync/route.ts (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:422:1)
+    at __webpack_require__ (/Users/assylzhantati/LeaseAI/.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fapi%2Fgmail%2Fsync%2Froute&page=%2Fapi%2Fgmail%2Fsync%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Fgmail%2Fsync%2Froute.ts&appDir=%2FUsers%2Fassylzhantati%2FLeaseAI%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fassylzhantati%2FLeaseAI&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D!:15:114)
+    at (rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fapi%2Fgmail%2Fsync%2Froute&page=%2Fapi%2Fgmail%2Fsync%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Fgmail%2Fsync%2Froute.ts&appDir=%2FUsers%2Fassylzhantati%2FLeaseAI%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fassylzhantati%2FLeaseAI&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D! (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:412:1)
+    at __webpack_require__ (/Users/assylzhantati/LeaseAI/.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:472:39)
+    at /Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:473:1291
+    at __webpack_require__.X (/Users/assylzhantati/LeaseAI/.next/server/webpack-runtime.js:151:21)
+    at /Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:473:47
+    at Object.<anonymous> (/Users/assylzhantati/LeaseAI/.next/server/app/api/gmail/sync/route.js:476:3)
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+    at Module.require (node:internal/modules/cjs/loader:1231:19)
+    at mod.require (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:177:18)
+    at requirePage (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/require.js:109:84)
+    at /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/load-components.js:98:84
+    at async loadComponentsImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/load-components.js:98:26)
+    at async DevServer.findPageComponentsImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/next-server.js:710:36)
+    at async DevServer.findPageComponents (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/dev/next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/base-server.js:1905:24)
+    at async DevServer.renderToResponseImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/base-server.js:1957:32)
+    at async DevServer.pipeImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/base-server.js:915:25)
+    at async NextNodeServer.handleCatchallRenderRequest (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/next-server.js:272:17)
+    at async DevServer.handleRequestImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/base-server.js:811:17)
+    at async /Users/assylzhantati/LeaseAI/node_modules/next/dist/server/dev/next-dev-server.js:339:20
+    at async Span.traceAsyncFn (/Users/assylzhantati/LeaseAI/node_modules/next/dist/trace/trace.js:154:20)
+    at async DevServer.handleRequest (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/dev/next-dev-server.js:336:24)
+    at async invokeRender (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/router-server.js:174:21)
+    at async handleRequest (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/router-server.js:353:24)
+    at async requestHandlerImpl (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/router-server.js:377:13)
+    at async Server.requestListener (/Users/assylzhantati/LeaseAI/node_modules/next/dist/server/lib/start-server.js:141:13) {
+  page: '/api/gmail/sync'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 8.1s (1779 modules)
+ POST /api/gmail/sync 500 in 23365ms
+ POST /api/gmail/sync 500 in 23256ms
+ ✓ Compiled in 713ms (429 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/Users/assylzhantati/LeaseAI/.next/cache/webpack/client-development/2.pack.gz_' -> '/Users/assylzhantati/LeaseAI/.next/cache/webpack/client-development/2.pack.gz'
+ ✓ Compiled in 3.3s (500 modules)
