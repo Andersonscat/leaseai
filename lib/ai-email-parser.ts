@@ -19,7 +19,7 @@ interface AIParserResult {
 }
 
 /**
- * AI-powered email parsing with Gemini 1.5 Flash
+ * AI-powered email parsing with Gemini 2.0 Flash
  */
 export async function parseEmailWithAI(
   from: string,

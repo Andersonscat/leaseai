@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mail, X, Send, Clock, MessageSquare, Trash2, CheckSquare, Bot, Sparkles, RefreshCw, Search } from 'lucide-react';
 import Link from 'next/link';
-import { refreshInboxBadge } from '@/lib/inbox-badge';
+import { refreshInboxBadge } from '../lib/inbox-badge';
 
 interface Conversation {
   tenant_id: string;

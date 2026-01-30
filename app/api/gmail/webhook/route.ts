@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini (reusing existing env var)
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export async function POST(req: NextRequest) {
   try {

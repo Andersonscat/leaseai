@@ -347,17 +347,7 @@ function DashboardLayoutContent({
               </div>
             </Link>
             
-            <Link href="/dashboard?tab=contracts">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "contracts" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <FileText className="w-5 h-5" />
-                <span>Contracts</span>
-              </div>
-            </Link>
-            
+
             <Link href="/dashboard?tab=tenants">
               <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
                 activeTab === "tenants" && pathname === "/dashboard"
@@ -377,6 +367,17 @@ function DashboardLayoutContent({
               }`}>
                 <Calendar className="w-5 h-5" />
                 <span>Calendar</span>
+              </div>
+            </Link>
+
+            <Link href="/dashboard?tab=contracts">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "contracts" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black" 
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <FileText className="w-5 h-5" />
+                <span>Contracts</span>
               </div>
             </Link>
             
@@ -405,6 +406,17 @@ function DashboardLayoutContent({
 
           {/* Settings at Bottom */}
           <div className="p-6 pt-0 space-y-2">
+            <Link href="/dashboard?tab=profile">
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                activeTab === "profile" && pathname === "/dashboard"
+                  ? "bg-gray-100 text-black"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}>
+                <UserIcon className="w-5 h-5" />
+                <span>Profile</span>
+              </div>
+            </Link>
+
             <Link href="/dashboard?tab=settings">
               <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
                 activeTab === "settings" && pathname === "/dashboard"

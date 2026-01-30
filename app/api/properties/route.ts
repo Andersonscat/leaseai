@@ -82,6 +82,9 @@ export async function POST(request: NextRequest) {
           user_id: user.id, // Use authenticated user's ID
           type: body.type,
           address: body.address,
+          city: body.city,
+          state: body.state,
+          zip_code: body.zip_code,
           price: body.price,
           beds: body.beds,
           baths: body.baths,
@@ -98,6 +101,14 @@ export async function POST(request: NextRequest) {
           walk_score: body.walk_score,
           transit_score: body.transit_score,
           lease_term: body.lease_term,
+          available_from: body.available_from || null,
+          pet_policy: body.pet_policy || 'allowed',
+          parking_type: body.parking_type || 'none',
+          parking_fee: body.parking_fee ? parseFloat(body.parking_fee) : null,
+          application_fee: body.application_fee ? parseFloat(body.application_fee) : null,
+          security_deposit: body.security_deposit ? parseFloat(body.security_deposit) : null,
+          utilities_fee: body.utilities_fee ? parseFloat(body.utilities_fee) : null,
+          utilities_included: body.utilities_included || [],
         },
       ])
       .select()

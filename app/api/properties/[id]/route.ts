@@ -99,6 +99,9 @@ export async function PUT(
       .from('properties')
       .update({
         address: body.address,
+        city: body.city,
+        state: body.state,
+        zip_code: body.zip_code,
         price: body.price,
         beds: body.beds,
         baths: body.baths,
@@ -115,6 +118,15 @@ export async function PUT(
         walk_score: body.walk_score,
         transit_score: body.transit_score,
         lease_term: body.lease_term,
+        // New Zillow-aligned fields
+        available_from: body.available_from,
+        pet_policy: body.pet_policy,
+        parking_type: body.parking_type,
+        parking_fee: body.parking_fee,
+        application_fee: body.application_fee,
+        security_deposit: body.security_deposit,
+        utilities_included: body.utilities_included,
+        utilities_fee: body.utilities_fee,
         updated_at: new Date().toISOString(),
       })
       .eq('id', params.id)

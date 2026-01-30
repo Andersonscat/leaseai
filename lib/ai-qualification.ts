@@ -1,6 +1,7 @@
 import { SchemaType } from '@google/generative-ai';
 import { geminiModel, generateContentWithRetry } from '@/lib/gemini-client';
 
+// Force rebuild timestamp: 2026-01-28
 /**
  * SMART AI QUALIFICATION SYSTEM
  * 
@@ -74,6 +75,15 @@ You have access to a tool called 'book_calendar_event'.
 USE IT WHEN THE CLIENT CONFIRMS A TIME.
 Example: Client says "3pm works" -> You CALL the function.
 Do NOT say "I will book it" without calling the function.
+
+🛡️ DEAL BREAKER CHECKS (CRITICAL):
+Before suggesting a property, CHECK:
+1. **Availability**: If Client wants to move in BEFORE the 'Available From' date, warn them! (e.g. "This unit is available starting March 1st, so Feb 15th might be too early. Would that work?")
+2. **Pets**: If Client has a dog and policy is 'No Pets', DO NOT suggest it unless they ask. If 'Small Dogs Only' and they have a Great Dane, flag it.
+3. **Parking**: If they need parking, check 'parking_type'. Don't promise a garage if it is 'street' only.
+
+💰 FINANCIAL TRANSPARENCY:
+If asked about costs, quote the specific 'Application Fee' and 'Security Deposit' from the property data.
 `;
 
 export interface TenantData {
@@ -102,6 +112,16 @@ export interface Property {
   description?: string;
   amenities?: string[];
   images?: string[];
+  // New Zillow-aligned fields
+  available_from?: string; // YYYY-MM-DD
+  pet_policy?: string; // 'allowed', 'cats_only', 'small_dogs', 'no_pets'
+  price_amount?: number; // Numeric price for easier comparison
+  parking_type?: string; 
+  parking_fee?: number;
+  application_fee?: number;
+  security_deposit?: number;
+  utilities_included?: string[];
+  utilities_fee?: number;
 }
 
 export interface ConversationContext {
@@ -199,8 +219,16 @@ export async function analyzeConversation(context: ConversationContext): Promise
   const { tenant, properties, conversationHistory } = context;
 
   const propertiesText = properties.map(p => 
-    `- ${p.address}: ${p.price}, ${p.bedrooms} bed, ${p.status}`
-  ).join('\n');
+    `- ${p.address}:
+       Price: ${p.price}
+       Beds: ${p.bedrooms}
+       Status: ${p.status}
+       Available: ${p.available_from || 'Now'}
+       Pets: ${p.pet_policy || 'Unknown'}
+       Parking: ${p.parking_type || 'Unknown'} (${p.parking_fee ? '$'+p.parking_fee : 'included'})
+       Utilities: ${p.utilities_included?.join(', ') || 'Tenant pays'}
+       Fees: App $${p.application_fee || '0'}, Deposit $${p.security_deposit || '0'}`
+  ).join('\n\n');
 
   const historyText = conversationHistory.map(m => 
     `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`
@@ -358,20 +386,37 @@ export function matchProperties(tenant: Partial<TenantData>, properties: Propert
   }
   
   return properties.filter(p => {
-    // 1. Budget check (if available)
+    // 1. Budget check
     if (tenant.budget) {
-      // Parse budget strings like "$2000" or "$2,000/mo"
+      // Prefer price_amount if available, else parse string
+      const priceNum = p.price_amount ?? parseInt(p.price.replace(/[^0-9]/g, ''));
       const budgetNum = parseInt(tenant.budget.replace(/[^0-9]/g, ''));
-      const priceNum = parseInt(p.price.replace(/[^0-9]/g, ''));
       
       if (!isNaN(budgetNum) && !isNaN(priceNum)) {
         // Allow properties up to 10% over budget
         if (priceNum > budgetNum * 1.1) return false;
       }
     }
+
+    // 2. Availability Date Check (New Zillow Data)
+    if (tenant.move_in_date && p.available_from) {
+      const moveIn = new Date(tenant.move_in_date);
+      const available = new Date(p.available_from);
+      
+      // If property available AFTER move-in date, it's a mismatch
+      // (Allow 7 day buffer for flexibility)
+      const buffer = 7 * 24 * 60 * 60 * 1000;
+      if (available.getTime() > moveIn.getTime() + buffer) {
+        return false;
+      }
+    }
     
-    // 2. Bedroom check (if mentioned in requirements)
-    // Very basic check - if requirements contain "studio" or "1 bedroom", etc.
+    // 3. Pet Policy Check
+    if (tenant.has_pets && p.pet_policy === 'no_pets') {
+      return false;
+    }
+    
+    // 4. Bedroom check
     if (tenant.requirements) {
       const reqLower = tenant.requirements.toLowerCase();
       if (reqLower.includes('studio') && p.bedrooms !== 0) return false;

@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { DatePicker } from '@/components/ui/date-picker';
+import { MoneyInput } from '@/components/ui/money-input';
+// Force HMR refresh
 
 export default function EditPropertyPage() {
   const router = useRouter();
@@ -17,6 +20,9 @@ export default function EditPropertyPage() {
   // Form state
   const [formData, setFormData] = useState({
     address: '',
+    city: '',
+    state: '',
+    zip_code: '',
     type: 'rent' as 'rent' | 'sale',
     price: '',
     beds: 1,
@@ -30,6 +36,15 @@ export default function EditPropertyPage() {
     walk_score: '',
     transit_score: '',
     lease_term: '12 months',
+    // New Zillow fields
+    available_from: '',
+    pet_policy: 'allowed',
+    application_fee: '',
+    security_deposit: '',
+    parking_fee: '',
+    utilities_fee: '',
+    utilities_included: [] as string[],
+    parking_type: 'none',
   });
 
   // Advanced fields state
@@ -47,6 +62,7 @@ export default function EditPropertyPage() {
   
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // Load existing property data
   useEffect(() => {
@@ -70,10 +86,15 @@ export default function EditPropertyPage() {
             } else {
               propertyType = 'sale';
             }
+            // Remove any non-numeric characters (commas, $) for number input
+            priceValue = priceValue.replace(/[^0-9.]/g, '');
           }
           
           setFormData({
             address: property.address || '',
+            city: property.city || '',
+            state: property.state || '',
+            zip_code: property.zip_code || '',
             type: propertyType,
             price: priceValue,
             beds: property.beds || 1,
@@ -87,6 +108,15 @@ export default function EditPropertyPage() {
             walk_score: property.walk_score?.toString() || '',
             transit_score: property.transit_score?.toString() || '',
             lease_term: property.lease_term || '12 months',
+            // Load Zillow fields
+            available_from: property.available_from || '',
+            pet_policy: property.pet_policy || 'allowed',
+            parking_type: property.parking_type || 'none',
+            parking_fee: property.parking_fee?.toString() || '',
+            application_fee: property.application_fee?.toString() || '',
+            security_deposit: property.security_deposit?.toString() || '',
+            utilities_fee: property.utilities_fee?.toString() || '',
+            utilities_included: property.utilities_included || [],
           });
           
           // Set existing arrays
@@ -144,8 +174,8 @@ export default function EditPropertyPage() {
         ? `${formData.price}/month` 
         : formData.price;
 
-      // Determine parking_available from parking selection
-      const parkingAvailable = formData.parking !== 'No parking';
+      // Determine parking_available from parking selection (Zillow field)
+      const parkingAvailable = formData.parking_type !== 'none';
 
       const response = await fetch(`/api/properties/${propertyId}`, {
         method: 'PUT',
@@ -162,6 +192,15 @@ export default function EditPropertyPage() {
           features: features.length > 0 ? features : null,
           rules: rules.length > 0 ? rules : null,
           images: imagePreviews,
+          // Send Zillow fields
+          available_from: formData.available_from || null,
+          pet_policy: formData.pet_policy,
+          parking_type: formData.parking_type,
+          parking_fee: formData.parking_fee ? parseFloat(formData.parking_fee) : null,
+          application_fee: formData.application_fee ? parseFloat(formData.application_fee) : null,
+          security_deposit: formData.security_deposit ? parseFloat(formData.security_deposit) : null,
+          utilities_fee: formData.utilities_fee ? parseFloat(formData.utilities_fee) : null,
+          utilities_included: formData.utilities_included,
         }),
       });
 
@@ -350,31 +389,75 @@ export default function EditPropertyPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Address <span className="text-red-500">*</span>
+                  Street Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   name="address"
                   value={formData.address}
                   onChange={handleChange}
-                  placeholder="123 Main St, Seattle, WA 98101"
+                  placeholder="123 Main St"
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* City, State, ZIP */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price <span className="text-red-500">*</span>
+                    City <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
+                    name="city"
+                    required
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="Seattle"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    State <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    required
+                    value={formData.state}
+                    onChange={handleChange}
+                    placeholder="WA"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    ZIP Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="zip_code"
+                    required
+                    value={formData.zip_code}
+                    onChange={handleChange}
+                    placeholder="98101"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Price (USD) <span className="text-red-500">*</span>
+                  </label>
+                  <MoneyInput
                     name="price"
                     value={formData.price}
                     onChange={handleChange}
-                    placeholder={formData.type === 'rent' ? '$2,500' : '$450,000'}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    placeholder={formData.type === 'rent' ? '2500' : '450000'}
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -384,30 +467,88 @@ export default function EditPropertyPage() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
+                    Type
                   </label>
-                  <div className="relative">
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-base text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                    >
-                      <option value="available">Available</option>
-                      <option value="rented">Rented</option>
-                      <option value="pending">Pending</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <div className="px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-lg text-base text-gray-600 font-medium">
+                    {formData.type === 'rent' ? 'For Rent' : 'For Sale'}
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Photos */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-xl font-bold text-black mb-4">Photos</h2>
+            
+            {/* Upload Button */}
+            <div className="mb-4">
+              <label className="cursor-pointer">
+                <div
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+                    isDragging
+                      ? 'border-black bg-black/5 scale-105'
+                      : 'border-gray-300 hover:border-black'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">
+                      {isDragging ? 'Drop images here' : 'Click to upload or drag and drop'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      PNG, JPG, WEBP up to 10MB
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Image Previews */}
+            {imagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-4">
+                {imagePreviews.map((preview, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      onClick={() => setViewingImage(preview)}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-90 transition-opacity"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Property Details */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
             <h2 className="text-xl font-bold text-black mb-4">Property Details</h2>
-            <div className="grid grid-cols-3 gap-4">
+            
+            {/* Layout: Beds, Baths, Sqft */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Bedrooms
@@ -455,7 +596,7 @@ export default function EditPropertyPage() {
                   Sq.Ft <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   name="sqft"
                   value={formData.sqft}
                   onChange={handleChange}
@@ -466,49 +607,6 @@ export default function EditPropertyPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Pets Policy
-                </label>
-                <div className="relative">
-                  <select
-                    name="pets"
-                    value={formData.pets}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-base text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  >
-                    <option value="Allowed">Pets Allowed</option>
-                    <option value="Not allowed">No Pets</option>
-                    <option value="Cats only">Cats Only</option>
-                    <option value="Dogs only">Dogs Only</option>
-                    <option value="Small pets only">Small Pets Only</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Parking
-                </label>
-                <div className="relative">
-                  <select
-                    name="parking"
-                    value={formData.parking}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-base text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  >
-                    <option value="No parking">No Parking</option>
-                    <option value="Street parking">Street Parking</option>
-                    <option value="1 space">1 Space</option>
-                    <option value="2 spaces">2 Spaces</option>
-                    <option value="Garage">Garage</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Description */}
@@ -523,6 +621,114 @@ export default function EditPropertyPage() {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none"
             />
           </div>
+
+          {/* Financials & Policies */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-xl font-bold text-black mb-4">Financials & Policies</h2>
+
+            {/* Financial Details */}
+            <div className="mb-6">
+              <h3 className="text-md font-bold text-gray-900 mb-4">Financials & Terms</h3>
+              <div className="grid grid-cols-2 gap-4">
+                 <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Security Deposit (USD)
+                  </label>
+                  <MoneyInput
+                    name="security_deposit"
+                    value={formData.security_deposit}
+                    onChange={handleChange}
+                    placeholder="2500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Application Fee (USD)
+                  </label>
+                  <MoneyInput
+                    name="application_fee"
+                    value={formData.application_fee}
+                    onChange={handleChange}
+                    placeholder="50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Available From
+                  </label>
+                  <DatePicker
+                    value={formData.available_from}
+                    onChange={(date) => setFormData(prev => ({ ...prev, available_from: date }))}
+                    placeholder="Select move-in date"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Policies: Pets & Parking */}
+            <div className="border-t border-gray-100 pt-6">
+              <h3 className="text-md font-bold text-gray-900 mb-4">Policies</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Pet Policy
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="pet_policy"
+                      value={formData.pet_policy}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-base text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                    >
+                      <option value="allowed">Pets Allowed</option>
+                      <option value="cats_only">Cats Only</option>
+                      <option value="small_dogs">Small Dogs Only</option>
+                      <option value="no_pets">No Pets</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Parking Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="parking_type"
+                      value={formData.parking_type}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-base text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                    >
+                      <option value="none">No Parking</option>
+                      <option value="street">Street Parking</option>
+                      <option value="garage">Garage</option>
+                      <option value="carport">Carport</option>
+                      <option value="assigned">Assigned Spot</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {formData.parking_type !== 'none' && formData.parking_type !== 'street' && (
+                   <div className="col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Parking Fee (USD/mo)
+                      </label>
+                      <MoneyInput
+                        name="parking_fee"
+                        value={formData.parking_fee}
+                        onChange={handleChange}
+                        placeholder="0 if included"
+                        className="w-full md:w-1/2"
+                      />
+                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+
 
           {/* Additional Features */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
@@ -748,70 +954,7 @@ export default function EditPropertyPage() {
             </div>
           )}
 
-          {/* Photos */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <h2 className="text-xl font-bold text-black mb-4">Photos</h2>
-            
-            {/* Upload Button */}
-            <div className="mb-4">
-              <label className="cursor-pointer">
-                <div
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
-                    isDragging
-                      ? 'border-black bg-black/5 scale-105'
-                      : 'border-gray-300 hover:border-black'
-                  }`}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <span className="text-sm font-medium text-gray-700">
-                      {isDragging ? 'Drop images here' : 'Click to upload or drag and drop'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      PNG, JPG, WEBP up to 10MB
-                    </span>
-                  </div>
-                </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
 
-            {/* Image Previews */}
-            {imagePreviews.length > 0 && (
-              <div className="grid grid-cols-3 gap-4">
-                {imagePreviews.map((preview, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-4">
@@ -961,6 +1104,30 @@ export default function EditPropertyPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+          >
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
+          <img
+            src={viewingImage}
+            alt="Full size"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()} 
+          />
         </div>
       )}
     </div>

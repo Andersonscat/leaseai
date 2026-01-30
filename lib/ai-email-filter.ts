@@ -1,5 +1,5 @@
 // AI-powered email filtering
-// Uses Gemini 1.5 Flash to intelligently determine if an email is a real lead
+// Uses Gemini 2.0 Flash to intelligently determine if an email is a real lead
 
 import { geminiModel, generateContentWithRetry } from '@/lib/gemini-client';
 

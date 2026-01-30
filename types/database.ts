@@ -68,6 +68,8 @@ export interface Property {
   flooring_type?: string;
   furnished?: boolean;
   laundry_type?: string;
+  parking_type?: string;
+  parking_fee?: number;
   full_bathrooms?: number;
   half_bathrooms?: number;
   
@@ -83,26 +85,28 @@ export interface Property {
   
   // Lease terms
   lease_term?: string;
+  lease_term_min?: number;
   available_date?: string;
+  available_from?: string; // Date string YYYY-MM-DD
   move_in_date?: string;
   
   // Financial
-  security_deposit?: string;
-  pet_deposit?: string;
-  utilities_cost?: string;
-  application_fee?: string;
+  security_deposit?: number;
+  pet_deposit?: number;
+  utilities_cost?: string; // Keep as string for now if legacy, or migrate to utilities_fee
+  utilities_fee?: number;
+  application_fee?: number;
+  price_amount?: number;
   
   // Utilities
   internet_available?: boolean;
   
   // Pet details
-  pet_policy?: {
-    allowed: boolean;
-    types?: string[];
-    deposit?: string;
-    monthly_fee?: string;
-    restrictions?: string;
-  };
+  pet_policy?: string; // 'allowed', 'cats_only', 'small_dogs', 'no_pets'
+  pet_fee?: number;
+  
+  // Legacy Pet Policy Object (Deprecated)
+  // pet_policy_object?: { ... }
   
   // Timestamps
   created_at?: string;

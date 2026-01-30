@@ -1,7 +1,7 @@
 
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import { getRecentUnreadMessages, sendAutoReply } from '@/lib/gmail';
-import { generateQualificationResponse } from '@/lib/ai-qualification';
+// import { generateQualificationResponse } from '@/lib/ai-qualification';
 
 // Global sync lock to prevent concurrent syncs
 const syncLocks = new Map<string, boolean>();
@@ -292,7 +292,7 @@ export async function syncGmailMessages(
           });
 
           // 2. HAND: Execute Actions
-          let executionResult = { success: true }; // Default for 'reply' action
+          let executionResult: { success: boolean; data?: any; error?: string } = { success: true }; // Default for 'reply' action
           
           if (analysis.action === 'book_calendar' && analysis.action_params) {
             console.log('📅 Action: Booking Calendar...');
@@ -314,9 +314,51 @@ export async function syncGmailMessages(
               
               executionResult = { success: true, data: event };
               console.log('✅ Booking Execution Success:', event.htmlLink);
+
+              // Save appointment to Supabase
+              try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const logFile = path.resolve(process.cwd(), 'server.log');
+
+                const { error: appointmentError } = await supabase.from('appointments').insert({
+                  user_id: user.id,
+                  tenant_id: tenantId,
+                  property_id: properties?.find(p => p.address === args.property_address)?.id || null, 
+                  title: `Viewing: ${args.property_address}`,
+                  start_time: startTime.toISOString(),
+                  end_time: endTime.toISOString(),
+                  description: `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
+                  google_event_id: event.id,
+                  google_event_link: event.htmlLink,
+                  status: 'confirmed'
+                });
+
+                if (appointmentError) {
+                  const logMsg = `❌ [${new Date().toISOString()}] DB Save Error: ${JSON.stringify(appointmentError)}\n`;
+                  fs.appendFileSync(logFile, logMsg);
+                  console.error('❌ Failed to save appointment to DB:', appointmentError);
+                } else {
+                  const logMsg = `✅ [${new Date().toISOString()}] DB Save Success: ${event.id}\n`;
+                  fs.appendFileSync(logFile, logMsg);
+                  console.log('✅ Appointment saved to DB');
+                }
+              } catch (dbError: any) {
+                const fs = await import('fs');
+                const path = await import('path');
+                const logFile = path.resolve(process.cwd(), 'server.log');
+                const logMsg = `❌ [${new Date().toISOString()}] DB Exception: ${dbError?.message || JSON.stringify(dbError)}\n`;
+                fs.appendFileSync(logFile, logMsg);
+                console.error('❌ Error saving appointment to DB:', dbError);
+              }
               
             } catch (err: any) {
               console.error('❌ Booking Execution Failed:', err);
+              const fs = await import('fs');
+              const path = await import('path');
+              const logFile = path.resolve(process.cwd(), 'server.log');
+              fs.appendFileSync(logFile, `❌ [${new Date().toISOString()}] Execution Error: ${err.message}\n`);
+              
               executionResult = { success: false, error: err.message || 'Unknown calendar error' };
             }
           }
@@ -324,7 +366,7 @@ export async function syncGmailMessages(
           // 3. VOICE: Generate Response
           const finalResponse = await generateFinalResponse(
             {
-               tenant: { name: lead.tenant_name },
+               tenant: { name: lead.tenant_name, email: lead.tenant_email },
                properties: properties || [], 
                conversationHistory,
                realtorName: 'Agent'
@@ -377,7 +419,7 @@ export async function syncGmailMessages(
             };
             
             // Calculate lead score if new data extracted
-            const updatedTenant = { ...(currentTenant || {}), ...analysis.extractedData };
+            const updatedTenant = { ...(existingTenant || {}), ...analysis.extractedData };
             if (updatedTenant.budget_min || updatedTenant.move_in_date || updatedTenant.bedrooms) {
               const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
               const newScore = calculateLeadScore(updatedTenant);

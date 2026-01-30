@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getRecentUnreadMessages, sendAutoReply } from '@/lib/gmail';
-import { generateQualificationResponse } from '@/lib/ai-qualification';
+// import { generateQualificationResponse } from '@/lib/ai-qualification';
 
 // Global sync lock to prevent concurrent syncs
 const syncLocks = new Map<string, boolean>();

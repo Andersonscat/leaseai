@@ -64,3 +64,5 @@
  ✓ Compiled in 713ms (429 modules)
 <w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/Users/assylzhantati/LeaseAI/.next/cache/webpack/client-development/2.pack.gz_' -> '/Users/assylzhantati/LeaseAI/.next/cache/webpack/client-development/2.pack.gz'
  ✓ Compiled in 3.3s (500 modules)
+❌ [2026-01-28T08:46:14.229Z] DB Exception: currentTenant is not defined
+✅ [2026-01-28T08:52:48.354Z] DB Save Success: btnrorh366cnf8ipouhoh3fs3k

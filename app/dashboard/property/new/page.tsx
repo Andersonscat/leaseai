@@ -1,8 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { 
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Zap,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown
+} from 'lucide-react';
 import Link from 'next/link';
 
 export default function NewPropertyPage() {
@@ -13,6 +23,9 @@ export default function NewPropertyPage() {
   // Form state
   const [formData, setFormData] = useState({
     address: '',
+    city: '',
+    state: '',
+    zip_code: '',
     type: 'rent' as 'rent' | 'sale',
     price: '',
     beds: 1,
@@ -43,20 +56,67 @@ export default function NewPropertyPage() {
   
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [currentPreviewImageIndex, setCurrentPreviewImageIndex] = useState(0);
 
   const handlePreview = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
     // Validate required fields
-    if (!formData.address || !formData.price || !formData.sqft) {
-      setError('Please fill in all required fields');
+    const requiredFields = ['address', 'city', 'state', 'zip_code', 'price', 'sqft'] as const;
+    const errors: string[] = [];
+    
+    requiredFields.forEach(field => {
+      if (!formData[field]) {
+        errors.push(field);
+      }
+    });
+
+    if (errors.length > 0) {
+      setFormErrors(errors);
+      setError('Please fill in all required fields marked with *');
+      
+      // Scroll to the first error after state updates
+      setTimeout(() => {
+        const firstErrorField = document.getElementById(errors[0]);
+        if (firstErrorField) {
+          firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstErrorField.focus();
+        }
+      }, 100);
       return;
     }
     
+    setFormErrors([]);
     // Show preview modal
+    setCurrentPreviewImageIndex(0);
     setShowPreview(true);
   };
+
+  const nextPreviewImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (imagePreviews.length === 0) return;
+    setCurrentPreviewImageIndex((prev) => (prev + 1) % imagePreviews.length);
+  };
+
+  const prevPreviewImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (imagePreviews.length === 0) return;
+    setCurrentPreviewImageIndex((prev) => (prev - 1 + imagePreviews.length) % imagePreviews.length);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!showPreview) return;
+      if (e.key === 'ArrowRight') nextPreviewImage();
+      if (e.key === 'ArrowLeft') prevPreviewImage();
+      if (e.key === 'Escape') setShowPreview(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPreview, imagePreviews.length]);
 
   const handleSubmit = async () => {
     setError('');
@@ -115,6 +175,11 @@ export default function NewPropertyPage() {
       ...prev,
       [name]: name === 'beds' || name === 'baths' ? Number(value) : value,
     }));
+    
+    // Clear error for this field when user types
+    if (formErrors.includes(name)) {
+      setFormErrors(prev => prev.filter(f => f !== name));
+    }
   };
 
   // Handle image upload
@@ -186,23 +251,120 @@ export default function NewPropertyPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+        {/* Header & Magic Import Command Bar */}
+        <div className="mb-12">
           <Link
             href="/dashboard?tab=properties"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition-colors mb-4"
+            className="inline-flex items-center gap-2 text-gray-500 hover:text-black transition-colors mb-6 text-sm font-medium"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Properties
           </Link>
-          <h1 className="text-4xl font-bold text-black mb-2">Add New Property</h1>
-          <p className="text-lg text-gray-600">
-            List your rental or sale property
-          </p>
+          
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-5xl font-extrabold text-black tracking-tight mb-3">Add New Property</h1>
+              <p className="text-xl text-gray-500">List your rental or sale property with ease</p>
+            </div>
+
+            {/* AI Command Bar - Clean Minimalist Design */}
+            <div className={`relative bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex items-center p-2 gap-2 transition-all duration-500 ${
+              importSuccess ? 'border-green-500 bg-green-50/10 shadow-green-100 ring-4 ring-green-100' : 'border-gray-100 focus-within:border-black'
+            }`}>
+              <div className="pl-4">
+                <Zap className={`w-6 h-6 ${saving ? 'text-indigo-500 animate-pulse' : importSuccess ? 'text-green-500' : 'text-gray-400'}`} />
+              </div>
+              <input
+                type="text"
+                placeholder="Paste Zillow or Redfin URL to auto-fill property details..."
+                className="flex-1 px-4 py-4 bg-transparent border-0 text-lg text-black placeholder:text-gray-400 outline-none"
+                id="magic-url"
+                disabled={saving}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const urlInput = document.getElementById('magic-url') as HTMLInputElement;
+                  const url = urlInput.value;
+                  if (!url) return;
+                  
+                  setSaving(true);
+                  setError('');
+                  try {
+                    const res = await fetch('/api/properties/import', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url })
+                    });
+                    
+                    const result = await res.json();
+                    
+                    if (!res.ok) {
+                      throw new Error(result.error || 'Failed to import property details');
+                    }
+
+                    const data = result.data;
+                    if (data) {
+                      setFormData(prev => ({
+                        ...prev,
+                        address: data.address || prev.address,
+                        city: data.city || prev.city,
+                        state: data.state || prev.state,
+                        zip_code: data.zip_code || prev.zip_code,
+                        price: data.price ? data.price.toString().replace(/[^0-9\.]/g, '') : prev.price,
+                        beds: data.beds || prev.beds,
+                        baths: data.baths || prev.baths,
+                        sqft: data.sqft ? data.sqft.toString().replace(/[^0-9]/g, '') : prev.sqft,
+                        description: data.description || prev.description,
+                        type: data.type === 'sale' ? 'sale' : 'rent',
+                        pets: data.pets || prev.pets,
+                        parking: data.parking || prev.parking,
+                      }));
+                      if (data.amenities) setAmenities(data.amenities);
+                      if (data.features) setFeatures(data.features);
+                      if (data.rules) setRules(data.rules);
+                      if (data.imagePreviews) setImagePreviews(data.imagePreviews);
+                      urlInput.value = ''; // Clear input on success
+                      
+                      // Show success feedback
+                      setImportSuccess(true);
+                      setTimeout(() => setImportSuccess(false), 3000);
+                    }
+                  } catch (err: any) {
+                    console.error('Import error:', err);
+                    setError(err.message || 'Failed to import property details.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className={`px-8 py-4 rounded-xl text-base font-bold transition-all flex items-center gap-2 disabled:opacity-50 min-w-[140px] justify-center shadow-lg ${
+                  importSuccess ? 'bg-green-600 text-white' : 'bg-black text-white hover:bg-gray-800'
+                }`}
+              >
+                {saving ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Filling...</span>
+                  </>
+                ) : importSuccess ? (
+                  <>
+                    <Sparkles className="w-5 h-5 animate-bounce" />
+                    <span>DONE!</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Auto-fill</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handlePreview} className="space-y-6">
+        <form onSubmit={handlePreview} className="space-y-6" noValidate>
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -245,17 +407,79 @@ export default function NewPropertyPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-base font-bold text-gray-900 mb-2">
-                  Address <span className="text-red-500">*</span>
+                  Street Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   name="address"
+                  id="address"
                   value={formData.address}
                   onChange={handleChange}
-                  placeholder="123 Main St, Seattle, WA 98101"
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  required
+                  placeholder="123 Main St"
+                  className={`w-full px-4 py-3.5 border rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-4 transition-all duration-200 ${
+                    formErrors.includes('address') 
+                      ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400' 
+                      : 'border-gray-300 bg-gray-50 focus:ring-black/5 focus:border-black'
+                  }`}
                 />
+              </div>
+
+              {/* City, State, ZIP */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 flex items-center gap-1">
+                    City <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    id="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="Seattle"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-4 outline-none transition-all duration-200 text-black ${
+                      formErrors.includes('city')
+                        ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
+                        : 'border-gray-200 bg-gray-50 focus:ring-black/5 highlight-none focus:border-black'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 flex items-center gap-1">
+                    State <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    id="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                    placeholder="WA"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-4 outline-none transition-all duration-200 text-black ${
+                      formErrors.includes('state')
+                        ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
+                        : 'border-gray-200 bg-gray-50 focus:ring-black/5 focus:border-black'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 flex items-center gap-1">
+                    ZIP Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="zip_code"
+                    id="zip_code"
+                    value={formData.zip_code}
+                    onChange={handleChange}
+                    placeholder="98101"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-4 outline-none transition-all duration-200 text-black ${
+                      formErrors.includes('zip_code')
+                        ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
+                        : 'border-gray-200 bg-gray-50 focus:ring-black/5 focus:border-black'
+                    }`}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -266,11 +490,15 @@ export default function NewPropertyPage() {
                   <input
                     type="text"
                     name="price"
+                    id="price"
                     value={formData.price}
                     onChange={handleChange}
                     placeholder={formData.type === 'rent' ? '$2,500' : '$450,000'}
-                    className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                    required
+                    className={`w-full px-4 py-3.5 border rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-4 transition-all duration-200 ${
+                      formErrors.includes('price')
+                        ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
+                        : 'border-gray-300 bg-gray-50 focus:ring-black/5 focus:border-black'
+                    }`}
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {formData.type === 'rent' ? 'Monthly rent' : 'Sale price'}
@@ -279,20 +507,10 @@ export default function NewPropertyPage() {
 
                 <div>
                   <label className="block text-base font-bold text-gray-900 mb-2">
-                    Status
+                    Type
                   </label>
-                  <div className="relative">
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-lg text-lg text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                    >
-                      <option value="available">Available</option>
-                      <option value="rented">Rented</option>
-                      <option value="pending">Pending</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <div className="px-4 py-3.5 bg-gray-100 rounded-lg text-lg text-gray-700 font-semibold">
+                    {formData.type === 'rent' ? 'For Rent' : 'For Sale'}
                   </div>
                 </div>
               </div>
@@ -352,11 +570,15 @@ export default function NewPropertyPage() {
                 <input
                   type="text"
                   name="sqft"
+                  id="sqft"
                   value={formData.sqft}
                   onChange={handleChange}
                   placeholder="850"
-                  className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-lg text-lg text-black placeholder:text-gray-400 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  required
+                  className={`w-full px-4 py-3.5 border-2 rounded-lg text-lg text-black placeholder:text-gray-400 hover:border-gray-400 focus:outline-none focus:ring-4 transition-all duration-200 ${
+                    formErrors.includes('sqft')
+                      ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400' 
+                      : 'border-gray-200 bg-white focus:ring-black/5 focus:border-black'
+                  }`}
                 />
               </div>
             </div>
@@ -749,14 +971,41 @@ export default function NewPropertyPage() {
             {/* Property Card Preview */}
             <div className="p-8">
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl transition-all duration-300">
-                {/* Property Image */}
-                <div className="relative h-64 bg-gray-200 overflow-hidden">
+                {/* Property Image Carousel */}
+                <div className="relative h-80 bg-gray-200 overflow-hidden group/carousel">
                   {imagePreviews.length > 0 ? (
-                    <img
-                      src={imagePreviews[0]}
-                      alt={formData.address}
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <img
+                        src={imagePreviews[currentPreviewImageIndex]}
+                        alt={`${formData.address} - Photo ${currentPreviewImageIndex + 1}`}
+                        className="w-full h-full object-cover transition-all duration-500"
+                      />
+                      
+                      {/* Navigation Arrows */}
+                      {imagePreviews.length > 1 && (
+                        <>
+                          <button
+                            onClick={prevPreviewImage}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-black p-2 rounded-full shadow-lg transition-all opacity-0 group-hover/carousel:opacity-100 z-10"
+                            title="Previous image"
+                          >
+                            <ChevronLeft className="w-6 h-6" />
+                          </button>
+                          <button
+                            onClick={nextPreviewImage}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-black p-2 rounded-full shadow-lg transition-all opacity-0 group-hover/carousel:opacity-100 z-10"
+                            title="Next image"
+                          >
+                            <ChevronRight className="w-6 h-6" />
+                          </button>
+                          
+                          {/* Image Counter */}
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider z-10">
+                            {currentPreviewImageIndex + 1} / {imagePreviews.length}
+                          </div>
+                        </>
+                      )}
+                    </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                       <svg className="w-24 h-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -764,22 +1013,17 @@ export default function NewPropertyPage() {
                       </svg>
                     </div>
                   )}
-                  <div className="absolute top-3 right-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg ${
                       formData.status === 'available'
                         ? 'bg-green-500 text-white'
                         : formData.status === 'rented'
                         ? 'bg-red-500 text-white'
                         : 'bg-yellow-500 text-black'
                     }`}>
-                      {formData.status.charAt(0).toUpperCase() + formData.status.slice(1)}
+                      {formData.status}
                     </span>
                   </div>
-                  {imagePreviews.length > 1 && (
-                    <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded-full text-xs font-medium">
-                      +{imagePreviews.length - 1} more
-                    </div>
-                  )}
                 </div>
 
                 {/* Property Info */}
@@ -794,7 +1038,12 @@ export default function NewPropertyPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <span>{formData.address || 'Address not set'}</span>
+                        <span>
+                          {formData.address || 'Address not set'}
+                          {formData.city && `, ${formData.city}`}
+                          {formData.state && `, ${formData.state}`}
+                          {formData.zip_code && ` ${formData.zip_code}`}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -819,11 +1068,13 @@ export default function NewPropertyPage() {
                       </svg>
                       <span className="text-sm font-medium">{formData.sqft} sq.ft</span>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-2 text-gray-700 min-w-0">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
                       </svg>
-                      <span className="text-sm font-medium">{formData.pets}</span>
+                      <span className="text-sm font-medium truncate" title={formData.pets}>
+                        {formData.pets}
+                      </span>
                     </div>
                   </div>
 

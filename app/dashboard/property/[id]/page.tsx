@@ -14,7 +14,9 @@ export default function PropertyPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
-  const [showAllChats, setShowAllChats] = useState(false);
+  // Sidebar always open by default (or toggled on mobile)
+  const [showAllChats, setShowAllChats] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
   
@@ -199,7 +201,7 @@ export default function PropertyPage() {
       )}
 
       {/* Back Button */}
-      <div className="mb-6">
+      <div className="mb-6 w-fit">
         <Link href="/dashboard?tab=properties">
           <button className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -241,10 +243,10 @@ export default function PropertyPage() {
               {currentImageIndex + 1} / {property.images.length}
             </div>
 
-            {/* Status Badge */}
+            {/* Property Type Badge */}
             <div className="absolute top-4 right-4">
-              <span className="px-4 py-2 rounded-full text-sm font-bold bg-green-500 text-white">
-                {property.status}
+              <span className="px-4 py-2 rounded-full text-sm font-bold bg-black text-white shadow-lg">
+                {property.type === 'rent' ? 'For Rent' : 'For Sale'}
               </span>
             </div>
           </div>
@@ -256,7 +258,12 @@ export default function PropertyPage() {
                 <h1 className="text-4xl font-bold text-black mb-2">{property.price}</h1>
                 <div className="flex items-center gap-2 text-gray-600">
                   <MapPin className="w-5 h-5" />
-                  <span className="text-lg">{property.address}</span>
+                  <span className="text-lg">
+                    {property.address}
+                    {property.city && `, ${property.city}`}
+                    {property.state && `, ${property.state}`}
+                    {property.zip_code && ` ${property.zip_code}`}
+                  </span>
                 </div>
               </div>
               
@@ -288,10 +295,14 @@ export default function PropertyPage() {
                 <div className="text-3xl font-bold text-black">{property.sqft}</div>
                 <div className="text-sm text-gray-600">sq.ft</div>
               </div>
-              <div className="text-center">
-                <Dog className="w-8 h-8 mx-auto mb-2 text-gray-700" />
-                <div className="text-xl font-bold text-black">{property.pets}</div>
-                <div className="text-sm text-gray-600">Pets</div>
+              <div className="text-center flex flex-col items-center">
+                <Dog className="w-8 h-8 mb-2 text-gray-700" />
+                <div className={`font-bold text-black leading-tight ${
+                  (property.pets?.length || 0) > 15 ? 'text-sm' : 'text-xl'
+                }`}>
+                  {property.pets}
+                </div>
+                <div className="text-sm text-gray-600 mt-auto">Pets</div>
               </div>
             </div>
 
@@ -323,11 +334,7 @@ export default function PropertyPage() {
                   </div>
                 )}
 
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-5 border border-green-200">
-                  <CheckCircle2 className="w-6 h-6 text-green-600 mb-2" />
-                  <div className="text-sm text-gray-600">Status</div>
-                  <div className="text-lg font-bold text-black">{property.status}</div>
-                </div>
+
 
                 {property.type === 'rent' && (
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-5 border border-orange-200">
@@ -379,10 +386,7 @@ export default function PropertyPage() {
                   <span className="text-gray-600 font-medium">Pet Policy</span>
                   <span className="text-black font-semibold">{property.pets}</span>
                 </div>
-                <div className="flex justify-between py-3 border-b border-gray-200">
-                  <span className="text-gray-600 font-medium">Status</span>
-                  <span className="text-green-600 font-bold">{property.status}</span>
-                </div>
+
                 {property.parking_available !== undefined && (
                   <div className="flex justify-between py-3 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Parking</span>
@@ -470,225 +474,231 @@ export default function PropertyPage() {
                     <div className="text-sm text-gray-600 mt-1">To Downtown</div>
                   </div>
                 </div>
+                
+                {/* Map */}
+                <div className="mt-6 rounded-xl overflow-hidden shadow-sm h-[450px] bg-gray-100">
+                  <iframe 
+                    width="100%" 
+                    height="100%" 
+                    id="gmap_canvas" 
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(property.address)}&t=&z=16&ie=UTF8&iwloc=&output=embed`} 
+                    frameBorder="0" 
+                    scrolling="no" 
+                    marginHeight={0} 
+                    marginWidth={0}
+                    style={{ filter: 'saturate(0.8) contrast(1.1)' }}
+                    className="w-full h-full"
+                  ></iframe>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Interested Tenants / Chats */}
-        <div className="bg-white rounded-3xl p-8 shadow-lg">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-black">Interested Tenants ({chats.length})</h2>
-            <button 
-              onClick={() => {
-                setShowAllChats(true);
-                setSelectedChat(null);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm"
-            >
-              All chats
-            </button>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            {chats.map((chat) => (
-              <div 
-                key={chat.id}
-                onClick={() => {
-                  setSelectedChat(chat.id);
-                  setShowAllChats(false);
-                }}
-                className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all cursor-pointer"
-              >
-                <img 
-                  src={chat.avatar} 
-                  alt={chat.name}
-                  className="w-14 h-14 rounded-full"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-bold text-black">{chat.name}</h3>
-                    {chat.unread > 0 && (
-                      <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        {chat.unread}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 line-clamp-1">{chat.lastMessage}</p>
-                  <p className="text-xs text-gray-400 mt-1">{chat.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+
         </div>
         {/* End of Left Content */}
 
-        {/* All Chats Sidebar (WhatsApp style) */}
-        {showAllChats && (
-          <div className="w-[450px] flex-shrink-0">
-            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-180px)] flex flex-col sticky top-24">
+        {/* Right Content - Sidebar */}
+        <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-[400px]'}`}>
+          
+          {/* List View (When no chat selected) */}
+          {!selectedChat && (
+            <div className={`bg-white rounded-3xl shadow-lg h-[calc(100vh-140px)] flex flex-col sticky top-24 border border-gray-100 transition-all duration-300 ${isSidebarCollapsed ? 'items-center' : ''}`}>
               {/* Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-black">All Chats</h3>
-                <button 
-                  onClick={() => setShowAllChats(false)}
-                  className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
+              <div className={`p-6 border-b border-gray-200 flex items-center ${isSidebarCollapsed ? 'justify-center w-full' : 'justify-between'}`}>
+                {!isSidebarCollapsed && (
+                  <div>
+                    <h3 className="text-2xl font-bold text-black">Interested Tenants</h3>
+                    <p className="text-gray-500 text-sm mt-1">Manage viewings & questions</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className={`w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 group`}
+                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                 >
-                  <X className="w-5 h-5 text-gray-600" />
+                  {isSidebarCollapsed ? (
+                    <ChevronLeft className="w-5 h-5 text-gray-600 group-hover:text-black" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-black" />
+                  )}
                 </button>
               </div>
 
               {/* Chats List */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto w-full">
                 {chats.map((chat) => (
                   <div
                     key={chat.id}
                     onClick={() => {
                       setSelectedChat(chat.id);
-                      setShowAllChats(false);
+                      if (isSidebarCollapsed) setIsSidebarCollapsed(false);
                     }}
-                    className="flex items-center gap-4 p-4 border-b border-gray-100 hover:bg-gray-50 transition-all cursor-pointer"
+                    className={`flex items-center gap-4 p-4 border-b border-gray-100 hover:bg-gray-50 transition-all cursor-pointer ${isSidebarCollapsed ? 'justify-center' : ''}`}
                   >
                     <div className="relative">
                       <img 
                         src={chat.avatar} 
                         alt={chat.name}
-                        className="w-14 h-14 rounded-full"
+                        className="w-12 h-12 rounded-full min-w-[48px]"
                       />
                       {chat.unread > 0 && (
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                           {chat.unread}
                         </div>
                       )}
                     </div>
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-black">{chat.name}</h4>
-                        <span className="text-xs text-gray-400">{chat.time}</span>
+                    {!isSidebarCollapsed && (
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-bold text-black">{chat.name}</h4>
+                          <span className="text-xs text-gray-400">{chat.time}</span>
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">{chat.lastMessage}</p>
                       </div>
-                      <p className="text-sm text-gray-600 truncate">{chat.lastMessage}</p>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Chat Sidebar */}
-        {selectedChat && selectedChatData && (
-          <div className="w-[450px] flex-shrink-0">
-            <div className="bg-white rounded-3xl shadow-lg h-[calc(100vh-180px)] flex flex-col sticky top-24">
-            {/* Chat Header */}
-            <div className="p-6 border-b border-gray-200 flex items-center gap-3">
-              {/* Back button */}
-              <button
-                onClick={() => {
-                  setSelectedChat(null);
-                  setShowAllChats(true);
-                }}
-                className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              
-              <img 
-                src={selectedChatData.avatar} 
-                alt={selectedChatData.name}
-                className="w-12 h-12 rounded-full"
-              />
-              <div>
-                <h3 className="font-bold text-black">{selectedChatData.name}</h3>
-                <p className="text-sm text-gray-500">Active now</p>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {selectedChatData.messages.map((message) => (
-                <div 
-                  key={message.id}
-                  className={`flex ${message.sender === 'landlord' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[70%] ${
-                    message.sender === 'landlord' 
-                      ? 'bg-black text-white' 
-                      : 'bg-gray-100 text-black'
-                  } rounded-2xl px-4 py-3`}>
-                    <p className="text-sm">{message.text}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.sender === 'landlord' ? 'text-gray-300' : 'text-gray-500'
-                    }`}>
-                      {message.time}
-                    </p>
-                  </div>
+          {/* Chat View (When chat selected) */}
+          {selectedChat && selectedChatData && (
+            <div className={`bg-white rounded-3xl shadow-lg h-[calc(100vh-140px)] flex flex-col sticky top-24 border border-gray-100 transition-all duration-300 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+              {/* Chat Header */}
+              <div className={`p-6 border-b border-gray-200 flex items-center gap-3 ${isSidebarCollapsed ? 'flex-col justify-center w-full' : ''}`}>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <button
+                    onClick={() => setSelectedChat(null)}
+                    className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 flex-shrink-0"
+                    title="Back to list"
+                  >
+                    <ArrowLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+                  
+                  {!isSidebarCollapsed && (
+                    <div className="flex items-center gap-3 truncate">
+                      <img 
+                        src={selectedChatData.avatar} 
+                        alt={selectedChatData.name}
+                        className="w-10 h-10 rounded-full flex-shrink-0"
+                      />
+                      <div className="truncate">
+                        <h3 className="font-bold text-black truncate">{selectedChatData.name}</h3>
+                        <p className="text-xs text-green-500 font-medium">Active now</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
 
-            {/* Message Input */}
-            <div className="p-4 border-t border-gray-200">
-              {/* AI Draft Button - Uber Style */}
-              <div className="mb-3">
                 <button
-                  onClick={handleGenerateAIDraft}
-                  disabled={generatingAI}
-                  className="w-full py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className={`w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 group flex-shrink-0`}
+                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                 >
-                  {generatingAI ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Generating...</span>
-                    </>
+                  {isSidebarCollapsed ? (
+                    <ChevronLeft className="w-5 h-5 text-gray-600 group-hover:text-black" />
                   ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span>Generate AI Draft</span>
-                    </>
+                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-black" />
                   )}
                 </button>
               </div>
-              
-              <div className="flex gap-3 items-end">
-                <textarea
-                  value={messageInput}
-                  onChange={(e) => {
-                    setMessageInput(e.target.value);
-                    // Auto-resize
-                    e.target.style.height = 'auto';
-                    e.target.style.height = Math.min(e.target.scrollHeight, 400) + 'px';
-                  }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && messageInput.trim()) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  rows={1}
-                  className="flex-1 px-5 py-4 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none text-black text-base font-normal overflow-y-auto leading-relaxed"
-                  style={{ minHeight: '56px', maxHeight: '400px' }}
-                />
-                {messageInput.trim().length > 0 && (
-                  <button
-                    onClick={handleSendMessage}
-                    className="w-14 h-14 bg-black text-white rounded-2xl flex items-center justify-center hover:bg-gray-800 transition-all flex-shrink-0"
-                  >
-                    <Send className="w-6 h-6" />
-                  </button>
-                )}
-              </div>
+
+              {/* Messages & Input (Hidden when collapsed for better UX, or we can show a small unread/indicator) */}
+              {!isSidebarCollapsed ? (
+                <>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+                    {selectedChatData.messages.map((message) => (
+                      <div 
+                        key={message.id}
+                        className={`flex ${message.sender === 'landlord' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[80%] ${
+                          message.sender === 'landlord' 
+                            ? 'bg-black text-white' 
+                            : 'bg-white border border-gray-200 text-black'
+                        } rounded-2xl px-5 py-3 shadow-sm`}>
+                          <p className="text-sm leading-relaxed">{message.text}</p>
+                          <p className={`text-[10px] mt-1.5 opacity-70 ${
+                            message.sender === 'landlord' ? 'text-gray-300' : 'text-gray-500'
+                          }`}>
+                            {message.time}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-4 border-t border-gray-200 bg-white rounded-b-3xl">
+                    <div className="mb-3">
+                      <button
+                        onClick={handleGenerateAIDraft}
+                        disabled={generatingAI}
+                        className="w-full py-2.5 bg-indigo-50 text-indigo-700 rounded-xl font-semibold hover:bg-indigo-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                      >
+                        {generatingAI ? (
+                          <>
+                            <div className="animate-spin h-4 w-4 border-2 border-indigo-700 border-t-transparent rounded-full" />
+                            <span>Writing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4" />
+                            <span>Generate AI Reply</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={messageInput}
+                        onChange={(e) => {
+                          setMessageInput(e.target.value);
+                          e.target.style.height = 'auto';
+                          e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                        }}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey && messageInput.trim()) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        placeholder="Type a message..."
+                        rows={1}
+                        className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-black/5 resize-none text-black text-sm max-h-[120px]"
+                      />
+                      {messageInput.trim().length > 0 && (
+                        <button
+                          onClick={handleSendMessage}
+                          className="w-11 h-11 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-all flex-shrink-0 shadow-md"
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-4 gap-4">
+                   <div className="relative">
+                      <img 
+                        src={selectedChatData.avatar} 
+                        alt={selectedChatData.name}
+                        className="w-12 h-12 rounded-full border-2 border-black p-0.5"
+                      />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                   </div>
+                   <div className="w-1 h-24 bg-gray-100 rounded-full" />
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
       </div>
       {/* End of Flex Container */}
     </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRecentUnreadMessages } from '@/lib/gmail';
-import { generateQualificationResponse } from '@/lib/ai-qualification';
+// import { generateQualificationResponse } from '@/lib/ai-qualification';
+import { analyzeConversation, generateFinalResponse } from '@/lib/ai-qualification';
 import { getGmailClient } from '@/lib/gmail'; // We need direct access to fetch message body if generic helper hides it
 
 /**
@@ -70,21 +71,20 @@ export async function GET() {
 
     log('🤖 Calling AI Agent...');
     
-    // 3. Run AI Logic
-    const aiResult = await generateQualificationResponse(mockContext);
-    
-    log('✅ AI Result:', aiResult);
+    // 3. Run new AI Logic
+    const analysis = await analyzeConversation(mockContext);
+    log('✅ AI Analysis:', analysis);
 
-    // 4. Handle Function Call if present
-    if (aiResult.needsFunctionExecution && aiResult.functionCall) {
-        log('🛠️ Function Execution Requested:', aiResult.functionCall);
-        
-        if (aiResult.functionCall.name === 'book_calendar_event') {
-            log('📅 Booking Calendar Event...');
+    // 4. Handle Action
+    let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
+
+    if (analysis.action === 'book_calendar' && analysis.action_params) {
+        log('🛠️ Function Execution Requested: book_calendar');
+        log('📅 Booking Calendar Event...');
+        try {
             const { createCalendarEvent } = await import('@/lib/calendar-client');
-            const { start_time, duration_minutes, property_address } = aiResult.functionCall.args;
+            const { start_time, duration_minutes, property_address } = analysis.action_params;
             
-            // Calculate end time
             const startDate = new Date(start_time);
             const endDate = new Date(startDate.getTime() + (duration_minutes || 30) * 60 * 1000);
             
@@ -99,36 +99,34 @@ export async function GET() {
             );
             
             log(`✅ Calendar Event Created! Link: ${event.htmlLink}`);
+            executionResult = { success: true, data: event };
             
-            // Generate final response
-            log('🗣️ Generating final response...');
-             const { generateResponseAfterFunction } = await import('@/lib/ai-qualification');
-             const finalResponse = await generateResponseAfterFunction({
-                  tenant: mockContext.tenant,
-                  conversationHistory: mockContext.conversationHistory,
-                  functionResult: {
-                    success: true,
-                    calendar_link: event.htmlLink || undefined,
-                    event_time: start_time
-                  }
-             });
-             
-             log('🏁 Final AI Response:', finalResponse);
-             
-             return NextResponse.json({ 
-                 status: 'success', 
-                 action: 'booked_calendar',
-                 finalResponse,
-                 logs 
-             });
+        } catch (err: any) {
+            log('❌ Booking Failed:', err.message);
+            executionResult = { success: false, error: err.message };
         }
     }
 
+    // 5. Generate Final Response
+    log('🗣️ Generating final response...');
+    const finalResponse = await generateFinalResponse(
+        {
+          tenant: mockContext.tenant,
+          properties: mockContext.properties,
+          conversationHistory: mockContext.conversationHistory,
+          realtorName: 'DebugAgent'
+        },
+        analysis,
+        executionResult
+    );
+     
+    log('🏁 Final AI Response:', finalResponse);
+     
     return NextResponse.json({ 
-        status: 'success', 
-        action: 'response_only', 
-        aiResult, 
-        logs 
+         status: 'success', 
+         action: analysis.action,
+         finalResponse,
+         logs 
     });
 
   } catch (error: any) {

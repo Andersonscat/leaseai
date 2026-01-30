@@ -326,7 +326,7 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
         property_address: aiParsed.property_address,
         subject: subject, // Pass original subject
         messageId: message.id || undefined,
-        rfcMessageId: rfcMessageId, // Pass proper Message-ID
+        rfcMessageId: rfcMessageId || undefined, // Pass proper Message-ID
         threadId: message.threadId || undefined,
       };
     }
@@ -341,7 +341,7 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
         ...lead,
         subject: subject,
         messageId: message.id || undefined,
-        rfcMessageId: rfcMessageId,
+        rfcMessageId: rfcMessageId || undefined,
         threadId: message.threadId || undefined,
       };
     }
