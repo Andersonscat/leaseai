@@ -140,7 +140,8 @@ function parseEmailBody(body: string, subject: string, from: string): ParsedLead
       // Check for quote marker on the line (handling non-breaking spaces and variations)
       const quoteMatch = trimmed.match(/(On\s+[\s\S]+wrote:|From:\s+[\s\S]+)/i) || 
                          trimmed.match(/<.+@.+>\s+wrote:/i) ||
-                         trimmed.match(/^On\s+.*,\s+.*at\s+.*wrote:/i); // Specific common pattern
+                         trimmed.match(/^On\s+.*,\s+.*at\s+.*wrote:/i) || // Specific common pattern
+                         trimmed.match(/^On\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun),.*wrote:?$/i); // Matches "On Fri, Jan 30... wrote:" from user screenshot
       
       if (quoteMatch) {
          // If marker found, take only text BEFORE it
@@ -152,7 +153,7 @@ function parseEmailBody(body: string, subject: string, from: string): ParsedLead
       }
       
       // Also check for "On [Date], [Time], [Name] wrote:" specifically which might have special spaces
-      if (trimmed.startsWith('On ') && trimmed.includes('wrote:')) {
+      if (trimmed.startsWith('On ') && (trimmed.includes('wrote:') || trimmed.endsWith('wrote'))) {
          break;
       }
       
@@ -525,7 +526,7 @@ export async function sendAutoReply(
     messageId?: string;
     subject?: string;
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const subject = options?.subject 
       ? `Re: ${options.subject.replace(/^Re:\s*/i, '')}` 

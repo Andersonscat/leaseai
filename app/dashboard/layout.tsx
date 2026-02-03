@@ -3,10 +3,11 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar } from "lucide-react";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BADGE_REFRESH_EVENT } from "@/lib/inbox-badge";
+import { SOURCE_ICONS, SOURCE_NAMES, SMART_FILTERS } from "@/lib/sources";
 
 function DashboardLayoutContent({
   children,
@@ -20,6 +21,7 @@ function DashboardLayoutContent({
   const [chatWidth, setChatWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const router = useRouter();
   const supabase = createSupabaseClient();
   const [user, setUser] = useState<any>(null);
@@ -115,11 +117,16 @@ function DashboardLayoutContent({
       <div className="min-h-screen bg-gray-50">
         {/* Header - Same as dashboard */}
         <header className="bg-black sticky top-0 z-50">
-          <div className="container mx-auto px-6 py-5 flex justify-between items-center">
+          <div className="w-full px-12 py-5 flex justify-between items-center">
             <Link href="/dashboard">
-              <h1 className="text-3xl font-bold text-white cursor-pointer">LeaseAI</h1>
+              <h1 className="text-3xl font-bold text-white cursor-pointer px-0">LeaseAI</h1>
             </Link>
             <div className="flex items-center gap-4">
+              <Link href="/billing">
+                <button className="bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded font-semibold text-sm transition-all shadow-lg shadow-white/5 active:scale-95">
+                  Upgrade
+                </button>
+              </Link>
               <button
                 onClick={() => setShowAIChat(!showAIChat)}
                 className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
@@ -127,11 +134,6 @@ function DashboardLayoutContent({
               >
                 <Sparkles className="w-5 h-5" />
               </button>
-              <Link href="/billing">
-                <button className="bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded font-semibold text-sm transition-all">
-                  Upgrade
-                </button>
-              </Link>
               <div className="scale-125 flex items-center justify-center relative">
                 <div 
                   onClick={() => setShowUserMenu(!showUserMenu)}
@@ -255,201 +257,180 @@ function DashboardLayoutContent({
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-black sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-5 flex justify-between items-center">
-          <Link href="/dashboard">
-            <h1 className="text-3xl font-bold text-white cursor-pointer">LeaseAI</h1>
-          </Link>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowAIChat(!showAIChat)}
-              className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
-              title="AI Assistant"
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
-            <Link href="/billing">
-              <button className="bg-white text-black hover:bg-gray-200 px-6 py-2.5 rounded font-semibold text-sm transition-all">
-                Upgrade
-              </button>
-            </Link>
-            <div className="scale-125 flex items-center justify-center relative">
-              <div 
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-blue-700 transition-all" 
-                title={user?.email || 'User'}
-              >
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              
-              {/* User Dropdown Menu */}
-              {showUserMenu && (
-                <>
-                  {/* Backdrop */}
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowUserMenu(false)}
-                  ></div>
-                  
-                  {/* Menu */}
-                  <div className="absolute right-0 top-12 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                    {/* User Info */}
-                    <div className="px-4 py-3 border-b border-gray-200">
-                      <p className="font-semibold text-gray-900">{user?.user_metadata?.full_name || 'User'}</p>
-                      <p className="text-sm text-gray-600">{user?.email}</p>
-                    </div>
-                    
-                    {/* Log Out */}
-                    <div 
-                      onClick={handleLogout}
-                      className="px-4 py-3 hover:bg-red-50 cursor-pointer flex items-center gap-3 text-red-600 font-medium transition-all"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      <span>Log Out</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Header */}
 
       {/* Sidebar */}
-      <aside className="fixed left-0 top-[81px] w-64 h-[calc(100vh-81px)] bg-white border-r border-gray-200 overflow-y-auto z-40">
-        <div className="flex flex-col h-full">
-          {/* Main Navigation */}
-          <nav className="space-y-2 p-6 flex-1">
-            <Link href="/dashboard?tab=inbox">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all relative ${
-                activeTab === "inbox" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Inbox className="w-5 h-5" />
-                <span>Inbox</span>
-                {unreadCount > 0 && (
-                  <span className="ml-auto bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
+      <aside className={`fixed left-0 top-0 h-screen bg-white text-gray-900 border-r border-gray-200 z-50 transition-all duration-300 flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
+          {/* Brand Header */}
+          <div className="h-[72px] flex items-center justify-between px-4 border-b border-gray-100 shrink-0">
+             <div 
+               onClick={() => isSidebarCollapsed ? setIsSidebarCollapsed(false) : router.push('/dashboard')}
+               className={`flex items-center gap-3 group overflow-hidden cursor-pointer relative ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}
+             >
+                <div className={`w-8 h-8 bg-black rounded-lg flex items-center justify-center shrink-0 transition-all ${isSidebarCollapsed ? 'group-hover:bg-gray-900' : ''}`}>
+                  {isSidebarCollapsed ? (
+                    <>
+                      <span className="text-white font-black text-lg group-hover:hidden">L</span>
+                      <PanelLeftOpen className="w-5 h-5 text-white hidden group-hover:block" />
+                    </>
+                  ) : (
+                    <span className="text-white font-black text-lg">L</span>
+                  )}
+                </div>
+                
+                {!isSidebarCollapsed && (
+                  <h1 className="text-xl font-bold tracking-tight text-gray-900 animate-in fade-in duration-200">
+                    LeaseAI
+                  </h1>
                 )}
-              </div>
-            </Link>
-            
-            <Link href="/dashboard?tab=properties">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                (activeTab === "properties" && pathname === "/dashboard") || pathname.includes("/property")
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Home className="w-5 h-5" />
-                <span>Properties</span>
-              </div>
-            </Link>
-            
 
-            <Link href="/dashboard?tab=tenants">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "tenants" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Users className="w-5 h-5" />
-                <span>Tenants</span>
-              </div>
-            </Link>
-            
-            <Link href="/dashboard?tab=calendar">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "calendar" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Calendar className="w-5 h-5" />
-                <span>Calendar</span>
-              </div>
-            </Link>
+                {/* ChatGPT-style Tooltip */}
+                {isSidebarCollapsed && (
+                  <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                    Open sidebar
+                  </div>
+                )}
+             </div>
+             
+             {/* Collapse Button (Only visible when expanded) */}
+             {!isSidebarCollapsed && (
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setIsSidebarCollapsed(!isSidebarCollapsed);
+                 }}
+                 className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+                 title="Collapse Sidebar"
+               >
+                  <PanelLeftClose className="w-5 h-5" />
+               </button>
+             )}
+          </div>
 
-            <Link href="/dashboard?tab=contracts">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "contracts" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black" 
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <FileText className="w-5 h-5" />
-                <span>Contracts</span>
-              </div>
-            </Link>
-            
-            <Link href="/dashboard?tab=analytics">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "analytics" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black"
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <BarChart3 className="w-5 h-5" />
-                <span>Analytics</span>
-              </div>
-            </Link>
-            
-            <Link href="/billing">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                pathname === "/billing"
-                  ? "bg-gray-100 text-black"
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <CreditCard className="w-5 h-5" />
-                <span>Billing</span>
-              </div>
-            </Link>
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+
+             {[
+               { tab: 'inbox', icon: Inbox, label: 'Inbox', badge: unreadCount },
+               { tab: 'properties', icon: Home, label: 'Properties' },
+               { tab: 'tenants', icon: Users, label: 'Tenants' },
+               { tab: 'calendar', icon: Calendar, label: 'Calendar' },
+               { tab: 'management', icon: Briefcase, label: 'Management' },
+               { tab: 'contracts', icon: FileText, label: 'Contracts' },
+               { tab: 'promote', icon: Megaphone, label: 'Promote' },
+               { tab: 'analytics', icon: BarChart3, label: 'Analytics' },
+             ].map((item) => (
+                <Link key={item.tab} href={`/dashboard?tab=${item.tab}`}>
+                  <div 
+                    title={isSidebarCollapsed ? item.label : undefined}
+                    className={`flex items-center gap-3 px-3 py-3.5 rounded-xl transition-all group relative ${
+                      activeTab === item.tab 
+                        ? "bg-black text-white font-bold shadow-md shadow-black/5" 
+                        : "text-gray-500 hover:text-black hover:bg-gray-100 font-semibold"
+                    } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                  >
+                     <item.icon className={`w-[22px] h-[22px] flex-shrink-0 ${activeTab === item.tab ? 'text-white' : 'text-gray-400 group-hover:text-black'}`} />
+                     {!isSidebarCollapsed && <span className="text-base tracking-tight">{item.label}</span>}
+                     
+                     {/* Unread Badge for Inbox */}
+                     {item.badge !== undefined && item.badge > 0 && (
+                        <span className={`bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-sm ${
+                           isSidebarCollapsed ? 'absolute top-2 right-2 border-white border-2' : 'ml-auto'
+                        }`}>
+                           {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                     )}
+                  </div>
+                </Link>
+             ))}
           </nav>
 
-          {/* Settings at Bottom */}
-          <div className="p-6 pt-0 space-y-2">
-            <Link href="/dashboard?tab=profile">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "profile" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black"
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <UserIcon className="w-5 h-5" />
-                <span>Profile</span>
-              </div>
-            </Link>
+          {/* Bottom Actions */}
+          <div className="p-3 border-t border-gray-100 bg-white space-y-1">
+              {/* AI Button Removed from here */}
 
-            <Link href="/dashboard?tab=settings">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                activeTab === "settings" && pathname === "/dashboard"
-                  ? "bg-gray-100 text-black"
-                  : "hover:bg-gray-50 text-gray-700"
-              }`}>
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
-              </div>
-            </Link>
+             {/* User Profile (ChatGPT Style) */}
+             <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left hover:bg-gray-50 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm border border-white ring-2 ring-gray-100">
+                    {user?.email?.substring(0, 2).toUpperCase() || 'US'}
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="flex-1 overflow-hidden">
+                       <p className="text-base font-bold text-gray-900 truncate">{user?.user_metadata?.full_name || 'User Name'}</p>
+                       <p className="text-sm text-gray-500 truncate">Pro Plan</p>
+                    </div>
+                  )}
+                  {!isSidebarCollapsed && (
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
+                  )}
+                </button>
 
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:bg-red-50 text-red-600 cursor-pointer"
-            >
-              <LogOut className="w-5 h-5" />
-              <span>Log Out</span>
-            </button>
+                {/* Popover Menu */}
+                {showUserMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setShowUserMenu(false)} />
+                    <div className={`absolute bottom-full left-0 mb-2 w-80 bg-white border border-gray-200 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] p-2 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isSidebarCollapsed ? 'w-56 left-full ml-2 bottom-0' : ''}`}>
+                      <Link href="/billing" onClick={() => setShowUserMenu(false)}>
+                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
+                           <CreditCard className="w-4 h-4 text-gray-500" />
+                           <span className="text-base font-medium">Billing</span>
+                        </div>
+                      </Link>
+                      <Link href="/dashboard?tab=settings" onClick={() => setShowUserMenu(false)}>
+                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
+                           <Settings className="w-4 h-4 text-gray-500" />
+                           <span className="text-base font-medium">Settings</span>
+                        </div>
+                      </Link>
+                      
+                      <div className="h-px bg-gray-100 my-1 mx-2" />
+
+                      <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
+                           <HelpCircle className="w-4 h-4 text-gray-500" />
+                           <span className="text-base font-medium">Help</span>
+                      </div>
+                      <button 
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-red-600 hover:text-red-700 cursor-pointer transition-colors text-left"
+                      >
+                           <LogOut className="w-4 h-4" />
+                           <span className="text-base font-medium">Log out</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+             </div>
           </div>
-        </div>
       </aside>
 
       {/* Main Content */}
+      {/* Main Content */}
+      {/* Main Content */}
       <main 
-        className="ml-64 transition-all duration-300"
+        className={`transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-80'}`}
         style={{ marginRight: showAIChat ? `${chatWidth}px` : '0' }}
       >
         {children}
       </main>
 
+      {/* AI Trigger - Right edge, aligned with sidebar header */}
+      {!showAIChat && (
+        <button
+          onClick={() => setShowAIChat(true)}
+          className="fixed top-6 right-4 z-50 w-9 h-9 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-all"
+          title="Open AI Assistant"
+        >
+          <PanelRightClose className="w-5 h-5" />
+        </button>
+      )}
+
       {/* AI Chat Panel - Resizable */}
       <aside 
-        className={`fixed right-0 top-[81px] h-[calc(100vh-81px)] bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
+        className={`fixed right-0 top-0 h-screen bg-white border-l border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
           showAIChat ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: `${chatWidth}px` }}

@@ -405,6 +405,7 @@ export async function syncGmailMessages(
             source: 'email',
             is_ai_response: true,
             is_read: true,
+            gmail_message_id: emailResult.messageId, // Save the Gmail Message ID
           });
 
           if (aiMessageError) {

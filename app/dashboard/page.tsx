@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive } from "lucide-react";
+import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Plus } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
 
@@ -385,116 +385,102 @@ function DashboardContent() {
   };
 
   return (
-    <div className="p-10 min-w-0">
+    <div className={`min-w-0 ${activeTab === "inbox" ? "" : "p-10"}`}>
       {/* Inbox Tab */}
       {activeTab === "inbox" && <ConversationsInbox />}
       
       {/* Properties Tab */}
       {activeTab === "properties" && (
         <>
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-4xl font-bold text-black mb-2">Properties</h2>
-                <p className="text-lg text-gray-600">Manage your real estate listings</p>
+          {/* Linear/Stripe-style Toolbar */}
+          <div className="mb-6">
+            {/* Main Toolbar Row */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {/* Left: Title + Toggle */}
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-black">Properties</h2>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setPropertyType("rent")}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                      propertyType === "rent"
+                        ? "bg-black text-white shadow-sm"
+                        : "text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Rent
+                  </button>
+                  <button
+                    onClick={() => setPropertyType("sale")}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                      propertyType === "sale"
+                        ? "bg-black text-white shadow-sm"
+                        : "text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Sale
+                  </button>
+                </div>
               </div>
               
-              {/* Filter Buttons */}
+              {/* Right: Search + Actions */}
               <div className="flex items-center gap-2">
-                {/* Sort Direction Toggle */}
+                {/* Compact Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={propertySearch}
+                    onChange={(e) => setPropertySearch(e.target.value)}
+                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                  />
+                </div>
+                
+                {/* Sort Direction */}
                 <button
                   onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                  className="w-10 h-10 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center cursor-pointer"
+                  className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
                   title={sortDirection === "asc" ? "Ascending" : "Descending"}
                 >
                   {sortDirection === "asc" ? (
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-4 h-4" />
                   ) : (
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-4 h-4" />
                   )}
                 </button>
 
+                {/* Filter Dropdown */}
                 <div className="relative">
                   <button 
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all text-sm font-medium"
                   >
                     <Filter className="w-4 h-4" />
                     {getFilterDisplayName()}
                   </button>
 
-                  {/* Filter Dropdown */}
                   {showFilterMenu && (
                     <>
-                      {/* Backdrop */}
                       <div 
                         className="fixed inset-0 z-40"
                         onClick={() => setShowFilterMenu(false)}
                       />
-                      
-                      {/* Menu */}
-                      <div className="absolute right-0 top-full mt-2 w-[160px] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50">
-                        <button 
-                          onClick={() => handleSortSelect("none")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "none" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          None
-                        </button>
-                        <button 
-                          onClick={() => handleSortSelect("price")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "price" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Price
-                        </button>
-                        <button 
-                          onClick={() => handleSortSelect("date")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "date" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Date
-                        </button>
-                        <button 
-                          onClick={() => handleSortSelect("messages")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "messages" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Messages
-                        </button>
-                        <button 
-                          onClick={() => handleSortSelect("beds")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "beds" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Beds
-                        </button>
-                        <button 
-                          onClick={() => handleSortSelect("duration")}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                            selectedSort === "duration" 
-                              ? "bg-gray-100 text-black font-semibold" 
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          Duration
-                        </button>
-          </div>
+                      <div className="absolute right-0 top-full mt-2 w-[140px] bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50">
+                        {["none", "price", "date", "messages", "beds", "duration"].map((option) => (
+                          <button 
+                            key={option}
+                            onClick={() => handleSortSelect(option as any)}
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                              selectedSort === option 
+                                ? "bg-gray-100 text-black font-medium" 
+                                : "text-gray-600 hover:bg-gray-50"
+                            }`}
+                          >
+                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                          </button>
+                        ))}
+                      </div>
                     </>
                   )}
                 </div>
@@ -502,68 +488,30 @@ function DashboardContent() {
                 {/* Select Button */}
                 <button 
                   onClick={toggleSelectionMode}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold text-sm cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
                     selectionMode 
                       ? "bg-blue-600 text-white hover:bg-blue-700" 
-                      : "bg-black text-white hover:bg-gray-800"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   {selectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   {selectionMode ? "Cancel" : "Select"}
                 </button>
+
+                {/* Add Property Button */}
+                <Link href="/properties/add">
+                  <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
+                    <Plus className="w-4 h-4" />
+                    Add
+                  </button>
+                </Link>
               </div>
             </div>
-
-            {/* Rent/Sale Toggle - Below Title */}
-            <div className="mb-6">
-              <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-6">
-                <button
-                  onClick={() => {
-                    console.log("Rent button clicked");
-                    setPropertyType("rent");
-                  }}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    propertyType === "rent"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Rent
-                </button>
-                <button
-                  onClick={() => {
-                    console.log("Sale button clicked");
-                    setPropertyType("sale");
-                  }}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    propertyType === "sale"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Sale
-                </button>
-              </div>
-
-              {/* Search Bar */}
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search properties by address, price, or features..."
-                    value={propertySearch}
-                    onChange={(e) => setPropertySearch(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing {sortedProperties.length} {propertyType === "rent" ? "rental" : "sale"} properties
-                </p>
-              </div>
+            
+            {/* Summary Row */}
+            <p className="text-sm text-gray-500">
+              {sortedProperties.length} {propertyType === "rent" ? "rental" : "sale"} {sortedProperties.length === 1 ? "property" : "properties"}
+            </p>
 
               {/* Bulk Actions Bar */}
               {selectionMode && selectedProperties.size > 0 && (
@@ -595,7 +543,6 @@ function DashboardContent() {
                   </div>
                 </div>
               )}
-            </div>
           </div>
 
           {/* Properties Grid */}
@@ -841,195 +788,63 @@ function DashboardContent() {
       {/* Contracts Tab */}
       {activeTab === "contracts" && (
         <>
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-4xl font-bold text-black mb-2">Contracts</h2>
-                <p className="text-lg text-gray-600">Manage your lease and sale agreements</p>
-              </div>
-              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Add Contract
-              </button>
-            </div>
-
-            {/* Contract Filters */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit mb-6">
-              {["all", "active", "pending", "completed", "draft"].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setContractFilter(filter as "all" | "active" | "pending" | "completed" | "draft")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer capitalize ${
-                    contractFilter === filter
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-
-            {/* Search Bar */}
-            <div className="mb-6">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search contracts by name, tenant, or property..."
-                  value={contractSearch}
-                  onChange={(e) => setContractSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Empty state if no contracts exist at all */}
-            {loadingContracts ? (
-              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
-                <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
-                <h3 className="text-xl font-bold text-black mb-2">Loading contracts...</h3>
-                <p className="text-gray-600">Please wait while we fetch your contracts.</p>
-              </div>
-            ) : contracts.length === 0 ? (
-              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
-                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-10 h-10 text-gray-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-black mb-2">No contracts yet</h3>
-                <p className="text-gray-600 mb-6">
-                  Create your first contract to get started with managing lease agreements.
-                </p>
-                <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
-                  Create Contract
-                </button>
-              </div>
-            ) : (
-              /* Contracts Table - only show when contracts exist */
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-                  <div className="col-span-3">Contract</div>
-                  <div className="col-span-3">Property</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-2">Last Modified</div>
-                  <div className="col-span-1">Created</div>
-                  <div className="col-span-1"></div>
-                </div>
-
-                {/* Table Rows */}
-                <div className="divide-y divide-gray-200">
-                  {(() => {
-                    const filteredContracts = contracts.filter((contract) => {
-                      const searchLower = contractSearch.toLowerCase();
-                      const matchesSearch = (
-                        contract.name.toLowerCase().includes(searchLower) ||
-                        contract.tenant.toLowerCase().includes(searchLower) ||
-                        contract.property.toLowerCase().includes(searchLower)
-                      );
-
-                      // Apply filter
-                      if (contractFilter === "all") return matchesSearch;
-                      if (contractFilter === "active") return matchesSearch && contract.status === "Active";
-                      if (contractFilter === "pending") return matchesSearch && contract.status === "Pending";
-                      if (contractFilter === "completed") return matchesSearch && contract.status === "Completed";
-                      if (contractFilter === "draft") return matchesSearch && contract.status === "Draft";
-                      
-                      return matchesSearch;
-                    });
-
-                    if (filteredContracts.length === 0) {
-                      return (
-                        <div className="px-6 py-16 text-center">
-                          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                            <Search className="w-8 h-8 text-gray-400" />
-                          </div>
-                          <h3 className="text-xl font-bold text-black mb-2">No contracts found</h3>
-                          <p className="text-gray-600">
-                            Try adjusting your search terms or clear the search to see all contracts.
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return filteredContracts.map((contract) => (
-                    <Link 
-                      key={contract.id}
-                      href={`/dashboard/contract/${contract.id}`}
-                      className="grid grid-cols-12 gap-4 px-6 py-5 hover:bg-gray-50 transition-colors cursor-pointer group"
+          {/* Linear/Stripe-style Toolbar */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {/* Left: Title + Filter Tabs */}
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-black">Contracts</h2>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  {[
+                    { key: "all", label: "All" },
+                    { key: "active", label: "Active" },
+                    { key: "pending", label: "Pending" },
+                    { key: "draft", label: "Draft" }
+                  ].map((filter) => (
+                    <button
+                      key={filter.key}
+                      onClick={() => setContractFilter(filter.key as any)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                        contractFilter === filter.key
+                          ? "bg-black text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-200"
+                      }`}
                     >
-                      {/* Contract Name */}
-                      <div className="col-span-3 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-gray-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-black truncate group-hover:text-gray-700 transition-colors">
-                              {contract.name}
-                            </p>
-                            {contract.isPrimary && (
-                              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold flex-shrink-0">
-                                <Star className="w-3 h-3 fill-current" />
-                                PRIMARY
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600 truncate">{contract.tenant}</p>
-                        </div>
-                      </div>
-
-                      {/* Property */}
-                      <div className="col-span-3 flex items-center">
-                        <div className="min-w-0">
-                          <p className="text-sm text-gray-800 truncate">{contract.property}</p>
-                          <p className="text-xs text-gray-500">{contract.startDate} - {contract.endDate}</p>
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div className="col-span-2 flex items-center">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                          contract.status === "Active" 
-                            ? "bg-green-100 text-green-700"
-                            : contract.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : contract.status === "Completed"
-                            ? "bg-blue-100 text-blue-700"
-                            : contract.status === "Draft"
-                            ? "bg-gray-100 text-gray-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}>
-                          {contract.status === "Active" && <CheckCircle className="w-3 h-3" />}
-                          {contract.status === "Pending" && <Clock className="w-3 h-3" />}
-                          {contract.status === "Completed" && <CheckCircle className="w-3 h-3" />}
-                          {contract.status === "Draft" && <FileText className="w-3 h-3" />}
-                          {contract.status}
-                        </span>
-                      </div>
-
-                      {/* Last Modified */}
-                      <div className="col-span-2 flex items-center">
-                        <p className="text-sm text-gray-600">{contract.lastModified}</p>
-                      </div>
-
-                      {/* Created */}
-                      <div className="col-span-1 flex items-center">
-                        <p className="text-sm text-gray-600">{contract.created}</p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="col-span-1 flex items-center justify-end">
-                        <button className="w-8 h-8 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
-                          <MoreVertical className="w-5 h-5 text-gray-600" />
-                        </button>
-                      </div>
-                    </Link>
-                  ));
-                  })()}
+                      {filter.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
+              
+              {/* Right: Search + Add Button */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={contractSearch}
+                    onChange={(e) => setContractSearch(e.target.value)}
+                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                  />
+                </div>
+                
+                <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
+                  <Plus className="w-4 h-4" />
+                  New Contract
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-500">0 contracts</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
+            <FileText className="w-20 h-20 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-2xl font-bold text-black mb-2">Contracts Coming Soon</h3>
+            <p className="text-gray-600">
+              Create, manage, and e-sign lease agreements with AI-powered contract generation.
+            </p>
           </div>
         </>
       )}
@@ -1037,87 +852,70 @@ function DashboardContent() {
       {/* Tenants Tab */}
       {activeTab === "tenants" && (
         <>
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-4xl font-bold text-black mb-2">Tenants</h2>
-                <p className="text-lg text-gray-600">Manage your current and past tenants</p>
+          {/* Linear/Stripe-style Toolbar */}
+          <div className="mb-6">
+            {/* Main Toolbar Row */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {/* Left: Title + Filter Tabs */}
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-black">Tenants</h2>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  {[
+                    { key: "all", label: "All" },
+                    { key: "current", label: "Current" },
+                    { key: "pending", label: "Pending" },
+                    { key: "late", label: "Late" },
+                    { key: "archived", label: "Archived" }
+                  ].map((filter) => (
+                    <button
+                      key={filter.key}
+                      onClick={() => setTenantFilter(filter.key as any)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                        tenantFilter === filter.key
+                          ? "bg-black text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Add Tenant
-              </button>
-            </div>
-
-            {/* Filter Buttons */}
-            <div className="mb-6">
-              <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit">
-                <button
-                  onClick={() => setTenantFilter("all")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    tenantFilter === "all"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setTenantFilter("current")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    tenantFilter === "current"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Current
-                </button>
-                <button
-                  onClick={() => setTenantFilter("pending")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    tenantFilter === "pending"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Pending
-                </button>
-                <button
-                  onClick={() => setTenantFilter("late")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    tenantFilter === "late"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Late Payment
-                </button>
-                <button
-                  onClick={() => setTenantFilter("archived")}
-                  className={`px-6 py-2.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
-                    tenantFilter === "archived"
-                      ? "bg-black text-white shadow-sm"
-                      : "text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Archived
+              
+              {/* Right: Search + Add Button */}
+              <div className="flex items-center gap-2">
+                {/* Compact Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={tenantSearch}
+                    onChange={(e) => setTenantSearch(e.target.value)}
+                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                  />
+                </div>
+                
+                {/* Add Tenant Button */}
+                <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
+                  <Plus className="w-4 h-4" />
+                  Add
                 </button>
               </div>
             </div>
-
-            {/* Search Bar */}
-            <div className="mb-6">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search tenants by name, property, or email..."
-                  value={tenantSearch}
-                  onChange={(e) => setTenantSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
+            
+            {/* Summary Row */}
+            <p className="text-sm text-gray-500">
+              {tenants.filter((t: any) => {
+                if (tenantFilter === "all") return true;
+                if (tenantFilter === "current") return t.status === "Current";
+                if (tenantFilter === "pending") return t.status === "Pending";
+                if (tenantFilter === "late") return t.status === "Late";
+                if (tenantFilter === "archived") return t.status === "Archived";
+                return true;
+              }).length} tenants
+            </p>
+          </div>
 
             {/* Loading State */}
             {loadingTenants ? (
@@ -1267,11 +1065,8 @@ function DashboardContent() {
             )}
           </>
         )}
-      </div>
-    </>
-  )}
-
-
+        </>
+      )}
 
       {/* Calendar Tab */}
       {activeTab === "calendar" && (
@@ -1279,64 +1074,69 @@ function DashboardContent() {
             {/* Conditional Rendering: Month View vs Day View */}
             {!selectedCalendarDate ? (
               // MONTH VIEW
-              <div className="space-y-8 animate-in slide-in-from-left duration-300">
-                  {/* Header */}
-                  <div>
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h2 className="text-4xl font-bold text-black mb-2">Calendar</h2>
-                        <p className="text-lg text-gray-600">Schedule and manage property viewings</p>
+              <div className="space-y-6 animate-in slide-in-from-left duration-300">
+                  {/* Linear/Stripe-style Toolbar */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                      {/* Left: Title + Month Navigation */}
+                      <div className="flex items-center gap-4">
+                        <h2 className="text-xl font-bold text-black">Calendar</h2>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={prevMonth}
+                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
+                            {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                          </span>
+                          <button 
+                            onClick={nextMonth}
+                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-
+                      
+                      {/* Right: Today/Next + Add Button */}
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={goToSmartDate}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                            nextAppointment 
+                              ? 'bg-black text-white hover:bg-gray-800' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {nextAppointment ? (
+                            <>
+                              Next: {new Date(nextAppointment.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </>
+                          ) : (
+                            'Today'
+                          )}
+                        </button>
+                        
+                        <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
+                          <Plus className="w-4 h-4" />
+                          Add Showing
+                        </button>
+                      </div>
                     </div>
+                    
+                    <p className="text-sm text-gray-500">
+                      {appointments?.length || 0} upcoming showings
+                    </p>
                   </div>
 
                   {/* Calendar View */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    {/* Calendar Header */}
-                    <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <button 
-                          onClick={prevMonth}
-                          className="w-9 h-9 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center justify-center transition-all"
-                        >
-                          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                        <h3 className="text-xl font-bold text-black min-w-[140px] text-center">
-                          {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                        </h3>
-                        <button 
-                          onClick={nextMonth}
-                          className="w-9 h-9 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center justify-center transition-all"
-                        >
-                          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                      <button 
-                        onClick={goToSmartDate}
-                        className={`px-4 py-2 border rounded-lg text-sm font-medium transition-all min-w-[130px] flex items-center justify-center gap-2 ${
-                          nextAppointment 
-                            ? 'bg-black text-white border-black hover:bg-gray-800 shadow-md' 
-                            : 'border-gray-300 text-gray-900 hover:bg-gray-50'
-                        }`}
-                      >
-                        {nextAppointment ? (
-                          <>
-                            <span>Next: {new Date(nextAppointment.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                            </svg>
-                          </>
-                        ) : (
-                          'Today'
-                        )}
-                      </button>
-                    </div>
-
                     {/* Calendar Grid */}
                     <div className="p-6">
                       {/* Weekday Headers */}
@@ -1520,85 +1320,73 @@ function DashboardContent() {
             ) : (
                // DAY VIEW (TIMELINE)
                <div className="animate-in slide-in-from-right duration-300 w-full h-[calc(100vh-100px)] flex flex-col">
-                  {/* Header */}
-                  <div className="shrink-0 flex items-center justify-between mb-4">
-                    <button 
-                      onClick={() => setSelectedCalendarDate(null)}
-                      className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold transition-colors group"
-                    >
-                      <ArrowLeft className="w-5 h-5 text-gray-500 group-hover:text-black transition-colors" />
-                      <span>Back to Calendar</span>
-                    </button>
-
-                    {/* Deep Link to Google Calendar */}
-                    <a 
-                      href={`https://calendar.google.com/calendar/r/eventedit?text=Prospective+Tenant+Viewing&details=Prospective+tenant+showing+via+LeaseAI&location=123+Main+St,+Seattle,+WA`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
-                    >
-                       <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                       </svg>
-                       <span className="font-semibold whitespace-nowrap">Schedule Showing</span>
-                    </a>
-                  </div>
-
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
-                    {/* Header */}
-                    <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-40 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] shrink-0">
-                      <div>
-                        <h3 className="text-3xl font-bold text-black flex items-center gap-4">
-                           {selectedCalendarDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                           {selectedCalendarDate.toDateString() === new Date().toDateString() && (
-                             <span className="text-sm bg-black text-white px-3 py-1 rounded-full uppercase tracking-wide font-bold shadow-sm">Today</span>
-                           )}
-                        </h3>
-                        <div className="flex items-center gap-3 mt-1">
-                          <p className="text-gray-500 font-medium text-base">
-                            {appointments.filter(apt => {
-                              const d = new Date(apt.start_time);
-                              const s = selectedCalendarDate;
-                              return d.getDate() === s.getDate() && d.getMonth() === s.getMonth() && d.getFullYear() === s.getFullYear();
-                            }).length} showings scheduled
-                          </p>
-                          <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                          <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-200 uppercase tracking-wider">
-                             {new Date().toLocaleTimeString('en-us',{timeZoneName:'short'}).split(' ')[2] || 'GMT'}
-                          </span>
+                  {/* Linear/Stripe-style Toolbar */}
+                  <div className="shrink-0 mb-4">
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                      {/* Left: Back + Date + Navigation */}
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => setSelectedCalendarDate(null)}
+                          className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <h2 className="text-xl font-bold text-black">
+                           {selectedCalendarDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </h2>
+                        {selectedCalendarDate.toDateString() === new Date().toDateString() && (
+                          <span className="text-xs bg-black text-white px-2 py-1 rounded-full font-medium">Today</span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => {
+                              const newDate = new Date(selectedCalendarDate);
+                              newDate.setDate(selectedCalendarDate.getDate() - 1);
+                              setSelectedCalendarDate(newDate);
+                            }}
+                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const newDate = new Date(selectedCalendarDate);
+                              newDate.setDate(selectedCalendarDate.getDate() + 1);
+                              setSelectedCalendarDate(newDate);
+                            }}
+                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                       
-                      {/* Day Navigation */}
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => {
-                            const newDate = new Date(selectedCalendarDate);
-                            newDate.setDate(selectedCalendarDate.getDate() - 1);
-                            setSelectedCalendarDate(newDate);
-                          }}
-                          className="w-10 h-10 rounded-full border border-gray-200 hover:bg-gray-50 flex items-center justify-center transition-all group"
-                          aria-label="Previous Day"
-                        >
-                          <svg className="w-5 h-5 text-gray-500 group-hover:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={() => {
-                            const newDate = new Date(selectedCalendarDate);
-                            newDate.setDate(selectedCalendarDate.getDate() + 1);
-                            setSelectedCalendarDate(newDate);
-                          }}
-                          className="w-10 h-10 rounded-full border border-gray-200 hover:bg-gray-50 flex items-center justify-center transition-all group"
-                          aria-label="Next Day"
-                        >
-                          <svg className="w-5 h-5 text-gray-500 group-hover:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
+                      {/* Right: Add Button */}
+                      <a 
+                        href={`https://calendar.google.com/calendar/r/eventedit?text=Prospective+Tenant+Viewing&details=Prospective+tenant+showing+via+LeaseAI&location=123+Main+St,+Seattle,+WA`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Showing
+                      </a>
                     </div>
+                    
+                    <p className="text-sm text-gray-500">
+                      {appointments.filter(apt => {
+                        const d = new Date(apt.start_time);
+                        const s = selectedCalendarDate;
+                        return d.getDate() === s.getDate() && d.getMonth() === s.getMonth() && d.getFullYear() === s.getFullYear();
+                      }).length} showings scheduled
+                    </p>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
 
                     {/* Timeline Grid */}
                     <div className="flex-1 overflow-y-auto relative bg-white" ref={(el) => {
@@ -1707,6 +1495,42 @@ function DashboardContent() {
                   </div>
                 </div>
               )}
+        </>
+      )}
+
+      {/* Promote Tab */}
+      {activeTab === "promote" && (
+        <>
+          <div className="mb-10">
+            <h2 className="text-4xl font-bold text-black mb-2">Promote</h2>
+            <p className="text-lg text-gray-600">Advertise your properties across platforms</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
+            <Megaphone className="w-20 h-20 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-2xl font-bold text-black mb-2">Promote Coming Soon</h3>
+            <p className="text-gray-600">
+              Publish listings to Zillow, Realtor.com, and social media with one click.
+            </p>
+          </div>
+        </>
+      )}
+
+      {/* Management Tab */}
+      {activeTab === "management" && (
+        <>
+          <div className="mb-10">
+            <h2 className="text-4xl font-bold text-black mb-2">Management</h2>
+            <p className="text-lg text-gray-600">Property management tools</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
+            <Briefcase className="w-20 h-20 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-2xl font-bold text-black mb-2">Management Coming Soon</h3>
+            <p className="text-gray-600">
+              Maintenance requests, vendor management, and property operations all in one place.
+            </p>
+          </div>
         </>
       )}
 

@@ -16,17 +16,28 @@
   }
 }
 
-* {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
   border-color: hsl(var(--border));
 }
 
 html {
+  font-size: 16px;
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
