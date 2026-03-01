@@ -6,7 +6,9 @@ import {
   getLeadQuality,
   matchProperties,
   analyzeConversation,
-  generateFinalResponse 
+  generateFinalResponse,
+  verifyResponseHallucinations,
+  extractLeadData
 } from '@/lib/ai-qualification';
 
 export async function POST(
@@ -104,10 +106,44 @@ export async function POST(
       .eq('id', user.id)
       .single();
 
-    const realtorName = userData?.email?.split('@')[0] || 'Realtor';
+    const realtorName = user.user_metadata?.full_name || userData?.email?.split('@')[0] || 'Agent';
 
-    // 5. NEW: Agentic Workflow
-    // 5.1 Analyze
+    // 5. NEW: Modular AI Pipeline (Extraction 2.0)
+    // 5.1 Extract Data & Detect Conflicts
+    const questionnaire = await extractLeadData(conversationHistory, tenant);
+    
+    if (questionnaire.conflicts && questionnaire.conflicts.length > 0) {
+      console.warn('⚡ AI Conflict Detected:', questionnaire.conflicts);
+    }
+
+    // 5.2 Map questionnaire to TenantData updates
+    const extractionUpdates: any = {};
+    if (questionnaire.fullName?.value) extractionUpdates.name = questionnaire.fullName.value;
+    if (questionnaire.budgetMax?.value) extractionUpdates.budget_max = questionnaire.budgetMax.value;
+    if (questionnaire.moveInDate?.value) extractionUpdates.move_in_date = questionnaire.moveInDate.value;
+    if (questionnaire.bedrooms?.value) extractionUpdates.bedrooms = questionnaire.bedrooms.value;
+    if (questionnaire.hasPets?.value !== undefined) extractionUpdates.has_pets = questionnaire.hasPets.value;
+    if (questionnaire.petsDetails?.value) extractionUpdates.pet_details = questionnaire.petsDetails.value;
+    if (questionnaire.occupantsCount?.value) extractionUpdates.occupants = questionnaire.occupantsCount.value;
+    if (questionnaire.parkingNeeded?.value !== undefined) extractionUpdates.parking_needed = questionnaire.parkingNeeded.value;
+
+    // 5.3 Update Tenant in DB with confidence-aware data
+    if (Object.keys(extractionUpdates).length > 0) {
+      console.log('📝 Updating tenant data from extraction:', extractionUpdates);
+      
+      const newScore = calculateLeadScore({ ...tenant, ...extractionUpdates });
+      const newQuality = getLeadQuality(newScore);
+      extractionUpdates.lead_score = newScore;
+      extractionUpdates.lead_quality = newQuality;
+
+      await supabase.from('tenants').update(extractionUpdates).eq('id', tenantId);
+      
+      // Update local tenant object for subsequent steps
+      Object.assign(tenant, extractionUpdates);
+    }
+
+    // 6. Planning & Execution (AI Brain Phase 2)
+    // 6.1 Analyze & Decide Action
     const analysis = await analyzeConversation({
       tenant: {
         id: tenant.id,
@@ -123,21 +159,41 @@ export async function POST(
 
     console.log('✅ Analysis complete:', analysis.action);
 
-    // 5.2 Execute Actions
+    // 6.2 Execute Actions (Calendar, etc.)
     let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
     
     if (analysis.action === 'book_calendar' && analysis.action_params) {
+      // ... (Calendar execution logic remains same)
       console.log('📅 Action: Booking Calendar...');
+      console.log('📅 Action Params:', JSON.stringify(analysis.action_params, null, 2));
       try {
          const { createCalendarEvent } = await import('@/lib/calendar-client');
          const args = analysis.action_params;
-         const startTime = new Date(args.start_time);
+         
+         // Strip any timezone suffix the AI might add — we want a naive datetime
+         // since Google Calendar will use the timeZone field (America/Los_Angeles)
+         const startTimeStr = args.start_time
+           .replace(/Z$/i, '')
+           .replace(/[+-]\d{2}:\d{2}$/, '')
+           .replace(/\.\d{3}$/, '');
+         
+         // Validate the datetime format
+         if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(startTimeStr)) {
+           throw new Error(`Invalid start_time format from AI: "${args.start_time}"`);
+         }
+         
+         // Compute end time without timezone interference:
+         // Parse as UTC (append Z) so the math is clean, then strip it back
          const duration = args.duration_minutes || 30;
-         const endTime = new Date(startTime.getTime() + duration * 60000);
+         const startAsUtc = new Date(startTimeStr + 'Z');
+         const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
+         const endTimeStr = endAsUtc.toISOString().slice(0, 19); // "YYYY-MM-DDTHH:mm:ss"
+         
+         console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
          
          const event = await createCalendarEvent(
-            startTime.toISOString(),
-            endTime.toISOString(),
+            startTimeStr,
+            endTimeStr,
             `Viewing: ${args.property_address}`,
             `Client: ${args.client_name || tenant.name}\nPhone: ${tenant.phone}\nEmail: ${tenant.email}`,
             tenant.email || undefined
@@ -151,22 +207,6 @@ export async function POST(
       }
     }
 
-    // 6. Update tenant with extracted data
-    if (analysis.extractedData && Object.keys(analysis.extractedData).length > 0) {
-       // ... (Similar logic to before, applying extractedData) ...
-       // For brevity, using the analysis.extractedData directly
-       const updateData: any = { ...analysis.extractedData };
-       
-       const updatedTenant = { ...tenant, ...analysis.extractedData };
-       // Recalculate score
-       const newScore = calculateLeadScore(updatedTenant);
-       const newQuality = getLeadQuality(newScore);
-       updateData.lead_score = newScore;
-       updateData.lead_quality = newQuality;
-       
-       // Update in DB
-       await supabase.from('tenants').update(updateData).eq('id', tenantId);
-    }
 
     // 7. Find matches
     let matchedProperties: any[] = [];
@@ -174,8 +214,15 @@ export async function POST(
       matchedProperties = matchProperties(tenant as any, properties || []);
     }
 
-    // 8. Generate Final Response
-    const finalResponse = await generateFinalResponse(
+    // 8. Generate Final Response with Verification Loop
+    let finalResponse = '';
+    let hallucinationsFound = false;
+    let hallucinatedAddresses: string[] = [];
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
+    while (retryCount <= MAX_RETRIES) {
+      finalResponse = await generateFinalResponse(
         {
           tenant: { name: tenant.name, email: tenant.email },
           properties: properties || [],
@@ -184,16 +231,38 @@ export async function POST(
         },
         analysis,
         executionResult
-    );
+      );
+
+      // Verify for hallucinations
+      const verification = await verifyResponseHallucinations(finalResponse, properties || []);
+      
+      if (!verification.hasHallucinations) {
+        break; // Success!
+      }
+
+      // If we found hallucinations, log and retry
+      console.warn(`⚠️ Hallucination detected (Attempt ${retryCount + 1}):`, verification.hallucinatedAddresses);
+      hallucinationsFound = true;
+      hallucinatedAddresses = Array.from(new Set([...hallucinatedAddresses, ...verification.hallucinatedAddresses]));
+      
+      // Update analysis context for next iteration to be more strict
+      analysis.thought_process += `\n[SYSTEM WARNING]: You previously mentioned the following non-existent addresses which caused a hallucination error: ${verification.hallucinatedAddresses.join(', ')}. DO NOT mention them again. ONLY use addresses from the database.`;
+      
+      retryCount++;
+    }
 
     return NextResponse.json({
       success: true,
       aiResponse: finalResponse,
       extractedData: analysis.extractedData,
-      leadScore: tenant.lead_score, // Simplified re-fetch or use updated
+      thoughts: analysis.thoughts,
+      leadScore: tenant.lead_score, 
       leadQuality: tenant.lead_quality,
-      matchedProperties: matchedProperties.slice(0, 3),
+      matchedProperties: matchedProperties.slice(0, 5),
       nextAction: analysis.action,
+      listingAddresses: analysis.listing_addresses,
+      hallucinationsDetected: hallucinationsFound,
+      hallucinatedAddresses: hallucinatedAddresses
     });
     
   } catch (error) {

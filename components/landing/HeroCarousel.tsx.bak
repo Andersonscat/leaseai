@@ -1,0 +1,53 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+export default function HeroCarousel() {
+  const [activeImage, setActiveImage] = useState(0);
+  const images = [
+    "/dashboard-hero.png",
+    "/dashboard-calendar.png", 
+    "/dashboard-analytics.png"
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveImage((prev) => (prev + 1) % images.length);
+    }, 4000); 
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="relative w-full max-w-[1200px] perspective-[2000px] z-20 -mb-40 group">
+      <div className="relative rounded-xl bg-[#121212] p-2 ring-1 ring-white/10 shadow-2xl transform rotate-x-[20deg] scale-90 opacity-90 transition-all duration-1000 ease-out group-hover:rotate-x-[10deg] group-hover:scale-95 group-hover:opacity-100 group-hover:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
+        {/* Screen Reflection overlay */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent rounded-lg z-20 pointer-events-none" />
+        
+        <div className="relative w-full aspect-[16/9] bg-[#121212] rounded-lg overflow-hidden">
+           {images.map((src, idx) => (
+             <img 
+                key={src}
+                src={src} 
+                alt="LeaseAI Dashboard" 
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${activeImage === idx ? 'opacity-100' : 'opacity-0'}`}
+             />
+           ))}
+        </div>
+        
+        {/* Bottom Fade */}
+        <div className="absolute -bottom-1 left-0 right-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent z-30" />
+      </div>
+      
+      {/* Carousel Indicators */}
+      <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 z-40 bg-white/50 backdrop-blur-md px-3 py-2 rounded-full border border-black/5 transition-opacity duration-300 opacity-0 group-hover:opacity-100">
+         {images.map((_, idx) => (
+           <button 
+             key={idx}
+             onClick={() => setActiveImage(idx)}
+             className={`w-2 h-2 rounded-full transition-all duration-300 ${activeImage === idx ? 'w-6 bg-black' : 'bg-black/20 hover:bg-black/50'}`} 
+           />
+         ))}
+      </div>
+    </div>
+  );
+}

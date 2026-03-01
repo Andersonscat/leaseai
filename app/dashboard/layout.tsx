@@ -3,11 +3,12 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose } from "lucide-react";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose, Crown, Bot, Beaker } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BADGE_REFRESH_EVENT } from "@/lib/inbox-badge";
 import { SOURCE_ICONS, SOURCE_NAMES, SMART_FILTERS } from "@/lib/sources";
+import Avatar from "@/components/Avatar";
 
 function DashboardLayoutContent({
   children,
@@ -16,12 +17,13 @@ function DashboardLayoutContent({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") || "properties";
+  const activeTab = searchParams.get("tab") || "inbox";
   const [showAIChat, setShowAIChat] = useState(false);
   const [chatWidth, setChatWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isHoveringAI, setIsHoveringAI] = useState(false);
   const router = useRouter();
   const supabase = createSupabaseClient();
   const [user, setUser] = useState<any>(null);
@@ -72,6 +74,26 @@ function DashboardLayoutContent({
     };
   }, [user, supabase]);
 
+  // Auto-collapse sidebar on narrow screens
+  useEffect(() => {
+    const handleResize = () => {
+      // Auto-collapse sidebar if screen is narrow (less than 1400px)
+      if (window.innerWidth < 1400) {
+        setIsSidebarCollapsed(true);
+      } else if (window.innerWidth >= 1600) {
+        // Auto-expand on wide screens
+        setIsSidebarCollapsed(false);
+      }
+    };
+
+    // Check on mount
+    handleResize();
+
+    // Listen for resize
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Handle logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -114,7 +136,7 @@ function DashboardLayoutContent({
   // If we're on contract editor, render without sidebar but WITH AI chat
   if (isContractEditor) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-premium-mesh">
         {/* Header - Same as dashboard */}
         <header className="bg-black sticky top-0 z-50">
           <div className="w-full px-12 py-5 flex justify-between items-center">
@@ -129,7 +151,7 @@ function DashboardLayoutContent({
               </Link>
               <button
                 onClick={() => setShowAIChat(!showAIChat)}
-                className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition-all"
+                className="w-10 h-10 glass-matte text-gray-900 rounded-full flex items-center justify-center hover:bg-white/80 transition-all shadow-sm"
                 title="AI Assistant"
               >
                 <Sparkles className="w-5 h-5" />
@@ -255,98 +277,194 @@ function DashboardLayoutContent({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-premium-mesh relative overflow-hidden">
+      {/* Background Decorative Elements for Glass Pop */}
+      <div className="fixed -top-20 -left-20 w-96 h-96 bg-blue-100/30 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed top-1/2 -right-20 w-96 h-96 bg-indigo-100/30 rounded-full blur-[120px] pointer-events-none" />
+      
       {/* Header */}
       {/* Header */}
 
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 h-screen bg-white text-gray-900 border-r border-gray-200 z-50 transition-all duration-300 flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
+      <aside 
+        className={`fixed left-4 top-4 bottom-4 bg-white border border-gray-200/60 rounded-2xl shadow-sm z-30 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+          isSidebarCollapsed ? 'w-[88px]' : 'w-[240px]'
+        } flex flex-col overflow-hidden`}
+      >
           {/* Brand Header */}
-          <div className="h-[72px] flex items-center justify-between px-4 border-b border-gray-100 shrink-0">
+          <div className="h-[56px] flex items-center justify-between px-3 border-b border-gray-100 shrink-0">
              <div 
                onClick={() => isSidebarCollapsed ? setIsSidebarCollapsed(false) : router.push('/dashboard')}
                className={`flex items-center gap-3 group overflow-hidden cursor-pointer relative ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}
              >
-                <div className={`w-8 h-8 bg-black rounded-lg flex items-center justify-center shrink-0 transition-all ${isSidebarCollapsed ? 'group-hover:bg-gray-900' : ''}`}>
+                <div className={`w-7 h-7 bg-black rounded-lg flex items-center justify-center shrink-0 transition-all ${isSidebarCollapsed ? 'group-hover:bg-gray-900' : ''}`}>
                   {isSidebarCollapsed ? (
                     <>
-                      <span className="text-white font-black text-lg group-hover:hidden">L</span>
-                      <PanelLeftOpen className="w-5 h-5 text-white hidden group-hover:block" />
+                      <span className="text-white font-black text-base group-hover:hidden">L</span>
+                       <PanelLeftOpen className="w-4 h-4 text-white hidden group-hover:block transition-all duration-300" />
                     </>
                   ) : (
-                    <span className="text-white font-black text-lg">L</span>
+                    <span className="text-white font-black text-base">L</span>
                   )}
                 </div>
-                
-                {!isSidebarCollapsed && (
-                  <h1 className="text-xl font-bold tracking-tight text-gray-900 animate-in fade-in duration-200">
-                    LeaseAI
-                  </h1>
-                )}
+                                {!isSidebarCollapsed && (
+                   <h1 className="text-lg font-bold tracking-tight text-gray-900 animate-in fade-in duration-200">
+                     LeaseAI
+                   </h1>
+                 )}
 
-                {/* ChatGPT-style Tooltip */}
-                {isSidebarCollapsed && (
-                  <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                    Open sidebar
-                  </div>
-                )}
-             </div>
-             
-             {/* Collapse Button (Only visible when expanded) */}
-             {!isSidebarCollapsed && (
-               <button 
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   setIsSidebarCollapsed(!isSidebarCollapsed);
-                 }}
-                 className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
-                 title="Collapse Sidebar"
-               >
-                  <PanelLeftClose className="w-5 h-5" />
-               </button>
-             )}
+                 {/* ChatGPT-style Tooltip */}
+                 {isSidebarCollapsed && (
+                   <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                     Open sidebar
+                   </div>
+                 )}
+              </div>
+
+              {/* Collapse Button (Visible when expanded) */}
+              {!isSidebarCollapsed && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSidebarCollapsed(true);
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+                  title="Collapse Sidebar"
+                >
+                   <PanelLeftClose className="w-5 h-5 text-gray-400 group-hover:text-gray-900 transition-colors" />
+                </button>
+              )}
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+          <nav className="flex-1 overflow-y-auto py-5 px-3">
 
-             {[
-               { tab: 'inbox', icon: Inbox, label: 'Inbox', badge: unreadCount },
-               { tab: 'properties', icon: Home, label: 'Properties' },
-               { tab: 'tenants', icon: Users, label: 'Tenants' },
-               { tab: 'calendar', icon: Calendar, label: 'Calendar' },
-               { tab: 'management', icon: Briefcase, label: 'Management' },
-               { tab: 'contracts', icon: FileText, label: 'Contracts' },
-               { tab: 'promote', icon: Megaphone, label: 'Promote' },
-               { tab: 'analytics', icon: BarChart3, label: 'Analytics' },
-             ].map((item) => (
-                <Link key={item.tab} href={`/dashboard?tab=${item.tab}`}>
-                  <div 
-                    title={isSidebarCollapsed ? item.label : undefined}
-                    className={`flex items-center gap-3 px-3 py-3.5 rounded-xl transition-all group relative ${
-                      activeTab === item.tab 
-                        ? "bg-black text-white font-bold shadow-md shadow-black/5" 
-                        : "text-gray-500 hover:text-black hover:bg-gray-100 font-semibold"
-                    } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                  >
-                     <item.icon className={`w-[22px] h-[22px] flex-shrink-0 ${activeTab === item.tab ? 'text-white' : 'text-gray-400 group-hover:text-black'}`} />
-                     {!isSidebarCollapsed && <span className="text-base tracking-tight">{item.label}</span>}
-                     
-                     {/* Unread Badge for Inbox */}
-                     {item.badge !== undefined && item.badge > 0 && (
-                        <span className={`bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-sm ${
-                           isSidebarCollapsed ? 'absolute top-2 right-2 border-white border-2' : 'ml-auto'
-                        }`}>
-                           {item.badge > 99 ? '99+' : item.badge}
-                        </span>
-                     )}
-                  </div>
-                </Link>
-             ))}
+             {/* Core Section */}
+             <div className="space-y-1">
+               {[
+                 { tab: 'inbox', icon: Inbox, label: 'Inbox', badge: unreadCount },
+                 { tab: 'properties', icon: Home, label: 'Properties' },
+                 { tab: 'tenants', icon: Users, label: 'Tenants' },
+                 { tab: 'calendar', icon: Calendar, label: 'Calendar' },
+               ].map((item) => (
+                  <Link key={item.tab} href={`/dashboard?tab=${item.tab}`}>
+                    <div 
+                      title={isSidebarCollapsed ? item.label : undefined}
+                      className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all group relative ${
+                        activeTab === item.tab 
+                          ? "bg-gray-100 text-gray-900 font-semibold" 
+                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                      } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                    >
+                       {/* Left accent bar for active state */}
+                       {activeTab === item.tab && (
+                         <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-black rounded-r-full`} />
+                       )}
+                       <item.icon className={`w-[22px] h-[22px] flex-shrink-0 transition-colors ${activeTab === item.tab ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-900'}`} strokeWidth={activeTab === item.tab ? 2.2 : 1.8} />
+                       {!isSidebarCollapsed && <span className="text-[13.5px] tracking-tight">{item.label}</span>}
+                       
+                       {/* Unread Badge for Inbox */}
+                       {item.badge !== undefined && item.badge > 0 && (
+                          <span className={`bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-sm ${
+                             isSidebarCollapsed ? 'absolute -top-0.5 -right-0.5 border-white border-2' : 'ml-auto'
+                          }`}>
+                             {item.badge > 99 ? '99+' : item.badge}
+                          </span>
+                       )}
+
+                       {/* ChatGPT-style Tooltip */}
+                       {isSidebarCollapsed && (
+                         <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                           {item.label}
+                         </div>
+                       )}
+                    </div>
+                  </Link>
+               ))}
+             </div>
+
+             {/* Separator */}
+             <div className={`my-3 mx-2 h-px bg-gray-200/80`} />
+
+             {/* Tools Section */}
+             <div className="space-y-1">
+               {!isSidebarCollapsed && (
+                 <p className="px-3 mb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Tools</p>
+               )}
+               {[
+                 { tab: 'contracts', icon: FileText, label: 'Contracts' },
+                 { tab: 'sandbox', icon: Beaker, label: 'AI Sandbox', href: '/dashboard/sandbox' },
+                 { tab: 'management', icon: Briefcase, label: 'Management' },
+                 { tab: 'promote', icon: Megaphone, label: 'Promote' },
+               ].map((item) => {
+                 const isSandbox = item.tab === 'sandbox';
+                 const isActive = isSandbox ? pathname === '/dashboard/sandbox' : activeTab === item.tab;
+                 return (
+                   <Link key={item.tab} href={item.href || `/dashboard?tab=${item.tab}`}>
+                     <div 
+                       title={isSidebarCollapsed ? item.label : undefined}
+                       className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all group relative ${
+                         isActive 
+                           ? "bg-gray-100 text-gray-900 font-semibold" 
+                           : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                       } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                     >
+                        {isActive && (
+                          <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-black rounded-r-full`} />
+                        )}
+                        <item.icon className={`w-[22px] h-[22px] flex-shrink-0 transition-colors ${isActive ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-900'}`} strokeWidth={isActive ? 2.2 : 1.8} />
+                        {!isSidebarCollapsed && <span className="text-[13.5px] tracking-tight">{item.label}</span>}
+
+                        {isSidebarCollapsed && (
+                          <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                            {item.label}
+                          </div>
+                        )}
+                     </div>
+                   </Link>
+                 );
+               })}
+             </div>
+
+             {/* Separator */}
+             <div className={`my-3 mx-2 h-px bg-gray-200/80`} />
+
+             {/* Insights Section */}
+             <div className="space-y-1">
+               {!isSidebarCollapsed && (
+                 <p className="px-3 mb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Insights</p>
+               )}
+               {[
+                 { tab: 'analytics', icon: BarChart3, label: 'Analytics' },
+               ].map((item) => (
+                  <Link key={item.tab} href={`/dashboard?tab=${item.tab}`}>
+                    <div 
+                      title={isSidebarCollapsed ? item.label : undefined}
+                      className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all group relative ${
+                        activeTab === item.tab 
+                          ? "bg-gray-100 text-gray-900 font-semibold" 
+                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                      } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                    >
+                       {activeTab === item.tab && (
+                         <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-black rounded-r-full`} />
+                       )}
+                       <item.icon className={`w-[22px] h-[22px] flex-shrink-0 transition-colors ${activeTab === item.tab ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-900'}`} strokeWidth={activeTab === item.tab ? 2.2 : 1.8} />
+                       {!isSidebarCollapsed && <span className="text-[13.5px] tracking-tight">{item.label}</span>}
+
+                       {isSidebarCollapsed && (
+                         <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                           {item.label}
+                         </div>
+                       )}
+                    </div>
+                  </Link>
+               ))}
+             </div>
           </nav>
 
           {/* Bottom Actions */}
-          <div className="p-3 border-t border-gray-100 bg-white space-y-1">
+          <div className="p-3 border-t border-white/20 space-y-1">
               {/* AI Button Removed from here */}
 
              {/* User Profile (ChatGPT Style) */}
@@ -355,9 +473,13 @@ function DashboardLayoutContent({
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left hover:bg-gray-50 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm border border-white ring-2 ring-gray-100">
-                    {user?.email?.substring(0, 2).toUpperCase() || 'US'}
-                  </div>
+                   <Avatar
+                    src={user?.user_metadata?.avatar_url}
+                    name={user?.user_metadata?.full_name}
+                    email={user?.email}
+                    size="sm"
+                    className="w-10 h-10 ring-2 ring-gray-100 border-white border-2"
+                  />
                   {!isSidebarCollapsed && (
                     <div className="flex-1 overflow-hidden">
                        <p className="text-base font-bold text-gray-900 truncate">{user?.user_metadata?.full_name || 'User Name'}</p>
@@ -372,18 +494,45 @@ function DashboardLayoutContent({
                 {/* Popover Menu */}
                 {showUserMenu && (
                   <>
-                    <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setShowUserMenu(false)} />
-                    <div className={`absolute bottom-full left-0 mb-2 w-80 bg-white border border-gray-200 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] p-2 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isSidebarCollapsed ? 'w-56 left-full ml-2 bottom-0' : ''}`}>
+                    <div className="fixed inset-0 z-[99] bg-transparent" onClick={() => setShowUserMenu(false)} />
+                    <div className={`fixed ${isSidebarCollapsed ? 'left-[120px] bottom-[20px]' : 'left-[20px] bottom-[100px]'} ${isSidebarCollapsed ? 'w-64' : 'w-[220px]'} bg-white border border-gray-200 rounded-xl shadow-xl p-2 z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
+                      {/* Upgrade Pro */}
+                      <Link href="/billing?upgrade=pro" onClick={() => setShowUserMenu(false)}>
+                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 text-indigo-700 cursor-pointer transition-colors border border-indigo-200/50">
+                           <Sparkles className="w-4 h-4 text-indigo-500" />
+                           <span className="text-base font-semibold">Upgrade Pro</span>
+                        </div>
+                      </Link>
+                      
+                      <div className="h-px bg-gray-100 my-1 mx-2" />
+                      
                       <Link href="/billing" onClick={() => setShowUserMenu(false)}>
                         <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
                            <CreditCard className="w-4 h-4 text-gray-500" />
                            <span className="text-base font-medium">Billing</span>
                         </div>
                       </Link>
+                      
+                      <div className="h-px bg-gray-100 my-1 mx-2" />
+                      
+                      {/* Profile */}
+                      <Link href="/dashboard?tab=profile" onClick={() => setShowUserMenu(false)}>
+                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
+                           <UserIcon className="w-4 h-4 text-gray-500" />
+                           <span className="text-base font-medium">Profile</span>
+                        </div>
+                      </Link>
                       <Link href="/dashboard?tab=settings" onClick={() => setShowUserMenu(false)}>
                         <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
                            <Settings className="w-4 h-4 text-gray-500" />
                            <span className="text-base font-medium">Settings</span>
+                        </div>
+                      </Link>
+                      {/* AI Settings */}
+                      <Link href="/dashboard?tab=ai-settings" onClick={() => setShowUserMenu(false)}>
+                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
+                           <Bot className="w-4 h-4 text-indigo-500" />
+                           <span className="text-base font-medium">AI Settings</span>
                         </div>
                       </Link>
                       
@@ -408,24 +557,33 @@ function DashboardLayoutContent({
       </aside>
 
       {/* Main Content */}
-      {/* Main Content */}
-      {/* Main Content */}
       <main 
-        className={`transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-80'}`}
-        style={{ marginRight: showAIChat ? `${chatWidth}px` : '0' }}
+        className={`transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isSidebarCollapsed ? 'ml-[108px]' : 'ml-[260px]'} mt-4 mr-4 mb-4`}
+        style={{ marginRight: showAIChat ? `${chatWidth}px` : (isHoveringAI ? '56px' : '0') }}
       >
         {children}
       </main>
 
-      {/* AI Trigger - Right edge, aligned with sidebar header */}
+      {/* AI Trigger - Only appears on hover of right edge */}
       {!showAIChat && (
-        <button
-          onClick={() => setShowAIChat(true)}
-          className="fixed top-6 right-4 z-50 w-9 h-9 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-all"
-          title="Open AI Assistant"
+        <div 
+          onMouseEnter={() => setIsHoveringAI(true)}
+          onMouseLeave={() => setIsHoveringAI(false)}
+          className="fixed top-0 right-0 h-24 w-20 z-50 group"
         >
-          <PanelRightClose className="w-5 h-5" />
-        </button>
+          {/* Invisible hover zone */}
+          <div className="absolute inset-0" />
+          {/* Button appears on hover */}
+          <button
+            onClick={() => setShowAIChat(true)}
+            className={`absolute top-6 right-4 w-9 h-9 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-all ${
+              isHoveringAI ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
+            }`}
+            title="Open AI Assistant"
+          >
+            <PanelRightClose className="w-5 h-5" />
+          </button>
+        </div>
       )}
 
       {/* AI Chat Panel - Resizable */}

@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import Link from 'next/link';
-import { Mail, Lock, ArrowRight, Loader2, Chrome, Facebook as FacebookIcon, Github, Apple } from 'lucide-react';
+import { Mail, Loader2, Chrome, Github, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
+  const [emailView, setEmailView] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'facebook' | 'github' | 'apple') => {
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -52,169 +53,103 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
-      <div className="max-w-md w-full">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-black mb-2">LeaseAI</h1>
-          <p className="text-gray-600">Welcome back! Please login to your account.</p>
-        </div>
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
+       
+       {/* Centered Content */}
+       <div className="w-full max-w-[400px] relative z-10 flex flex-col items-center text-center">
+          
+          {/* Logo */}
+          <div className="mb-12 flex flex-col items-center">
+             <div className="flex gap-2 mb-8">
+                <div className="w-3 h-8 bg-black skew-x-[-15deg] rounded-sm" />
+                <div className="w-3 h-8 bg-black skew-x-[-15deg] rounded-sm" />
+             </div>
+             <h1 className="text-[36px] font-bold text-black tracking-[-0.04em] leading-tight mb-0">Welcome to LeaseAI</h1>
+             <p className="text-[36px] font-bold text-[#e5e5e5] tracking-[-0.04em] leading-tight">Your AI Operating System</p>
+          </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-          <h2 className="text-2xl font-bold text-black mb-6">Sign In</h2>
+          {!emailView ? (
+             /* Initial View: Social Buttons */
+             <div className="w-full space-y-4 animate-premium-fade">
+                <button
+                    onClick={() => handleSocialLogin('google')}
+                    className="w-full bg-white border border-gray-200 text-black h-12 rounded-full font-semibold hover:border-gray-400 hover:shadow-sm transition-all flex items-center justify-center gap-3 group"
+                >
+                    <Chrome className="w-5 h-5 text-gray-900" />
+                    <span>Continue with Google</span>
+                </button>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
+                <button
+                    onClick={() => handleSocialLogin('github')}
+                    className="w-full bg-white border border-gray-200 text-black h-12 rounded-full font-semibold hover:border-gray-400 hover:shadow-sm transition-all flex items-center justify-center gap-3"
+                >
+                    <Github className="w-5 h-5 text-gray-900" />
+                    <span>Continue with GitHub</span>
+                </button>
+
+                <button
+                    onClick={() => setEmailView(true)}
+                    className="w-full bg-white border border-gray-200 text-black h-12 rounded-full font-semibold hover:border-gray-400 hover:shadow-sm transition-all flex items-center justify-center gap-3"
+                >
+                    <Mail className="w-5 h-5 text-gray-900" />
+                    <span>Continue with Email</span>
+                </button>
+             </div>
+          ) : (
+             /* Email View: Form */
+             <div className="w-full animate-premium-fade">
+                <form onSubmit={handleLogin} className="space-y-4 text-left">
+                    {error && (
+                        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg text-center font-medium">
+                            {error}
+                        </div>
+                    )}
+                    
+                    <div>
+                        <input
+                            type="email"
+                            placeholder="Email address"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            className="w-full h-12 px-4 rounded-xl border border-gray-200 focus:border-black focus:ring-0 transition-colors bg-gray-50/50"
+                        />
+                    </div>
+                    <div>
+                        <input
+                            type="password"
+                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            className="w-full h-12 px-4 rounded-xl border border-gray-200 focus:border-black focus:ring-0 transition-colors bg-gray-50/50"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-black text-white h-12 rounded-full font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/20"
+                    >
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
+                        {!loading && <ArrowRight size={18} />}
+                    </button>
+                </form>
+                
+                <button 
+                    onClick={() => setEmailView(false)}
+                    className="mt-6 text-sm text-gray-500 hover:text-black font-medium flex items-center justify-center gap-2 mx-auto"
+                >
+                    <ArrowLeft size={14} /> Back to options
+                </button>
+             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black"
-                  placeholder="you@example.com"
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
-            {/* Forgot Password */}
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
-                />
-                <label htmlFor="remember" className="ml-2 text-gray-600">
-                  Remember me
-                </label>
-              </div>
-              <Link href="/forgot-password" className="text-black font-semibold hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-4">
-            <div className="flex-1 border-t border-gray-300"></div>
-            <span className="text-sm text-gray-500">OR</span>
-            <div className="flex-1 border-t border-gray-300"></div>
+          {/* Footer */}
+          <div className="mt-16 text-center text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
+             By clicking continue, you agree to our <Link href="#" className="underline hover:text-gray-600">Terms of Service</Link> and <Link href="#" className="underline hover:text-gray-600">Privacy Policy</Link>.
           </div>
-
-          {/* Social Login Buttons */}
-          <div className="space-y-3">
-            {/* Google */}
-            <button
-              onClick={() => handleSocialLogin('google')}
-              type="button"
-              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
-            >
-              <Chrome className="w-5 h-5 text-blue-600" />
-              <span className="text-gray-700">Continue with Google</span>
-            </button>
-
-            {/* Facebook */}
-            <button
-              onClick={() => handleSocialLogin('facebook')}
-              type="button"
-              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
-            >
-              <FacebookIcon className="w-5 h-5 text-blue-700" />
-              <span className="text-gray-700">Continue with Facebook</span>
-            </button>
-
-            {/* GitHub */}
-            <button
-              onClick={() => handleSocialLogin('github')}
-              type="button"
-              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
-            >
-              <Github className="w-5 h-5 text-gray-800" />
-              <span className="text-gray-700">Continue with GitHub</span>
-            </button>
-
-            {/* Apple */}
-            <button
-              onClick={() => handleSocialLogin('apple')}
-              type="button"
-              className="w-full flex items-center justify-center gap-3 py-3 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all"
-            >
-              <Apple className="w-5 h-5 text-gray-800" />
-              <span className="text-gray-700">Continue with Apple</span>
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-4">
-            <div className="flex-1 border-t border-gray-300"></div>
-          </div>
-
-          {/* Sign Up Link */}
-          <p className="text-center text-gray-600">
-            Don't have an account?{' '}
-            <Link href="/signup" className="text-black font-semibold hover:underline">
-              Sign up for free
-            </Link>
-          </p>
-        </div>
-
-        {/* Back to Home */}
-        <div className="mt-6 text-center">
-          <Link href="/" className="text-gray-600 hover:text-black transition-colors">
-            ← Back to home
-          </Link>
-        </div>
-      </div>
+       </div>
     </div>
   );
 }

@@ -1,90 +1,140 @@
 import { SchemaType } from '@google/generative-ai';
-import { geminiModel, generateContentWithRetry } from '@/lib/gemini-client';
+import { geminiModel, generateContentWithRetry, genAI } from '@/lib/gemini-client';
 
-// Force rebuild timestamp: 2026-01-28
-/**
- * SMART AI QUALIFICATION SYSTEM
- * 
- * AI-агент, который умеет:
- * 1. Постепенно собирать информацию о клиенте
- * 2. Определять приоритет лида (hot/warm/cold)
- * 3. Сопоставлять клиента с подходящими properties
- * 4. Назначать показы (через Function Calling)
- */
+// SMART AI QUALIFICATION SYSTEM persona
+const QUALIFICATION_SYSTEM_PROMPT = `You are a professional real estate leasing agent. You are courteous, knowledgeable, and efficient. Your communication is warm but measured — never overly casual or salesy.
 
-const QUALIFICATION_SYSTEM_PROMPT = `You are an experienced real estate agent who's great at matching clients with properties and gently guiding them to consider their options.
+CORE PRINCIPLES:
 
-🎯 YOUR MISSION:
-Help clients find their perfect home while subtly introducing options they might not have considered.
+1. PROFESSIONAL TONE
+   - Write in a polished, conversational style — like a real estate professional texting a valued client.
+   - Do NOT use excessive emojis, exclamation marks, or hype language.
+   - One emoji per message is acceptable if it feels natural. Prefer none.
+   - Keep responses concise: 3-5 sentences for standard replies.
 
-💬 COMMUNICATION STYLE - CRITICAL:
-**You are a friendly, high-energy, and professional Real Estate Agent (not a support bot).**
+2. LANGUAGE RULE
+   Match the client's language exactly. Russian = Russian. English = English. Spanish = Spanish.
 
-RESPONSE STRUCTURE:
-1. **Greeting**: Always start with a warm greeting using the client's name (e.g., "Hi John!", "Good afternoon Sarah!").
-2. **Acknowledgement**: Enthusiastically acknowledge their message (e.g., "Sure thing!", "I'd love to help you with that!", "That sounds perfect!").
-3. **Content**: Clear, concise, and helpful information.
-4. **Action**: End with a clear next step or question.
+3. TWO-TIER DATA COLLECTION
 
-❌ BAD (Robotic/Dry):
-"I understand. I have options in that range. What is your move-in date?"
+   TIER 1 — MINI-CORE (actively ask, max ONE per message, only when missing):
+   These items are MANDATORY. You MUST clarify all of them BEFORE suggesting a viewing or scheduling anything.
+   1. **Name**: (Mandatory for dossier, but ask only at the end).
+   2. **Lease Duration**: How long do they want to stay? (e.g. 12 months, short term).
+   3. **Rent/Buy**: Confirm if they are looking to rent or purchase.
+   4. **Move-in Date**: Exact date or month.
+   5. **Budget**: Max monthly rent/price.
+   6. **Occupants**: Total count of people.
+   7. **Pets**: Yes/No + details.
+   8. **Bedrooms**: Minimum required.
 
-✅ GOOD (Friendly & Structured):
-"Hi John! 👋
-That sounds like a great plan! I definitely have some amazing 2BD options in Seattle around $3,000.
-To narrow it down to the absolute best matches, could you tell me your preferred move-in date? excited to get this started!"
+   RULES:
+   - **HARD GATE — QUALIFICATION FIRST (NON-NEGOTIABLE)**:
+     You MUST collect ALL 7 fields below before setting action to "send_listing" OR "book_calendar":
+       ✅ Lease Duration  ✅ Rent/Buy  ✅ Move-in Date  ✅ Budget  ✅ Occupants  ✅ Pets  ✅ Bedrooms
+     
+     If ANY of these 7 fields are missing:
+       → Your action MUST be "reply"
+       → Ask for the ONE missing field you don't know yet
+       → Do NOT mention any specific properties
+       → Do NOT hint at matches or say "I have something for you"
+   
+   - Once ALL 7 are known: you may set action to "send_listing" and present matches.
+   - NEVER ask more than ONE question per message.
+   - If the client already provided a field, NEVER ask for it again.
 
-💰 SMART UPSELLING (Subtle):
+   TIER 2 — PASSIVE EXTRACTION (NEVER ask, silently observe and extract):
+   Everything else: lifestyle, WFH, children ages, lease term preference, floor preference,
+   views, furnished preference, internet speed, allergies, red lines (no carpet, no highway),
+   EV charging, storage, gym/pool preference, communication channel, viewing preferences.
+   EXTRACT these from what the client volunteers. Do NOT ask about them directly.
 
-💰 SMART UPSELLING (Subtle, not aggressive):
-**1. SOFT UPSELL (10-30% over budget):**
-- Client says $1,000? Suggest up to $1,200-$1,300 MAX
-- Don't jump to 2x-4x their budget
-- Frame naturally: "There's also a place at $X that's worth seeing"
+   RULES:
+   - NEVER ask more than ONE question per message.
+   - If the client already provided a mini-core field, NEVER ask for it again.
+   - Once mini-core is covered, STOP asking questions — focus on matching and booking.
+   - Example: Client says "I need a 2-bed for me and my wife, budget around $2500, I work from home and have a cat" →
+     Extract: bedrooms=2, occupants=2, budget_max=2500, wfh=true, has_pets=true, pet_type=cat.
+     Do NOT ask "Do you have pets?" or "What is your budget?" — you already know.
 
-**2. LEAD WITH BUDGET, THEN UPSELL:**
-- First mention something IN their budget
-- Then casually mention something slightly over
+4. ANTI-HALLUCINATION (STRICT)
+   - ONLY discuss properties present in the PROPERTIES DATABASE section.
+   - NEVER invent addresses, prices, availability, or features.
+   - If no suitable properties exist, say so honestly and offer to notify them when matching listings appear.
+   - If you are unsure about a detail, say: "Let me confirm that for you."
 
-**3. CREATE SUBTLE URGENCY:**
-- Mention naturally: "This one's getting a lot of interest"
+FAIR HOUSING AND COMPLIANCE (NON-NEGOTIABLE):
+- NEVER ask about or consider protected characteristics (race, color, religion, national origin, sex, familial status, disability, age).
+- If a client mentions discriminatory preferences, redirect to legal criteria.
 
-🗣️ CRITICAL LANGUAGE RULE:
-**ALWAYS respond in the SAME LANGUAGE as the client's message!**
-- Client writes in English → you respond in English
-- Client writes in Russian → you respond in Russian
-- Match their language EXACTLY
+SCHEDULING RULES:
+- Viewing hours: 10:00 AM to 8:00 PM, every day (Pacific Time).
+- If a client requests a time OUTSIDE these hours, politely suggest the nearest available slot within hours.
+- **PRECISION CONFIRMATION**: When the client confirms or you suggest a specific slot, ALWAYS state the full day and date (e.g., "Monday, March 2nd at 2:00 PM") instead of just "next Monday". Use the 'Current Date' provided in context to calculate this correctly.
+- Only book a viewing when the client CONFIRMS a specific date AND time.
+- If they say vague things like "sometime next week", ask for a specific day and time.
+- Default viewing duration: 30 minutes.
 
-📋 QUALIFICATION STRATEGY:
-**STAGE 1: Initial Contact**
-Goal: Build rapport + Quick qualify (budget, move date)
-Ask about: Budget, move-in date, property preference.
+PROPERTY RECOMMENDATIONS:
+- When recommending properties, present up to 3-5 matches with brief highlights for each.
+- For each property, mention: address, price, bedrooms, and one unique selling point from the description.
+- If you decide to recommend properties, set action to "send_listing" with property addresses in "listing_addresses", so a separate detailed listing email with photos is sent automatically.
+- Always explain WHY each property is a good fit for this specific client.
+- **BUDGET GAP RULE**: If you recommend a property that is over the client's stated budget, YOU MUST ACKNOWLEDGE IT. Say something like: "I know this is above your $2,000 target, but it checks all your other boxes..." Never ignore the price difference.
 
-**STAGE 2: Deep Qualification**
-Goal: Understand needs (bedrooms, pets, amenities)
-Ask 2-3 questions at a time.
+NEGOTIATION & OBJECTIONS:
+- **Price Objections**: If a client says it's too expensive, justify the value using specific features (e.g., "It includes parking which saves you $200/mo" or "It has a gym/pool").
+- **Constraint Conflicts**: If a client wants something impossible (e.g. low budget + high amenities), gently educate them on the market reality or offer the next best compromise.
+- **No Repeats**: If you already recommended a property and the client asks about it again, acknowledge previous context ("As mentioned, that one is $2500..."). Do not introduce it as if it's new.
 
-**STAGE 3: Property Matching**
-Goal: Present matching properties + schedule viewing
+CRITICAL LOGIC RULES:
+1. **DATES**: If a property's available_from date is in the PAST relative to 'Current Date', treat it as **AVAILABLE IMMEDIATELY**. Do not say "It is available starting [past date]". Say "It is available now".
+2. **DESCRIPTIONS**: Trust the property description text as FACT. If it says "large yard", the property HAS a yard. Do not say "Let me check".
+3. **BUDGET SAFETY**: If the client has NOT stated a budget, do NOT recommend properties over $3,000 unless they specifically ask for "luxury" or "penthouse". Instead, give a range or ask for their budget first.
+4. **MATCH HONESTY RULES (CRITICAL)**:
+   - A property can only be called an "excellent" or "perfect" match if ALL TIER 1 fields are known AND confirmed to match.
+   - If Lease Duration is unknown: You MUST NOT use words like "perfectly", "excellent match", "ideal" or "aligns perfectly". Instead say "This looks like a **preliminary match** based on what we know so far."
+   - **PROPERTY SCORES in extractedData**: If Lease Duration is still unknown, the max score for any property should be **70**. Do NOT score any property 80+ until ALL Tier 1 fields are confirmed.
+   - Always state explicitly WHAT you are matching on (e.g., "This matches your $2,500 budget and 2-bedroom requirement") — never make blanket claims like "aligns with all your requirements" if there are still unknowns.
 
-**STAGE 4: Viewing Scheduled**
-Goal: Confirm details + set expectations
+5. CLARIFICATION & ROBUSTNESS (GIBBERISH DETECTION)
+   - **Ambiguous Input**: If a client's message is unclear, nonsensical, or looks like a keyboard layout error (e.g., Russian characters instead of English), DO NOT guess the meaning.
+   - **Layout Errors**: Be alert for messages like "2 иувкщщщы" (which is "2 bedrooms" in Russian layout). If you suspect this, ask: "It looks like your message might have a keyboard layout error. Could you please clarify if you meant [your guess]?"
+   - **No Blind Extraction**: NEVER record data into 'extractedData' unless you are 95% certain of its meaning. If you are unsure, leave the field null and ask for clarification.
+   - **Gibberish**: If the message is complete nonsense (e.g., "asdfgh"), respond politely: "I'm sorry, I didn't quite catch that. Could you please rephrase your request?"
 
-TOOLS AVAILABLE:
-You have access to a tool called 'book_calendar_event'.
-USE IT WHEN THE CLIENT CONFIRMS A TIME.
-Example: Client says "3pm works" -> You CALL the function.
-Do NOT say "I will book it" without calling the function.
+ESCALATION TO HUMAN (MANDATORY):
+Set action to "escalate" when ANY of these occur:
+- Client mentions legal action, lawsuits, or attorney involvement
+- Client files a discrimination or Fair Housing complaint
+- Client requests ADA/accessibility accommodations
+- Client expresses repeated dissatisfaction (3+ negative messages in thread)
+- Client asks for owner's personal information or contact
+- Client reports a maintenance emergency (gas leak, flooding, fire, lockout)
+- Client requests contract modifications or lease exceptions
+- Client uses threatening or abusive language
 
-🛡️ DEAL BREAKER CHECKS (CRITICAL):
-Before suggesting a property, CHECK:
-1. **Availability**: If Client wants to move in BEFORE the 'Available From' date, warn them! (e.g. "This unit is available starting March 1st, so Feb 15th might be too early. Would that work?")
-2. **Pets**: If Client has a dog and policy is 'No Pets', DO NOT suggest it unless they ask. If 'Small Dogs Only' and they have a Great Dane, flag it.
-3. **Parking**: If they need parking, check 'parking_type'. Don't promise a garage if it is 'street' only.
+SIGNATURE:
+Sign your first reply and replies where the client introduced themselves with REALTOR_NAME (provided in context). Example: "Best regards, [Name]". Subsequent messages in the same thread do not need a signature unless the context changes.
 
-💰 FINANCIAL TRANSPARENCY:
-If asked about costs, quote the specific 'Application Fee' and 'Security Deposit' from the property data.
+=== CRITICAL GUARDRAILS === 
+1. GROUNDING: You may ONLY discuss the exact addresses and attributes provided in the PROPERTIES DATABASE. 
+2. UNKNOWN DATA: If the client has not stated a preference in the history, record it as NULL. Do not guess or assume.
+3. INVENTING: UNDER NO CIRCUMSTANCES should you invent, assume, or hallucinate properties, addresses, prices, or amenities.
+4. REFUSAL: If no properties match, you MUST say "I don't have exact matches" instead of inventing one.
+5. MEETINGS: NEVER confirm or propose a meeting time that the client did not explicitly state or agree to.
+===========================
 `;
+
+const geminiJsonModel = genAI.getGenerativeModel({
+  model: "gemini-2.5-pro",
+  systemInstruction: QUALIFICATION_SYSTEM_PROMPT,
+  generationConfig: { 
+    temperature: 0.1, 
+    topP: 0.4 
+  }
+});
+
 
 export interface TenantData {
   id?: string;
@@ -100,7 +150,43 @@ export interface TenantData {
   property_type?: string;
   preferred_neighborhoods?: string;
   has_pets?: boolean;
+  occupants?: number;
+  parking_needed?: boolean;
+  lease_term_months?: number;
   qualification_status?: 'new' | 'qualifying' | 'qualified' | 'disqualified';
+}
+
+/**
+ * NEW: High-fidelity Questionnaire Schema
+ * Industry standard for modular CRM data collection.
+ */
+export interface TenantQuestionnaire {
+  // Personal & Basics
+  fullName?: { value: string; confidence: number };
+  email?: { value: string; confidence: number };
+  phone?: { value: string; confidence: number };
+  
+  // Financials
+  budgetMax?: { value: number; confidence: number };
+  budgetMin?: { value: number; confidence: number };
+  incomeMonthly?: { value: number; confidence: number };
+  creditScore?: { value: number; confidence: number };
+  
+  // Timing & Living
+  moveInDate?: { value: string; confidence: number }; // YYYY-MM-DD
+  leaseTermMonths?: { value: number; confidence: number };
+  occupantsCount?: { value: number; confidence: number };
+  
+  // Preferences
+  bedrooms?: { value: number; confidence: number };
+  neighborhoods?: { value: string[]; confidence: number };
+  petsDetails?: { value: string; confidence: number };
+  hasPets?: { value: boolean; confidence: number };
+  parkingNeeded?: { value: boolean; confidence: number };
+  floorPreference?: { value: 'ground' | 'upper' | 'any'; confidence: number };
+  
+  // Meta
+  conflicts?: string[]; // Log of conflicting information found
 }
 
 export interface Property {
@@ -130,6 +216,7 @@ export interface ConversationContext {
   conversationHistory: { role: 'user' | 'assistant'; content: string }[];
   lastAction?: string; 
   realtorName?: string;
+  realtorPhone?: string;
 }
 
 // Function Calling Tool Definition
@@ -174,6 +261,7 @@ export async function generateResponseAfterFunction(context: {
     calendar_link?: string;
     event_time?: string;
     error?: string;
+    property_address?: string;
   }
 }): Promise<{ response: string }> {
   const prompt = `You called the book_calendar_event function and here's what happened:
@@ -181,8 +269,10 @@ export async function generateResponseAfterFunction(context: {
 ${context.functionResult.success ? `✅ SUCCESS! Calendar event created.
 📅 Event Link: ${context.functionResult.calendar_link}
 ⏰ Time: ${context.functionResult.event_time}
+🏠 Address: ${context.functionResult.property_address || 'the property'}
 
-Now generate a friendly confirmation message to the client that includes the calendar link. Make it natural and professional!` : `❌ ERROR: ${context.functionResult.error}
+ Now generate a friendly confirmation message to the client. 
+ (CRITICAL: Just write the conversational message body. Do NOT try to format links or contact info yourself — another system will append the details automatically).$` : `❌ ERROR: ${context.functionResult.error}
 
 The calendar booking failed. Generate a polite apology and ask the client to confirm the time again.`}
 
@@ -197,16 +287,36 @@ Generate ONLY the response text, no JSON, no extra formatting.`;
 // NEW: Strict Schemas for Analysis Phase
 export interface AiAnalysis {
   thought_process: string;
+  thoughts?: {
+    analyze?: string;
+    search?: string;
+    reason?: string;
+    draft?: string;
+  };
   intent: 'booking_confirmed' | 'inquiry' | 'general';
-  action: 'book_calendar' | 'reply'; // Strict action decision
+  action: 'book_calendar' | 'reply' | 'send_listing' | 'escalate';
   action_params?: {
     start_time: string;
     property_address: string;
     client_name?: string;
     duration_minutes?: number;
   };
-  extractedData?: Partial<TenantData>;
+  extractedData?: Record<string, any>;
+  summary?: string; // Concise bullet-point summary for the UI
+  priority?: 'hot' | 'warm' | 'cold';
   suggestedProperties?: string[];
+  listing_addresses?: string[]; 
+  propertyMatches?: {
+    address: string;
+    score: number; // 0-100
+    reason: string; // Brief one-line explanation
+  }[];
+}
+
+export interface VerificationResult {
+  hasHallucinations: boolean;
+  hallucinatedAddresses: string[];
+  reason?: string;
 }
 
 /**
@@ -218,27 +328,36 @@ export async function analyzeConversation(context: ConversationContext): Promise
   console.log('🧠 AI Brain: Analyzing conversation...');
   const { tenant, properties, conversationHistory } = context;
 
+  const realtorName = context.realtorName || 'Agent';
+
   const propertiesText = properties.map(p => 
     `- ${p.address}:
        Price: ${p.price}
        Beds: ${p.bedrooms}
        Status: ${p.status}
+       Description: ${p.description || 'N/A'}
        Available: ${p.available_from || 'Now'}
        Pets: ${p.pet_policy || 'Unknown'}
        Parking: ${p.parking_type || 'Unknown'} (${p.parking_fee ? '$'+p.parking_fee : 'included'})
        Utilities: ${p.utilities_included?.join(', ') || 'Tenant pays'}
-       Fees: App $${p.application_fee || '0'}, Deposit $${p.security_deposit || '0'}`
+       Fees: App $${p.application_fee || '0'}, Deposit $${p.security_deposit || '0'}
+       Photos: ${p.images?.length ? p.images.length + ' available' : 'None'}`
   ).join('\n\n');
 
   const historyText = conversationHistory.map(m => 
     `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`
   ).join('\n');
 
-  const analysisPrompt = `
-${QUALIFICATION_SYSTEM_PROMPT}
+  // Dynamic date context so AI can resolve "tomorrow", "next Monday", etc.
+  const now = new Date();
+  const currentDateContext = `${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
 
+  const analysisPrompt = `
 CONTEXT:
+REALTOR_NAME: ${realtorName}
 Client: ${tenant.name} (${tenant.email})
+CURRENT DATE/TIME: ${currentDateContext}
+TIMEZONE: America/Los_Angeles (Pacific Time)
 Properties:
 ${propertiesText}
 
@@ -248,25 +367,104 @@ ${historyText}
 TASK:
 1. Analyze the client's latest message.
 2. Decide on the immediate NEXT ACTION.
-3. If the client CONFIRMED a specific time for a viewing (e.g. "3pm works"), your action MUST be 'book_calendar'.
-4. Return ONLY valid JSON matching this structure:
+3. If the client CONFIRMED a specific time for a viewing (e.g. "3pm works", "tomorrow at 4pm"), your action MUST be 'book_calendar'.
+   - IMPORTANT: Use the CURRENT DATE/TIME above to resolve relative dates ("tomorrow", "next Monday", etc.) into precise ISO 8601 start_time values.
+4. If you want to recommend properties, set action to 'send_listing' and include 'listing_addresses' with property addresses. ONLY suggest properties from the PROPERTIES database provided. NEVER invent an address. If no properties are listed, or none match, do NOT invent them.
+5. If escalation criteria are met (legal threats, discrimination complaints, emergencies, etc.), set action to 'escalate'.
+6. Return ONLY valid JSON matching this structure:
 
 {
-  "thought_process": "Client wants to meet at 3pm...",
-  "intent": "booking_confirmed" | "inquiry" | "general",
-  "action": "book_calendar" | "reply",
-  "action_params": {
-     "start_time": "YYYY-MM-DDTHH:mm:ss" (ONLY if action is book_calendar),
-     "property_address": "..." (ONLY if action is book_calendar),
-     "duration_minutes": 30
+  "thought_process": "Detailed internal reasoning",
+  "intent": "general",
+  "action": "reply",
+  "action_params": { "start_time": "2026-02-01T15:00:00", "property_address": "", "client_name": "", "duration_minutes": 30 },
+  "listing_addresses": ["123 Main St", "456 Oak Ave"],
+  "extractedData": {
+    "personal": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "client_status": "qualifying",
+      "email": "john@example.com",
+      "phone": "+15551234567"
+    },
+    "timeline": {
+      "move_in_date": "YYYY-MM-DD",
+      "move_in_flexibility_days": 7,
+      "lease_term_ideal_months": 12, // MANDATORY: clarify if unknown
+      "decision_timeline": "this_week",
+      "decision_maker": "individual"
+    },
+    "budget": {
+      "max_monthly_rent": 2500,
+      "comfortable_monthly_rent": 2200,
+      "utilities_preference": "all-in",
+      "deposit_ready": true,
+      "can_pay_first_last": false,
+      "income_monthly": 8000,
+      "income_source": "software engineer at Google",
+      "employment_type": "w2",
+      "credit_score_range": "good-700-749",
+      "has_guarantor": false
+    },
+    "location": {
+      "neighborhoods_must": ["Capitol Hill", "Downtown"],
+      "neighborhoods_exclude": ["SODO"],
+      "text_pref": "any area",
+      "commute_destination": "Amazon HQ, Seattle",
+      "commute_max_minutes": 30,
+      "commute_mode": "public-transit"
+    },
+    "housing": {
+      "property_types": ["rent", "apartment"], // MANDATORY: clarify 'rent' or 'buy'
+      "bedrooms_min": 2,
+      "bathrooms_min": 1,
+      "sqft_min": 700,
+      "floor_preference": "upper",
+      "furnished": "no",
+      "no_carpet": true,
+      "den_office": true
+    },
+    "occupants": {
+      "total_count": 2,
+      "adults": 2,
+      "children": 0,
+      "lifestyle": "quiet"
+    },
+    "pets": {
+      "has_pets": true,
+      "pet_type": ["dog"],
+      "pet_breed": "Golden Retriever",
+      "pet_weight_lbs": 65,
+      "pet_count": 1
+    },
+    "amenities": {
+      "parking": { "required": "required", "type_pref": ["garage"], "spots_needed": 1 },
+      "laundry": { "required": "required", "must_be_in_unit": true },
+      "ac_required": true,
+      "required_amenities": ["gym", "coworking area"], // Mapped to DB column
+      "utilities_included_preference": ["internet"]   // Mapped to DB column
+    },
+    "red_lines": {
+      "no_near_highway": true,
+      "other_hard_noes": ["shared laundry", "carpet"]
+    }
   },
-  "extractedData": { "budget": "...", "requirements": "..." },
-  "suggestedProperties": ["..."]
+  "summary": "Brief text summary",
+  "priority": "warm",
+  "suggestedProperties": ["123 Main St"],
+  "propertyMatches": [
+    { "address": "123 Main St", "score": 95, "reason": "Perfect budget fit and allows dogs" },
+    { "address": "456 Oak Ave", "score": 40, "reason": "Over budget and no pets allowed" }
+  ]
 }
+
+IMPORTANT: Evaluate ALL available properties listed above against the current client requirements (extractedData) and provide a match score (0-100) and a brief reason for each. A high score (80+) means it meets most mini-core requirements. Sort by score in your internal reasoning.
+
+IMPORTANT: Only include extractedData fields that you actually found in THIS message or earlier in the conversation. Leave fields out if not mentioned. Do NOT include placeholder values or null fields.
 `;
 
   try {
-    const result = await generateContentWithRetry(geminiModel, analysisPrompt);
+    const result = await generateContentWithRetry(geminiJsonModel, analysisPrompt);
     const text = result.response.text();
     
     // Robust JSON parsing
@@ -280,14 +478,82 @@ TASK:
 
   } catch (error) {
     console.error('❌ Phase 1 Analysis failed:', error);
-    // Fallback safe analysis
     return {
-      thought_process: "Error analyzing, falling back to simple reply",
+      thought_process: "Error during analysis",
       intent: 'general',
       action: 'reply',
-      extractedData: {}
-    };
+    } as any;
   }
+}
+
+/**
+ * PHASE 0: THE OBSERVER (Extraction 2.0)
+ * Extracts structured data from conversation history.
+ * Handles Conflict Resolution and Confidence Scoring.
+ */
+export async function extractLeadData(
+  history: { role: 'user' | 'assistant'; content: string }[],
+  currentData: Partial<TenantData>
+): Promise<TenantQuestionnaire> {
+  console.log('🔍 AI Observer: Extracting lead details...');
+  
+  const historyText = history.map(m => `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`).join('\n');
+  
+  const prompt = `
+    You are a Data Extraction Specialist. Your goal is to fill out a Rental Application Questionnaire based on a conversation history.
+    
+    CURRENT DATA (FACTS):
+    ${JSON.stringify(currentData, null, 2)}
+    
+    CONVERSATION HISTORY:
+    ${historyText}
+    
+    TASK:
+    1. Extract all possible details for the questionnaire.
+    2. Assign a "confidence" score (0.0 to 1.0) for each field. Low if vague, high if explicit.
+    3. CONFLICT RESOLUTION: If the client explicitly changes a previously stated value (e.g. from 1-bed to 2-bed), use the NEW value and log the conflict in the "conflicts" array.
+    4. Format dates as YYYY-MM-DD.
+    5. Mask any extremely sensitive PII (like Social Security Numbers if mentioned, though unlikely) with [REDACTED].
+    6. DO NOT GUESS OR INVENT DATA. If a field (like budget, pets, move-in date) is not EXPLICITLY stated in the CONVERSATION HISTORY, you MUST leave the field empty/null.
+    
+    RETURN ONLY VALID JSON:
+    {
+      "fullName": { "value": "John Doe", "confidence": 0.9 },
+      "email": { "value": "...", "confidence": 0.9 },
+      "phone": { "value": "...", "confidence": 0.9 },
+      "budgetMax": { "value": 2500, "confidence": 0.95 },
+      "moveInDate": { "value": "2026-03-01", "confidence": 0.8 },
+      "bedrooms": { "value": 2, "confidence": 0.9 },
+      "hasPets": { "value": true, "confidence": 1.0 },
+      "petsDetails": { "value": "Small Golden Retriever", "confidence": 0.9 },
+      "occupantsCount": { "value": 2, "confidence": 0.7 },
+      "conflicts": ["Client initially said $2000 budget, but now says $2500 is okay."]
+    }
+  `;
+
+  try {
+    const result = await generateContentWithRetry(geminiJsonModel, prompt);
+    let text = result.response.text();
+    let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanText = jsonMatch[0];
+    
+    return JSON.parse(cleanText) as TenantQuestionnaire;
+  } catch (err) {
+    console.error('❌ Extraction failed:', err);
+    return { conflicts: [] };
+  }
+}
+
+/**
+ * PII MASKING UTILITY
+ * Masks sensitive information for logging or external agents.
+ */
+export function maskPII(text: string): string {
+  // Basic regex for email and phone masking
+  return text
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL-REDACTED]')
+    .replace(/\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g, '[PHONE-REDACTED]');
 }
 
 /**
@@ -306,41 +572,138 @@ export async function generateFinalResponse(
   if (analysis.action === 'book_calendar') {
     if (executionResult?.success) {
       instructions = `
-      ACTION RESULT: ✅ Booking Successful!
+      ACTION RESULT: Calendar event created successfully!
       Link: ${executionResult.data.htmlLink}
       Time: ${executionResult.data.start.dateTime}
       
-      TASK: Write a friendly confirmation email. INCLUDE THE LINK.
+      TASK: Write a professional confirmation. INCLUDE THE LINK.
       `;
     } else {
       instructions = `
-      ACTION RESULT: ❌ Booking Failed.
+      ACTION RESULT: Booking failed.
       Error: ${executionResult?.error}
       
-      TASK: Apologize and ask to try a different time or manual confirmation.
+      TASK: Apologize politely and ask to try a different time.
       `;
     }
+  } else if (analysis.action === 'send_listing') {
+    instructions = `
+    TASK: Present the recommended properties directly in your message. Give a brief summary (address, price, beds, and why it fits) for each. Mention that you are ALSO sending a detailed listing with photos in a follow-up email.
+    Properties to present: ${analysis.listing_addresses?.join(', ') || analysis.suggestedProperties?.join(', ') || 'matching properties'}
+    Focus on: ${analysis.thought_process}
+    `;
+  } else if (analysis.action === 'escalate') {
+    instructions = `
+    TASK: The situation requires human attention. Write a professional message letting the client know you are connecting them with a team member who can better assist. Do NOT attempt to resolve the issue yourself.
+    Reason for escalation: ${analysis.thought_process}
+    `;
   } else {
     instructions = `
     TASK: Write a helpful response based on your analysis.
     Focus on: ${analysis.thought_process}
     `;
   }
+ 
+  const realtorName = context.realtorName || 'Agent';
+  const realtorPhone = context.realtorPhone || 'Contact office for details';
+
+  const propertiesText = context.properties.map(p => 
+    `- ${p.address}: ${p.price}, ${p.bedrooms} beds. Available: ${p.available_from || 'Now'}`
+  ).join('\n');
+
+  const historyText = context.conversationHistory.map(m => 
+    `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`
+  ).join('\n');
 
   const prompt = `
 ${QUALIFICATION_SYSTEM_PROMPT}
 
-CONTEXT:
-Client: ${context.tenant.name}
-History: ... (omitted for brevity, assume continuity)
+STRICT ANTI-HALLUCINATION RULES (CRITICAL ARBITER):
+1. ONLY discuss properties listed in the "PROPERTIES DATABASE" section below.
+2. If no properties are provided or none match, DO NOT invent names, addresses, or features. 
+3. If you need to mention a property, use its REAL address and features.
+4. If you don't have suitable properties, say so honestly — do NOT make up hypothetical listings.
+5. CRITICAL: You are strictly forbidden from mentioning any property address, price, or feature that is not in the PROPERTIES DATABASE. Do not invent links, phone numbers, or names.
 
+PROPERTIES DATABASE:
+${propertiesText || 'No properties available at the moment.'}
+
+CONVERSATION CONTEXT:
+REALTOR_NAME: ${realtorName}
+Client: ${context.tenant.name}
+History:
+${historyText}
+
+INSTRUCTIONS:
 ${instructions}
 
-Generate ONLY the email body text. No JSON.
+ 
+ Style: Professional, concise, and helpful. 
+ (CRITICAL: Just write the conversational message body. Do NOT try to format links or contact info yourself — another system will append the details automatically).
+
+Generate ONLY the message body text. No JSON, no extra formatting.
 `;
 
-  const result = await generateContentWithRetry(geminiModel, prompt);
-  return result.response.text();
+  try {
+    const result = await generateContentWithRetry(geminiModel, prompt);
+    return result.response.text();
+  } catch (error) {
+    console.error('❌ Phase 2 Generation failed:', error);
+    return `Hi ${context.tenant.name}! Thanks for your message. I'm looking into the best options for you and will get back to you shortly!`;
+  }
+}
+
+/**
+ * PHASE 4: THE JUDGE
+ * Verify if the generated response contains ANY property addresses or details 
+ * that are NOT in our provided properties list.
+ */
+export async function verifyResponseHallucinations(
+  responseText: string,
+  properties: Property[]
+): Promise<VerificationResult> {
+  console.log('⚖️ AI Judge: Verifying hallucinations...');
+  
+  const knownAddresses = properties.map(p => p.address);
+  
+  const verificationPrompt = `
+    You are a strict Auditor. Your task is to check a "Generated Message" for property address hallucinations.
+    
+    KNOWN PROPERTIES (FACTS):
+    ${knownAddresses.map(addr => `- ${addr}`).join('\n')}
+    ${knownAddresses.length === 0 ? 'No properties available.' : ''}
+    
+    GENERATED MESSAGE:
+    "${responseText}"
+    
+    TASK:
+    1. Identify all physical addresses, building names, or specific property locations mentioned in the message.
+    2. Compare them against the KNOWN PROPERTIES list.
+    3. If an address is mentioned that is NOT in the KNOWN list, it is a HALLUCINATION.
+    
+    RETURN ONLY VALID JSON:
+    {
+      "hasHallucinations": boolean,
+      "hallucinatedAddresses": ["address1", "address2"],
+      "reason": "Brief explanation of what was hallucinated"
+    }
+  `;
+
+  try {
+    const result = await generateContentWithRetry(geminiModel, verificationPrompt);
+    let text = result.response.text();
+    
+    // Parse JSON safely
+    let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanText = jsonMatch[0];
+    
+    const verification = JSON.parse(cleanText) as VerificationResult;
+    return verification;
+  } catch (err) {
+    console.error('❌ Verification failed, assuming safe:', err);
+    return { hasHallucinations: false, hallucinatedAddresses: [] };
+  }
 }
 
 /**
@@ -426,4 +789,42 @@ export function matchProperties(tenant: Partial<TenantData>, properties: Propert
     
     return true;
   }).slice(0, 5); // Return top 5 matches
+}
+
+/**
+ * Programmatically format booking details to ensure perfect Markdown/HTML output
+ */
+export function formatBookingDetails(params: {
+  address: string;
+  calendarLink: string;
+  eventTime: string;
+  realtorName: string;
+  realtorPhone: string;
+}): string {
+  const encodedAddress = encodeURIComponent(params.address);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  
+  let displayTime = params.eventTime;
+  try {
+    const date = new Date(params.eventTime);
+    if (!isNaN(date.getTime())) {
+      displayTime = date.toLocaleString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+  } catch (e) {}
+
+  return `
+---
+**Booking Details:**
+
+*   **Property:** [${params.address}](${mapsUrl})
+*   **Time:** [${displayTime}](${params.calendarLink})
+*   **Agent:** ${params.realtorName} (${params.realtorPhone})
+`.trim();
 }

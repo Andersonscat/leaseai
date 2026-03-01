@@ -94,6 +94,10 @@ export async function PUT(
     // Get the updated data from request body
     const body = await request.json();
     
+    // Parse numeric fields correctly
+    const price_monthly = body.price ? parseInt(body.price.toString().replace(/[^0-9]/g, ''), 10) : null;
+    const sqft = body.sqft ? parseInt(body.sqft.toString().replace(/[^0-9]/g, ''), 10) : null;
+    
     // Update the property
     const { data: updatedProperty, error: updateError } = await supabase
       .from('properties')
@@ -102,10 +106,10 @@ export async function PUT(
         city: body.city,
         state: body.state,
         zip_code: body.zip_code,
-        price: body.price,
+        price_monthly,
         beds: body.beds,
         baths: body.baths,
-        sqft: body.sqft,
+        sqft,
         pets: body.pets,
         parking: body.parking,
         parking_available: body.parking_available,

@@ -37,7 +37,7 @@ export async function POST(
     // Fetch Property Description
     const { data: property, error: fetchError } = await supabase
        .from('properties')
-       .select('id, user_id, description, address, type, price, beds, baths, pets')
+       .select('id, user_id, description, address, type, price_monthly, beds, baths, pet_policy')
        .eq('id', params.id)
        .single();
 
@@ -54,9 +54,9 @@ export async function POST(
     const rawText = `
 Address: ${property.address}
 Type: ${property.type}
-Price: ${property.price}
+Price: ${property.price_monthly}
 Beds: ${property.beds} Baths: ${property.baths}
-Pets: ${property.pets}
+Pet Policy: ${JSON.stringify(property.pet_policy)}
 
 Full Description:
 ${property.description || '(No description provided)'}

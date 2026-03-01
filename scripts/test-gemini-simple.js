@@ -1,11 +1,11 @@
-
+require('dotenv').config({ path: '.env.local' });
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 async function testConnection() {
-  console.log('🧪 Testing Gemini Connection (gemini-pro)...');
-  const apiKey = 'AIzaSyC0_ZFVSVnKE30UcM1rVjbYlw1a-FQtX_k'; // Hardcoded for test
+  console.log('🧪 Testing Gemini Connection (gemini-2.0-flash)...');
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   try {
     const result = await model.generateContent('Say "Ready"');

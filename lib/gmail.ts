@@ -2,8 +2,7 @@
 // This will watch your Gmail inbox and automatically create leads
 
 import { google } from 'googleapis';
-import { hybridEmailParser } from './ai-email-parser';
-import { isRealLeadAI } from './ai-email-filter';
+import { unifiedEmailProcessor, AIParserResult } from './ai-email-parser';
 
 // Email patterns for different platforms
 const EMAIL_PATTERNS = {
@@ -30,6 +29,7 @@ interface ParsedLead {
   tenant_email: string;
   tenant_phone?: string;
   message: string;
+  original_message?: string; // Original verbatim email body
   source: string;
   property_address?: string;
   subject?: string; // Original email subject
@@ -56,6 +56,120 @@ export function getGmailClient() {
   }
 
   return google.gmail({ version: 'v1', auth: oauth2Client });
+}
+
+/**
+ * CLEAN email body - AGGRESSIVELY remove quoted text, old threads, and signatures
+ */
+export function cleanEmailBody(body: string, subject: string): string {
+  try {
+    let message = body;
+    
+    // Method 1: Remove lines starting with > (quoted text and security warnings)
+    const lines = message.split('\n');
+    const cleanLines = [];
+    let foundQuotedSection = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      
+      // Skip quoted lines (start with >)
+      if (trimmed.startsWith('>')) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // Skip separator lines
+      if (trimmed.match(/^[-_|=]{3,}$/)) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // Skip university/corporate security warnings
+      if (trimmed.includes('Untrusted Sender') || 
+          trimmed.includes('This Message Is From') ||
+          trimmed.includes('Please contact the') ||
+          trimmed.includes('for additional information') ||
+          trimmed.includes('Caution: External Email')) {
+        foundQuotedSection = true;
+        continue;
+      }
+      
+      // If we found quoted section and this is empty line, skip
+      if (foundQuotedSection && trimmed === '') {
+        continue;
+      }
+      
+      // Stop if we hit "wrote:" pattern (quoted email)
+      const quoteMatch = trimmed.match(/(On\s+[\s\S]+wrote:|From:\s+[\s\S]+)/i) || 
+                         trimmed.match(/<.+@.+>\s+wrote:/i) ||
+                         trimmed.match(/^On\s+.*,\s+.*at\s+.*wrote:/i) ||
+                         trimmed.match(/^On\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun),.*wrote:?$/i);
+      
+      if (quoteMatch) {
+         const index = quoteMatch.index || 0;
+         if (index > 0) {
+           cleanLines.push(line.substring(0, index).trim());
+         }
+         break; 
+      }
+      
+      if (trimmed.startsWith('On ') && (trimmed.includes('wrote:') || trimmed.endsWith('wrote'))) {
+         break;
+      }
+      
+      cleanLines.push(line);
+    }
+    
+    message = cleanLines.join('\n').trim();
+    
+    // Method 2: Cut at common quote markers if still present
+    const quoteMarkers = [
+      'wrote:',
+      'Original Message',
+      'Forwarded message',
+      'From:',
+      'Sent:',
+    ];
+    
+    for (const marker of quoteMarkers) {
+      const markerIndex = message.toLowerCase().indexOf(marker.toLowerCase());
+      if (markerIndex > 30) { 
+        let cutIndex = markerIndex;
+        for (let i = markerIndex - 1; i >= Math.max(0, markerIndex - 100); i--) {
+          if (message[i] === '\n' && message.substring(i + 1, i + 4) === 'On ') {
+            cutIndex = i;
+            break;
+          }
+        }
+        message = message.substring(0, cutIndex).trim();
+        break;
+      }
+    }
+    
+    // Method 3: Remove email signatures
+    message = message.replace(/\n--\s*\n[\s\S]*$/m, '');
+    
+    // Method 4: Take only meaningful paragraphs
+    const paragraphs = message.split('\n\n').filter(p => p.trim().length > 0);
+    if (paragraphs.length > 0) {
+      let result = '';
+      for (let i = 0; i < Math.min(paragraphs.length, 3); i++) {
+        const para = paragraphs[i].trim();
+        if (para.match(/^(From|To|Subject|Date|Sent):/i)) continue;
+        
+        if (result.length + para.length > 1000) break;
+        result += (result ? '\n\n' : '') + para;
+      }
+      message = result || paragraphs[0];
+    }
+    
+    return message.trim();
+  } catch (error) {
+    console.error('Error cleaning email:', error);
+    return body; // Fallback to raw if logic fails
+  }
 }
 
 /**
@@ -97,126 +211,8 @@ function parseEmailBody(body: string, subject: string, from: string): ParsedLead
     const addressMatch = subject.match(/(?:Re:|Inquiry about|Question about)\s*(.+?)(?:\s*-|\s*$)/i);
     const propertyAddress = addressMatch ? addressMatch[1].trim() : undefined;
     
-    // Clean message body - AGGRESSIVELY remove quoted text and old threads
-    let message = body;
-    
-    // Method 1: Remove lines starting with > (quoted text and security warnings)
-    // CRITICAL: Do this FIRST before other processing
-    const lines = message.split('\n');
-    const cleanLines = [];
-    let foundQuotedSection = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-      
-      // Skip quoted lines (start with >)
-      if (trimmed.startsWith('>')) {
-        foundQuotedSection = true;
-        continue;
-      }
-      
-      // Skip separator lines
-      if (trimmed.match(/^[-_|=]{3,}$/)) {
-        foundQuotedSection = true;
-        continue;
-      }
-      
-      // Skip university security warnings
-      if (trimmed.includes('Untrusted Sender') || 
-          trimmed.includes('This Message Is From') ||
-          trimmed.includes('Please contact the UW-IT') ||
-          trimmed.includes('for additional information')) {
-        foundQuotedSection = true;
-        continue;
-      }
-      
-      // If we found quoted section and this is empty line, skip
-      if (foundQuotedSection && trimmed === '') {
-        continue;
-      }
-      
-      // Stop if we hit "wrote:" pattern (quoted email)
-      // Check for quote marker on the line (handling non-breaking spaces and variations)
-      const quoteMatch = trimmed.match(/(On\s+[\s\S]+wrote:|From:\s+[\s\S]+)/i) || 
-                         trimmed.match(/<.+@.+>\s+wrote:/i) ||
-                         trimmed.match(/^On\s+.*,\s+.*at\s+.*wrote:/i) || // Specific common pattern
-                         trimmed.match(/^On\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun),.*wrote:?$/i); // Matches "On Fri, Jan 30... wrote:" from user screenshot
-      
-      if (quoteMatch) {
-         // If marker found, take only text BEFORE it
-         const index = quoteMatch.index || 0;
-         if (index > 0) {
-           cleanLines.push(line.substring(0, index).trim());
-         }
-         break; // Stop processing remaining lines
-      }
-      
-      // Also check for "On [Date], [Time], [Name] wrote:" specifically which might have special spaces
-      if (trimmed.startsWith('On ') && (trimmed.includes('wrote:') || trimmed.endsWith('wrote'))) {
-         break;
-      }
-      
-      cleanLines.push(line);
-    }
-    
-    message = cleanLines.join('\n').trim();
-    
-    // Method 2: Cut at common quote markers if still present
-    const quoteMarkers = [
-      'wrote:',
-      'Original Message',
-      'Forwarded message',
-      'From:',
-      'Sent:',
-    ];
-    
-    for (const marker of quoteMarkers) {
-      const markerIndex = message.toLowerCase().indexOf(marker.toLowerCase());
-      if (markerIndex > 50) { // Only cut if marker is not at the very beginning
-        // Look backwards for "On" or "<email>" before "wrote:"
-        let cutIndex = markerIndex;
-        for (let i = markerIndex - 1; i >= Math.max(0, markerIndex - 100); i--) {
-          if (message[i] === '\n' && message.substring(i + 1, i + 4) === 'On ') {
-            cutIndex = i;
-            break;
-          }
-        }
-        message = message.substring(0, cutIndex).trim();
-        break;
-      }
-    }
-    
-    // Method 3: Remove email signatures
-    message = message.replace(/\n--\s*\n[\s\S]*$/m, '');
-    
-    // Method 4: Take only first meaningful content (first few paragraphs)
-    const paragraphs = message.split('\n\n').filter(p => p.trim().length > 0);
-    if (paragraphs.length > 0) {
-      // Take first 2 paragraphs or until we hit 500 chars
-      let result = '';
-      for (let i = 0; i < Math.min(paragraphs.length, 3); i++) {
-        const para = paragraphs[i].trim();
-        // Skip if paragraph looks like a header or metadata
-        if (para.match(/^(From|To|Subject|Date|Sent):/i)) continue;
-        
-        if (result.length + para.length > 500) {
-          if (result.length === 0 && para.length > 50) {
-            result = para; // Take first paragraph even if long
-          }
-          break;
-        }
-        result += (result ? '\n\n' : '') + para;
-      }
-      message = result || paragraphs[0];
-    }
-    
-    message = message.trim();
-    
-    // Limit message length
-    if (message.length > 1000) {
-      message = message.substring(0, 1000) + '...';
-    }
+    // Clean message body
+    const message = cleanEmailBody(body, subject);
     
     const source = detectSource(from);
     
@@ -279,13 +275,12 @@ export async function watchInbox(userId: string = 'me') {
 }
 
 /**
- * Process new email and create lead (with AI parsing)
+ * Process new email and create lead (using Unified AI)
  */
-export async function processNewEmail(messageId: string, userId: string = 'me'): Promise<ParsedLead | null> {
+export async function processNewEmail(messageId: string, userId: string = 'me'): Promise<AIParserResult | null> {
   const gmail = getGmailClient();
   
   try {
-    // Get full message
     const response = await gmail.users.messages.get({
       userId,
       id: messageId,
@@ -293,61 +288,20 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
     });
     
     const message = response.data;
-    
-    // Extract headers
     const headers = message.payload?.headers || [];
     const from = headers.find(h => h.name === 'From')?.value || '';
     const subject = headers.find(h => h.name === 'Subject')?.value || '';
     const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value;
-    
-    // Get body
     const body = getEmailBody(message);
     
-    // Try AI-powered hybrid parsing first
-    console.log('🤖 Parsing email with AI...');
-    const aiParsed = await hybridEmailParser(from, subject, body);
-    
-    if (aiParsed) {
-      console.log('✅ AI parsed successfully:', {
-        name: aiParsed.tenant_name,
-        source: aiParsed.source,
-        intent: aiParsed.intent,
-        urgency: aiParsed.urgency,
-      });
-      
-      // Use original email body instead of AI summary
-      const originalMessage = body.trim() || subject;
-      
-      return {
-        tenant_name: aiParsed.tenant_name,
-        tenant_email: aiParsed.tenant_email,
-        tenant_phone: aiParsed.tenant_phone,
-        message: originalMessage,  // ← ОРИГИНАЛЬНЫЙ ТЕКСТ!
-        source: aiParsed.source,
-        property_address: aiParsed.property_address,
-        subject: subject, // Pass original subject
-        messageId: message.id || undefined,
-        rfcMessageId: rfcMessageId || undefined, // Pass proper Message-ID
-        threadId: message.threadId || undefined,
-      };
-    }
-    
-    // Fallback to old parsing method
-    console.log('⚠️ AI parsing failed, using regex fallback');
-    const lead = parseEmailBody(body, subject, from);
-    
+    const lead = await unifiedEmailProcessor(from, subject, body);
     if (lead) {
-      console.log('Parsed lead (regex):', lead);
-      return {
-        ...lead,
-        subject: subject,
-        messageId: message.id || undefined,
-        rfcMessageId: rfcMessageId || undefined,
-        threadId: message.threadId || undefined,
-      };
+      lead.messageId = message.id || undefined;
+      lead.rfcMessageId = rfcMessageId || undefined;
+      lead.threadId = message.threadId || undefined;
+      lead.subject = subject;
     }
-    
-    return null;
+    return lead;
   } catch (error) {
     console.error('Error processing email:', error);
     return null;
@@ -355,34 +309,17 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
 }
 
 /**
- * Check if email is a real lead using AI
- * Falls back to regex if AI unavailable
- */
-async function isRealLead(subject: string, body: string, from: string): Promise<boolean> {
-  const result = await isRealLeadAI(from, subject, body);
-  return result.isLead;
-}
-
-/**
  * Get recent unread messages (for initial sync)
  * Filters out newsletters, receipts, and non-lead emails
  */
-export async function getRecentUnreadMessages(maxResults: number = 10, userId: string = 'me') {
+export async function getRecentMessages(maxResults: number = 10, userId: string = 'me') {
   const gmail = getGmailClient();
   
   try {
-    // Option 1: Sync only from specific label (if user has set up Gmail filters)
-    // Uncomment this if you want to use Gmail labels:
-    // const response = await gmail.users.messages.list({
-    //   userId,
-    //   q: 'is:unread label:leads',  // Only emails with "Leads" label
-    //   maxResults,
-    // });
-    
-    // Option 2: Sync all unread from inbox (default)
+    // Sync all messages from inbox in the last 2 hours (read or unread)
     const response = await gmail.users.messages.list({
       userId,
-      q: 'is:unread in:inbox',
+      q: 'in:inbox newer_than:2h',
       maxResults,
     });
     
@@ -401,27 +338,39 @@ export async function getRecentUnreadMessages(maxResults: number = 10, userId: s
         const headers = fullMessage.data.payload?.headers || [];
         const from = headers.find(h => h.name === 'From')?.value || '';
         const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const rfcMessageId = headers.find(h => h.name === 'Message-ID')?.value;
         const body = getEmailBody(fullMessage.data);
         
-        // 🤖 AI-powered filtering
-        const isLead = await isRealLead(subject, body, from);
+        // 🤖 UNIFIED AI: One call to filter AND parse
+        const lead = await unifiedEmailProcessor(from, subject, body);
         
-        if (!isLead) {
-          console.log(`⏭️  AI Skipped: "${subject}"`);
+        if (!lead || !lead.isLead) {
+          console.log(`⏭️  AI Skipped: "${subject}" - ${lead?.reason || 'Not a lead'}`);
           continue;
         }
+
+        console.log(`✅ AI Approved Lead: "${subject}"`);
         
-        console.log(`✅ AI Approved: "${subject}"`);
-        const lead = await processNewEmail(message.id, userId);
-        if (lead) {
-          leads.push(lead);
-        }
+        // Add metadata to lead result
+        lead.messageId = fullMessage.data.id || undefined;
+        lead.rfcMessageId = rfcMessageId || undefined;
+        lead.threadId = fullMessage.data.threadId || undefined;
+        lead.subject = subject;
+        
+        // Always use cleaned body (strips quoted replies, signatures, etc.)
+        // so inbox shows only the client's new message, not the trailing thread
+        lead.original_message = cleanEmailBody(body, subject) || body;
+        
+        leads.push(lead);
+
+        // ⏱️ Delay between messages to avoid burst rate limits 
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     
     return leads;
   } catch (error) {
-    console.error('Error getting unread messages:', error);
+    console.error('Error getting recent messages:', error);
     return [];
   }
 }
@@ -514,8 +463,143 @@ export async function sendEmail(
 }
 
 /**
+ * Send HTML email via Gmail API (for property listing emails with photos)
+ */
+export async function sendHtmlEmail(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  textBody: string,
+  options?: {
+    threadId?: string;
+    inReplyTo?: string;
+    userId?: string;
+  }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const gmail = getGmailClient();
+  const userId = options?.userId || 'me';
+  
+  try {
+    console.log('📧 Sending HTML email to:', to);
+    
+    const profile = await gmail.users.getProfile({ userId });
+    const fromEmail = profile.data.emailAddress || '';
+    
+    // MIME boundary for multipart
+    const boundary = `boundary_${Date.now()}`;
+    
+    const headers = [
+      `From: ${fromEmail}`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ];
+    
+    if (options?.inReplyTo) {
+      headers.push(`In-Reply-To: ${options.inReplyTo}`);
+      headers.push(`References: ${options.inReplyTo}`);
+    }
+    
+    const messageParts = [
+      headers.join('\r\n'),
+      '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      textBody,
+      `--${boundary}`,
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+      `--${boundary}--`,
+    ];
+    
+    const message = messageParts.join('\r\n');
+    
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    const requestBody: any = { raw: encodedMessage };
+    if (options?.threadId) {
+      requestBody.threadId = options.threadId;
+    }
+    
+    const response = await gmail.users.messages.send({
+      userId,
+      requestBody,
+    });
+    
+    console.log('✅ HTML email sent successfully:', response.data.id);
+    return { success: true, messageId: response.data.id || undefined };
+    
+  } catch (error: any) {
+    console.error('❌ Error sending HTML email:', error);
+    return { success: false, error: error.message || 'Failed to send HTML email' };
+  }
+}
+
+/**
+ * Build HTML email body for property listing
+ */
+export function buildPropertyListingHtml(
+  properties: Array<{
+    address: string;
+    price: string;
+    bedrooms: number;
+    description?: string;
+    images?: string[];
+    pet_policy?: string;
+    parking_type?: string;
+    available_from?: string;
+  }>,
+  realtorName: string
+): { html: string; text: string } {
+  const cards = properties.map(p => {
+    const imageUrl = p.images?.[0] || `https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop`;
+    return `
+    <div style="border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;margin-bottom:20px;max-width:560px;font-family:Arial,sans-serif;">
+      <img src="${imageUrl}" alt="${p.address}" style="width:100%;height:220px;object-fit:cover;" />
+      <div style="padding:16px 20px;">
+        <h3 style="margin:0 0 8px;color:#1a1a1a;font-size:18px;">${p.address}</h3>
+        <p style="margin:0 0 8px;color:#2563eb;font-size:22px;font-weight:700;">${p.price}/mo</p>
+        <p style="margin:0 0 8px;color:#555;font-size:14px;">
+          🛏 ${p.bedrooms} ${p.bedrooms === 1 ? 'Bedroom' : 'Bedrooms'}
+          ${p.pet_policy && p.pet_policy !== 'no_pets' ? ' • 🐾 Pets OK' : ''}
+          ${p.parking_type ? ` • 🅿️ ${p.parking_type}` : ''}
+        </p>
+        ${p.available_from ? `<p style="margin:0 0 8px;color:#555;font-size:13px;">Available: ${p.available_from}</p>` : ''}
+        ${p.description ? `<p style="margin:0;color:#666;font-size:13px;line-height:1.4;">${p.description.substring(0, 200)}${p.description.length > 200 ? '...' : ''}</p>` : ''}
+      </div>
+    </div>`;
+  }).join('\n');
+
+  const html = `
+  <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#333;">
+    <h2 style="color:#1a1a1a;margin-bottom:4px;">Property Listings For You</h2>
+    <p style="color:#888;margin-top:0;margin-bottom:24px;font-size:14px;">Here are some options I think would be a great fit:</p>
+    ${cards}
+    <p style="color:#666;font-size:14px;margin-top:24px;">
+      Interested in any of these? Reply to this email and I'll set up a viewing for you.
+    </p>
+    <p style="color:#333;font-size:14px;">Best regards,<br/><strong>${realtorName}</strong></p>
+  </div>`;
+
+  const text = properties.map(p => 
+    `${p.address} — ${p.price}/mo, ${p.bedrooms} bed(s). ${p.description?.substring(0, 100) || ''}`
+  ).join('\n\n') + `\n\nBest regards,\n${realtorName}`;
+
+  return { html, text };
+}
+
+
+/**
  * Send auto-reply to a lead
- * Uses proper email threading to keep conversation organized
+ * Uses proper email threading to keep conversation organized.
+ * Converts basic Markdown to HTML for hyperlink support.
  */
 export async function sendAutoReply(
   leadEmail: string,
@@ -532,10 +616,29 @@ export async function sendAutoReply(
       ? `Re: ${options.subject.replace(/^Re:\s*/i, '')}` 
       : 'Re: Your property inquiry';
     
-    const result = await sendEmail(
+    // Simple Markdown to HTML conversion for links and formatting
+    const htmlBody = replyMessage
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #2563eb; text-decoration: underline;">$1</a>') // Links
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Bold
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>') // Italic
+      .replace(/^\*(.+)$/gm, '<li>$1</li>') // Bullted list items
+      .replace(/(<li>.+<\/li>(\n<li>.+<\/li>)*)/g, '<ul style="padding-left: 20px;">$1</ul>') // Wrap lists
+      .replace(/\n/g, '<br/>'); // Line breaks
+
+    const formattedHtml = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.8; color: #2d3748; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="margin-bottom: 24px;">
+          ${htmlBody.split('<br/><br/>').map(p => `<p style="margin: 0 0 16px 0;">${p}</p>`).join('')}
+        </div>
+      </div>
+    `;
+    
+    // Send as HTML email (sendHtmlEmail handles both text and html parts)
+    const result = await sendHtmlEmail(
       leadEmail,
       subject,
-      replyMessage,
+      formattedHtml,
+      replyMessage, // Plain text fallback
       {
         threadId: options?.threadId,
         inReplyTo: options?.messageId,

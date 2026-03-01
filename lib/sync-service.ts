@@ -1,6 +1,6 @@
 
 import { SupabaseClient, User } from '@supabase/supabase-js';
-import { getRecentUnreadMessages, sendAutoReply } from '@/lib/gmail';
+import { getRecentMessages, sendAutoReply, sendHtmlEmail, buildPropertyListingHtml } from '@/lib/gmail';
 // import { generateQualificationResponse } from '@/lib/ai-qualification';
 
 // Global sync lock to prevent concurrent syncs
@@ -35,9 +35,8 @@ export async function syncGmailMessages(
   console.log('📧 Starting Gmail sync service...');
 
   try {
-    // Получаем отфильтрованные и обработанные лиды
-    // Уменьшаем с 20 до 5 для быстрой синхронизации
-    const leads = await getRecentUnreadMessages(5); 
+    // Получаем сообщения за последние 2 часа (включая прочитанные)
+    const leads = await getRecentMessages(10); 
 
     if (!leads || leads.length === 0) {
       console.log('✅ No new leads found');
@@ -193,7 +192,8 @@ export async function syncGmailMessages(
           tenant_id: tenantId,
           sender_type: 'tenant',
           sender_name: lead.tenant_name,
-          message_text: lead.message,
+          // Save original email body (not AI summary) so inbox shows real message
+          message_text: lead.original_message || lead.message,
           source: lead.source,
           is_read: false,
           gmail_message_id: lead.messageId,
@@ -209,6 +209,14 @@ export async function syncGmailMessages(
 
         // 🤖 AUTO-REPLY LOGIC
         
+        // 🚨 Check if AI assistant is enabled for this conversation
+        const isAutoReplyEnabled = isNewTenant ? true : (existingTenant?.auto_reply_enabled ?? true);
+        
+        if (!isAutoReplyEnabled) {
+          console.log(`🔇 Auto-reply disabled for ${lead.tenant_name}, skipping AI response (message preserved)`);
+          continue;
+        }
+
         // Check recent AI replies
         const { data: recentAiReplies, error: recentCheckError } = await supabase
           .from('messages')
@@ -275,8 +283,10 @@ export async function syncGmailMessages(
           // 🆕 AGENTIC PIPELINE: Brain -> Hand -> Voice
           // =================================================================================
           
-          const { analyzeConversation, generateFinalResponse } = await import('@/lib/ai-qualification');
+          const { analyzeConversation, generateFinalResponse, formatBookingDetails } = await import('@/lib/ai-qualification');
           
+          const realtorName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
+
           // 1. BRAIN: Analyze and Plan
           const analysis = await analyzeConversation({
             tenant: {
@@ -288,7 +298,8 @@ export async function syncGmailMessages(
             },
             properties: properties || [],
             conversationHistory,
-            realtorName: user.email?.split('@')[0] || 'Realtor',
+            realtorName,
+            realtorPhone: user.user_metadata?.phone || user.phone || undefined,
           });
 
           // 2. HAND: Execute Actions
@@ -299,14 +310,23 @@ export async function syncGmailMessages(
             try {
               const { createCalendarEvent } = await import('@/lib/calendar-client');
               const args = analysis.action_params;
+               
+              // Use naive datetime strings to avoid server timezone interference
+              const startTimeStr = args.start_time
+                .replace(/Z$/i, '')
+                .replace(/[+-]\d{2}:\d{2}$/, '')
+                .replace(/\.\d{3}$/, '');
               
-              const startTime = new Date(args.start_time);
               const duration = args.duration_minutes || 30;
-              const endTime = new Date(startTime.getTime() + duration * 60000);
+              const startAsUtc = new Date(startTimeStr + 'Z');
+              const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
+              const endTimeStr = endAsUtc.toISOString().slice(0, 19);
+              
+              console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
               
               const event = await createCalendarEvent(
-                startTime.toISOString(),
-                endTime.toISOString(),
+                startTimeStr,
+                endTimeStr,
                 `Viewing: ${args.property_address}`,
                 `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
                 lead.tenant_email
@@ -326,8 +346,8 @@ export async function syncGmailMessages(
                   tenant_id: tenantId,
                   property_id: properties?.find(p => p.address === args.property_address)?.id || null, 
                   title: `Viewing: ${args.property_address}`,
-                  start_time: startTime.toISOString(),
-                  end_time: endTime.toISOString(),
+                  start_time: startTimeStr,
+                  end_time: endTimeStr,
                   description: `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
                   google_event_id: event.id,
                   google_event_link: event.htmlLink,
@@ -364,16 +384,52 @@ export async function syncGmailMessages(
           }
 
           // 3. VOICE: Generate Response
-          const finalResponse = await generateFinalResponse(
+          let finalResponseText = await generateFinalResponse(
             {
                tenant: { name: lead.tenant_name, email: lead.tenant_email },
                properties: properties || [], 
                conversationHistory,
-               realtorName: 'Agent'
+               realtorName,
+               realtorPhone: user.user_metadata?.phone || user.phone || undefined,
             },
             analysis,
             executionResult
           );
+
+          // 4. THE JUDGE: Anti-Hallucination Enforcement
+          const { verifyResponseHallucinations } = await import('@/lib/ai-qualification');
+          const verification = await verifyResponseHallucinations(finalResponseText, properties || []);
+          
+          if (verification.hasHallucinations) {
+             console.error('🚨 HALLUCINATION BLOCKED 🚨', verification.reason);
+             try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const logFile = path.resolve(process.cwd(), 'server.log');
+                fs.appendFileSync(logFile, `🚨 [${new Date().toISOString()}] HALLUCINATION BLOCKED: ${verification.reason}\n`);
+             } catch (e) {
+                // Ignore file logging errors
+             }
+             
+             // Fallback response instead of sending hallucinated text
+             finalResponseText = `Hi ${lead.tenant_name}, I'm currently checking our inventory to confirm the exact details of matching properties. I will get back to you very shortly with accurate information!`;
+             // Disable booking/listing inserts that rely on hallucinated data
+             analysis.action = 'reply';
+          }
+
+          // 3b. ATTACH FORMATTED DETAILS (Code-generated, not AI-generated)
+          let finalResponse = finalResponseText;
+          if (analysis.action === 'book_calendar' && executionResult.success && analysis.action_params) {
+            const bookingBlock = formatBookingDetails({
+              address: analysis.action_params.property_address,
+              calendarLink: executionResult.data.htmlLink,
+              eventTime: analysis.action_params.start_time,
+              realtorName,
+              realtorPhone: user.user_metadata?.phone || user.phone || 'Contact for details',
+            });
+            // Add three newlines for better spacing in HTML conversion
+            finalResponse = `${finalResponseText}\n\n\n${bookingBlock}`;
+          }
 
           console.log('✅ Final AI Response:', finalResponse.substring(0, 50));
 
@@ -395,42 +451,98 @@ export async function syncGmailMessages(
 
           console.log('✅ Auto-reply email sent to:', lead.tenant_email);
 
+          // Prepare property listings if AI recommended any
+          const listingAddresses = analysis.listing_addresses || [];
+          let matchedProperties: any[] = [];
+          
+          if ((analysis.action === 'send_listing' || listingAddresses.length > 0) && properties?.length) {
+            matchedProperties = listingAddresses.length > 0
+              ? properties.filter(p => listingAddresses.some(addr => p.address.toLowerCase().includes(addr.toLowerCase())))
+              : (analysis.suggestedProperties?.length 
+                  ? properties.filter(p => analysis.suggestedProperties!.some(sp => p.address.toLowerCase().includes(sp.toLowerCase())))
+                  : properties.slice(0, 3));
+          }
+
+          // Generate db message text (includes invisible JSON for the frontend to render cards)
+          let dbMessageText = finalResponse;
+          if (matchedProperties.length > 0) {
+             const cleanProps = matchedProperties.map(p => ({
+               id: p.id,
+               address: p.address,
+               city: p.city,
+               state: p.state,
+               price: p.price_monthly || p.price,
+               beds: p.bedrooms,
+               baths: p.bathrooms,
+               sqft: p.sqft,
+               type: p.type,
+               image: p.images?.[0] || p.image
+             }));
+             dbMessageText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
+          }
+
           // Save AI response as message in DB
           const { error: aiMessageError } = await supabase.from('messages').insert({
             user_id: user.id,
             tenant_id: tenantId,
             sender_type: 'landlord',
-            sender_name: user.email?.split('@')[0] || 'Realtor',
-            message_text: finalResponse,
+            sender_name: realtorName,
+            message_text: dbMessageText,
             source: 'email',
             is_ai_response: true,
             is_read: true,
-            gmail_message_id: emailResult.messageId, // Save the Gmail Message ID
+            gmail_message_id: emailResult.messageId,
           });
 
           if (aiMessageError) {
             console.error('Error saving AI message:', aiMessageError);
           }
 
+          // 4. LISTING EMAIL: Send property photos if AI recommended listings
+          if (matchedProperties.length > 0) {
+            const { html, text } = buildPropertyListingHtml(matchedProperties, realtorName);
+            const listingResult = await sendHtmlEmail(
+              lead.tenant_email,
+              `Property Listings — ${lead.subject || 'Your Inquiry'}`,
+              html,
+              text,
+              {
+                threadId: lead.threadId,
+                inReplyTo: emailResult.messageId,
+              }
+            );
+            if (listingResult.success) {
+              console.log('📸 Property listing email sent with photos');
+            } else {
+              console.error('Failed to send listing email:', listingResult.error);
+            }
+          }
+
           // Update tenant with extracted data
-          if (analysis.extractedData && Object.keys(analysis.extractedData).length > 0) {
+          if (analysis.extractedData || analysis.summary) {
             const updateData: any = { 
-              ...analysis.extractedData,
+              ...(analysis.extractedData || {}),
+              ai_summary: analysis.summary,
+              lead_priority: analysis.priority || 'warm',
               last_auto_reply_at: new Date().toISOString(),
             };
             
             // Calculate lead score if new data extracted
-            const updatedTenant = { ...(existingTenant || {}), ...analysis.extractedData };
-            if (updatedTenant.budget_min || updatedTenant.move_in_date || updatedTenant.bedrooms) {
-              const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
-              const newScore = calculateLeadScore(updatedTenant);
-              const newQuality = getLeadQuality(newScore);
-              updateData.lead_score = newScore;
-              updateData.lead_quality = newQuality;
-              
-              if (newScore >= 6) updateData.qualification_status = 'qualified';
-              else if (newScore >= 3) updateData.qualification_status = 'qualifying';
-            }
+            const updatedTenant = { 
+              ...(existingTenant || {}), 
+              ...(analysis.extractedData || {}),
+              lead_priority: analysis.priority || 'warm'
+            };
+
+            const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
+            const newScore = calculateLeadScore(updatedTenant);
+            const newQuality = analysis.priority || getLeadQuality(newScore); // Prefer AI's priority assessment
+            
+            updateData.lead_score = newScore;
+            updateData.lead_priority = newQuality;
+            
+            if (newScore >= 6) updateData.qualification_status = 'qualified';
+            else if (newScore >= 3) updateData.qualification_status = 'qualifying';
             
             const { error: updateError } = await supabase
               .from('tenants')
@@ -440,7 +552,8 @@ export async function syncGmailMessages(
             if (updateError) {
               console.error('Error updating tenant with AI data:', updateError);
             }
-          } else {
+          }
+ else {
             await supabase
               .from('tenants')
               .update({ last_auto_reply_at: new Date().toISOString() })

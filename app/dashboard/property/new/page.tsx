@@ -11,9 +11,28 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Bot
 } from 'lucide-react';
 import Link from 'next/link';
+
+import { Suspense } from "react";
+
+// Helper to format currency
+const formatCurrency = (amount: string | number | null | undefined) => {
+  if (!amount) return "Price not set";
+  const numericAmount = typeof amount === 'string' 
+    ? parseInt(amount.replace(/[^0-9]/g, ''), 10) 
+    : amount;
+  
+  if (isNaN(numericAmount)) return "Price not set";
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(numericAmount);
+};
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -39,6 +58,7 @@ export default function NewPropertyPage() {
     walk_score: '',
     transit_score: '',
     lease_term: '12 months',
+    ai_assisted: true,
   });
 
   // Advanced fields state
@@ -374,7 +394,30 @@ export default function NewPropertyPage() {
 
           {/* Property Type */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <h2 className="text-2xl font-bold text-black mb-4">Property Type</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-black">Property Type</h2>
+              
+              {/* AI Assistant Toggle */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Bot className={`w-4 h-4 ${formData.ai_assisted ? 'text-indigo-500' : 'text-gray-400'}`} />
+                  <span className="text-sm font-semibold text-gray-700">AI Assistant</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, ai_assisted: !prev.ai_assisted }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none shadow-sm ${
+                    formData.ai_assisted ? 'bg-indigo-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-all shadow-md ${
+                      formData.ai_assisted ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
             <div className="flex items-center bg-gray-100 rounded-lg p-1 w-fit">
               <button
                 type="button"
@@ -399,6 +442,11 @@ export default function NewPropertyPage() {
                 Sale
               </button>
             </div>
+            {!formData.ai_assisted && (
+              <p className="mt-3 text-xs text-amber-600 font-medium">
+                ⚠️ AI will not auto-respond to inquiries about this property
+              </p>
+            )}
           </div>
 
           {/* Basic Information */}
@@ -1031,7 +1079,8 @@ export default function NewPropertyPage() {
                   <div className="flex items-start justify-between mb-3 gap-3">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-2xl font-bold text-black mb-1">
-                        {formData.price ? (formData.type === 'rent' ? `${formData.price}/month` : formData.price) : 'Price not set'}
+                        {formatCurrency(formData.price)}
+                        {formData.type === 'rent' && formData.price && <span className="text-sm font-normal text-gray-500 ml-1">/ per month</span>}
                       </h3>
                       <div className="flex items-start gap-1 text-gray-600 text-sm">
                         <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

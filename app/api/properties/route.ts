@@ -75,40 +75,82 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json();
     
+    // Parse numeric fields correctly
+    const price_monthly = body.price ? parseInt(body.price.toString().replace(/[^0-9]/g, ''), 10) : null;
+    const sqft = body.sqft ? parseInt(body.sqft.toString().replace(/[^0-9]/g, ''), 10) : null;
+    const walk_score = body.walk_score ? parseInt(body.walk_score.toString().replace(/[^0-9]/g, ''), 10) : null;
+    const transit_score = body.transit_score ? parseInt(body.transit_score.toString().replace(/[^0-9]/g, ''), 10) : null;
+    
+    const lease_term_match = body.lease_term ? body.lease_term.toString().match(/\d+/) : null;
+    const lease_term_min = lease_term_match ? parseInt(lease_term_match[0], 10) : null;
+    
+    const application_fee = body.application_fee ? parseInt(body.application_fee.toString().replace(/[^0-9]/g, ''), 10) : null;
+    const security_deposit = body.security_deposit ? parseInt(body.security_deposit.toString().replace(/[^0-9]/g, ''), 10) : null;
+
+    // Map Parking
+    const parking_available = body.parking !== 'No parking';
+    let parking_type = body.parking !== 'No parking' ? body.parking : 'none';
+    if (parking_type.length > 50) {
+      parking_type = parking_type.substring(0, 50);
+    }
+
+    // Map Pet Policy (Varchar 50)
+    const petsText = (body.pets || '').toLowerCase();
+    let pet_policy = 'no_pets';
+    if (petsText.includes('cats only')) pet_policy = 'cats_only';
+    else if (petsText.includes('dogs only') || petsText.includes('small')) pet_policy = 'small_dogs';
+    else if (petsText.includes('allow') || petsText.includes('yes')) pet_policy = 'allowed';
+    
+    // Calculate furnished & laundry_type from features/amenities
+    const allTags = [...(body.amenities || []), ...(body.features || [])].map((t: string) => t.toLowerCase());
+    const furnished = allTags.some(t => t.includes('furnished'));
+    
+    let laundry_type = 'none';
+    if (allTags.some(t => t.includes('in-unit washer') || t.includes('in-unit dryer') || t.includes('in-unit laundry'))) {
+      laundry_type = 'in_unit';
+    } else if (allTags.some(t => t.includes('shared laundry') || t.includes('laundry room'))) {
+      laundry_type = 'shared';
+    } else if (allTags.some(t => t.includes('hookup') || t.includes('connections'))) {
+      laundry_type = 'hookups';
+    }
+    
+    // Safety truncations for VARCHAR(50) columns
+    if (parking_type.length > 50) parking_type = parking_type.substring(0, 50);
+    if (pet_policy.length > 50) pet_policy = pet_policy.substring(0, 50);
+    if (laundry_type.length > 50) laundry_type = laundry_type.substring(0, 50);
+    
     const { data, error} = await supabase
       .from('properties')
       .insert([
         {
-          user_id: user.id, // Use authenticated user's ID
+          user_id: user.id,
           type: body.type,
           address: body.address,
           city: body.city,
           state: body.state,
           zip_code: body.zip_code,
-          price: body.price,
+          price_monthly,
           beds: body.beds,
           baths: body.baths,
-          sqft: body.sqft,
-          pets: body.pets,
-          parking: body.parking,
-          parking_available: body.parking_available || false,
-          status: body.status || 'Available',
+          sqft,
+          pet_policy,
+          parking_type,
+          parking_available,
+          status: body.status || 'available',
           description: body.description,
           amenities: body.amenities,
           features: body.features,
           rules: body.rules,
           images: body.images,
-          walk_score: body.walk_score,
-          transit_score: body.transit_score,
-          lease_term: body.lease_term,
+          walk_score,
+          transit_score,
+          lease_term_min,
           available_from: body.available_from || null,
-          pet_policy: body.pet_policy || 'allowed',
-          parking_type: body.parking_type || 'none',
-          parking_fee: body.parking_fee ? parseFloat(body.parking_fee) : null,
-          application_fee: body.application_fee ? parseFloat(body.application_fee) : null,
-          security_deposit: body.security_deposit ? parseFloat(body.security_deposit) : null,
-          utilities_fee: body.utilities_fee ? parseFloat(body.utilities_fee) : null,
-          utilities_included: body.utilities_included || [],
+          application_fee,
+          security_deposit,
+          furnished,
+          laundry_type,
+          ai_assisted: body.ai_assisted !== undefined ? body.ai_assisted : true,
         },
       ])
       .select()

@@ -9,18 +9,20 @@ export async function GET() {
   try {
     console.log('🧪 Testing Google Calendar event creation...');
     
-    // Create a test event for tomorrow at 3 PM
+    // Create a test event for tomorrow at 3 PM Pacific
+    // Use naive datetime strings (no Z, no offset) — timeZone on the event handles it
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(15, 0, 0, 0); // 3 PM
     
-    const endTime = new Date(tomorrow);
-    endTime.setMinutes(endTime.getMinutes() + 30); // 30-minute meeting
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const dateStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+    const startTimeStr = `${dateStr}T15:00:00`; // 3 PM Pacific
+    const endTimeStr = `${dateStr}T15:30:00`;   // 3:30 PM Pacific
     
     const event = await createCalendarEvent(
-      tomorrow.toISOString(),
-      endTime.toISOString(),
-      'TEST: Property Viewing',
+      startTimeStr,
+      endTimeStr,
+      'TEST: Property Viewing (3 PM Pacific)',
       `This is a test viewing appointment created by LeaseAI system.\n\nTest Time: ${new Date().toISOString()}`,
       'assylzhaninternational@gmail.com' // Your email for testing
     );

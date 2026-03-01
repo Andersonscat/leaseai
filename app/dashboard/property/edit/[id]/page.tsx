@@ -75,20 +75,9 @@ export default function EditPropertyPage() {
         if (response.ok && data.property) {
           const property = data.property;
           
-          // Parse price (remove /month if present)
-          let priceValue = property.price;
-          let propertyType: 'rent' | 'sale' = 'rent';
-          
-          if (typeof priceValue === 'string') {
-            if (priceValue.includes('/month')) {
-              priceValue = priceValue.replace('/month', '').trim();
-              propertyType = 'rent';
-            } else {
-              propertyType = 'sale';
-            }
-            // Remove any non-numeric characters (commas, $) for number input
-            priceValue = priceValue.replace(/[^0-9.]/g, '');
-          }
+          // Use price_monthly instead of legacy price
+          const priceValue = property.price_monthly?.toString() || '';
+          const propertyType = property.type || 'rent';
           
           setFormData({
             address: property.address || '',
@@ -169,10 +158,7 @@ export default function EditPropertyPage() {
     setSaving(true);
 
     try {
-      // Format price (add /month for rent)
-      const formattedPrice = formData.type === 'rent' 
-        ? `${formData.price}/month` 
-        : formData.price;
+      // price_monthly is handled by the API from the 'price' field
 
       // Determine parking_available from parking selection (Zillow field)
       const parkingAvailable = formData.parking_type !== 'none';
@@ -184,7 +170,6 @@ export default function EditPropertyPage() {
         },
         body: JSON.stringify({
           ...formData,
-          price: formattedPrice,
           parking_available: parkingAvailable,
           walk_score: formData.walk_score ? parseInt(formData.walk_score) : null,
           transit_score: formData.transit_score ? parseInt(formData.transit_score) : null,

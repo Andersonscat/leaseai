@@ -56,3 +56,53 @@ export async function GET(
     );
   }
 }
+
+// DELETE - Remove a tenant and all their messages
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createAuthenticatedClient();
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const tenantId = params.id;
+
+    // Delete associated messages first
+    await supabase
+      .from('messages')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('user_id', user.id);
+
+    // Delete associated appointments
+    await supabase
+      .from('appointments')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('user_id', user.id);
+
+    // Delete the tenant
+    const { error } = await supabase
+      .from('tenants')
+      .delete()
+      .eq('id', tenantId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete tenant' },
+      { status: 500 }
+    );
+  }
+}
+

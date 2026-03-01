@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRecentUnreadMessages, sendAutoReply } from '@/lib/gmail';
+import { getRecentMessages, sendAutoReply } from '@/lib/gmail';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { GoogleGenerativeAI } from '@google/generative-ai';

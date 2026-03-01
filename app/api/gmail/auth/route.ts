@@ -15,7 +15,9 @@ export async function GET() {
       scope: [
         'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/gmail.send', // ← NEW! For sending emails
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/calendar.events',
       ],
       prompt: 'consent', // Force consent screen to get refresh token
     });

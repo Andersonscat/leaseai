@@ -82,25 +82,44 @@ export async function createCalendarEvent(
   const calendar = getCalendarClient();
 
   try {
-    const event = {
+    console.log('📅 Creating calendar event:', {
+      summary,
+      start: startTime,
+      end: endTime,
+      attendee: attendeeEmail || '(none)',
+    });
+
+    const event: any = {
       summary,
       description,
       start: {
         dateTime: startTime,
+        timeZone: 'America/Los_Angeles',
       },
       end: {
         dateTime: endTime,
+        timeZone: 'America/Los_Angeles',
       },
       attendees: attendeeEmail ? [{ email: attendeeEmail }] : [],
+      guestsCanSeeOtherGuests: false,
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'email', minutes: 60 },
+          { method: 'popup', minutes: 15 },
+        ],
+      },
     };
 
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: event,
-      sendUpdates: 'all', // 🔔 Send email invitations to all attendees
+      sendUpdates: 'all',       // v3 API: send email invitations
+      sendNotifications: true,   // legacy param: belt-and-suspenders
     });
 
     console.log('✅ Calendar event created:', response.data.htmlLink);
+    console.log('📧 Attendees in response:', JSON.stringify(response.data.attendees));
     return response.data;
   } catch (error) {
     console.error('❌ Error creating calendar event:', error);

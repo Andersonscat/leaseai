@@ -31,10 +31,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+
+    let query = supabase
       .from('tenants')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
+
+    if (status) {
+      // Match status case-insensitively
+      query = query.ilike('status', status);
+    }
+
+    const { data, error } = await query;
     
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

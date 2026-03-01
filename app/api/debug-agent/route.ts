@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRecentUnreadMessages } from '@/lib/gmail';
+import { getRecentMessages } from '@/lib/gmail';
 // import { generateQualificationResponse } from '@/lib/ai-qualification';
 import { analyzeConversation, generateFinalResponse } from '@/lib/ai-qualification';
 import { getGmailClient } from '@/lib/gmail'; // We need direct access to fetch message body if generic helper hides it

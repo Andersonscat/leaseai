@@ -5,6 +5,18 @@ import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X,
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
+import { Suspense } from "react";
+
+// Helper to format currency
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined) return "N/A";
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
 export default function PropertyPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -255,7 +267,10 @@ export default function PropertyPage() {
           <div className="p-8">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h1 className="text-4xl font-bold text-black mb-2">{property.price}</h1>
+                <h1 className="text-4xl font-bold text-black mb-2">
+                  {formatCurrency(property.price_monthly)}
+                  {property.type === 'rent' && <span className="text-xl font-normal text-gray-500 ml-2">/ per month</span>}
+                </h1>
                 <div className="flex items-center gap-2 text-gray-600">
                   <MapPin className="w-5 h-5" />
                   <span className="text-lg">
@@ -364,7 +379,10 @@ export default function PropertyPage() {
               <div className="bg-gray-50 rounded-xl p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex justify-between py-3 border-b border-gray-200">
                   <span className="text-gray-600 font-medium">Price</span>
-                  <span className="text-black font-bold">{property.price}</span>
+                  <span className="text-black font-bold">
+                    {formatCurrency(property.price_monthly)}
+                    {property.type === 'rent' && <span className="text-sm font-normal text-gray-500 ml-1">/ per month</span>}
+                  </span>
                 </div>
                 <div className="flex justify-between py-3 border-b border-gray-200">
                   <span className="text-gray-600 font-medium">Type</span>

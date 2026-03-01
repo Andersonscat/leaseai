@@ -29,13 +29,16 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
+      console.error('❌ /api/conversations: Unauthorized', authError?.message);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('✅ /api/conversations fetching for user:', user.id);
     
     const { searchParams } = new URL(request.url);
     const source = searchParams.get('source');
     
-    // Get all messages grouped by tenant
+    // Get all messages grouped by tenant (LEFT JOINs so messages without tenant/property still show)
     let query = supabase
       .from('messages')
       .select(`
@@ -48,20 +51,21 @@ export async function GET(request: NextRequest) {
         source,
         is_read,
         created_at,
-        tenant:tenants(
+        tenant:tenants!left(
           id,
           name,
           email,
           phone,
-          avatar
+          avatar,
+          auto_reply_enabled
         ),
-        property:properties(
+        property:properties!left(
           id,
-          address,
-          price
+          address
         )
       `)
       .eq('user_id', user.id)
+      .not('tenant_id', 'is', null)  // Only show messages linked to a tenant
       .order('created_at', { ascending: false });
     
     // Filter by source if provided
@@ -71,6 +75,7 @@ export async function GET(request: NextRequest) {
     
     const { data: messages, error } = await query;
     
+    console.log(`📨 /api/conversations: found ${messages?.length ?? 0} messages, error:`, error?.message);
     if (error) {
       console.error('Error fetching messages:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -92,7 +97,7 @@ export async function GET(request: NextRequest) {
           last_message_time: message.created_at,
           last_sender_type: message.sender_type,
           source: message.source,
-          unread_count: message.is_read ? 0 : 1,
+          unread_count: (!message.is_read && message.sender_type === 'tenant') ? 1 : 0,
           total_messages: 1,
           messages: [message], // Store all messages for this conversation
         });

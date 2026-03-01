@@ -2,53 +2,83 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, DollarSign, FileText, MessageSquare, Download, Send } from "lucide-react";
+import {
+  ArrowLeft, Mail, Phone, MapPin, Calendar, DollarSign,
+  Sparkles, Dog, Bed, Users, Star, Clock, CheckCircle,
+  MessageSquare, Home, TrendingUp, AlertCircle, ExternalLink
+} from "lucide-react";
 import Link from "next/link";
+import Avatar from "@/components/Avatar";
+
+function InfoRow({ label, value, icon: Icon }: { label: string; value?: string | number | null; icon?: any }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+      {Icon && <Icon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />}
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+        <p className="text-sm font-medium text-gray-900 truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function Badge({ children, color = "gray" }: { children: React.ReactNode; color?: string }) {
+  const colors: Record<string, string> = {
+    gray: "bg-gray-100 text-gray-700",
+    green: "bg-green-100 text-green-700",
+    yellow: "bg-yellow-100 text-yellow-700",
+    red: "bg-red-100 text-red-700",
+    blue: "bg-blue-100 text-blue-700",
+    purple: "bg-purple-100 text-purple-700",
+    orange: "bg-orange-100 text-orange-700",
+    indigo: "bg-indigo-100 text-indigo-700",
+  };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${colors[color]}`}>
+      {children}
+    </span>
+  );
+}
 
 export default function TenantDetailPage() {
   const params = useParams();
   const tenantId = params.id as string;
-  const [activeTab, setActiveTab] = useState("overview");
-  const [messageInput, setMessageInput] = useState("");
-  
-  // State for tenant loaded from Supabase
   const [tenant, setTenant] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load tenant from Supabase
   useEffect(() => {
-    const fetchTenant = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/tenants/${tenantId}`);
-        const data = await response.json();
-        setTenant(data.tenant);
+        const [tenantRes, convRes] = await Promise.all([
+          fetch(`/api/tenants/${tenantId}`),
+          fetch(`/api/conversations/${tenantId}`),
+        ]);
+        const tenantData = await tenantRes.json();
+        const convData = await convRes.json();
+        setTenant(tenantData.tenant);
+        setMessages((convData.messages || []).sort(
+          (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ));
       } catch (error) {
         console.error('Error fetching tenant:', error);
-        setTenant(null);
       } finally {
         setLoading(false);
       }
     };
-
-    if (tenantId) {
-      fetchTenant();
-    }
+    if (tenantId) fetchData();
   }, [tenantId]);
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading tenant...</p>
-        </div>
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Tenant not found
   if (!tenant) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -64,323 +94,227 @@ export default function TenantDetailPage() {
     );
   }
 
-  // Mock messages
-  const messages = [
-    { id: 1, sender: "tenant", text: "Hi, I have a question about the water heater.", time: "10:30 AM", date: "Today" },
-    { id: 2, sender: "landlord", text: "Hello John! What seems to be the issue?", time: "10:35 AM", date: "Today" },
-    { id: 3, sender: "tenant", text: "It's making a strange noise. Can you send someone to check?", time: "10:40 AM", date: "Today" },
-    { id: 4, sender: "landlord", text: "Of course! I'll arrange for a technician to visit tomorrow morning.", time: "10:45 AM", date: "Today" },
-    { id: 5, sender: "tenant", text: "Thank you! Also, the rent for next month - same account?", time: "2 days ago", date: "Jan 15" },
-    { id: 6, sender: "landlord", text: "Yes, same account. Payment is due on the 1st.", time: "2 days ago", date: "Jan 15" },
-  ];
+  const isLead = tenant.status === 'Pending' || tenant.qualification_status;
 
-  // Mock documents
-  const documents = [
-    { id: 1, name: "Lease_Agreement_2024.pdf", type: "Contract", date: "Jan 1, 2024", size: "2.4 MB" },
-    { id: 2, name: "ID_JohnSmith.pdf", type: "Identification", date: "Dec 15, 2023", size: "1.1 MB" },
-    { id: 3, name: "Background_Check.pdf", type: "Verification", date: "Dec 10, 2023", size: "850 KB" },
-    { id: 4, name: "Move_In_Checklist.pdf", type: "Inspection", date: "Jan 1, 2024", size: "650 KB" },
-  ];
+  const statusColor = {
+    Current: "green", Pending: "yellow", "Late Payment": "red", Archived: "gray"
+  }[tenant.status as string] || "gray";
 
-  // Mock payments
-  const payments = [
-    { id: 1, date: "Jan 1, 2024", amount: "$3,500", status: "Paid", method: "Bank Transfer", reference: "TXN-2024-001" },
-    { id: 2, date: "Dec 1, 2023", amount: "$3,500", status: "Paid", method: "Bank Transfer", reference: "TXN-2023-012" },
-    { id: 3, date: "Nov 1, 2023", amount: "$3,500", status: "Paid", method: "Bank Transfer", reference: "TXN-2023-011" },
-    { id: 4, date: "Oct 1, 2023", amount: "$3,500", status: "Paid", method: "Bank Transfer", reference: "TXN-2023-010" },
-  ];
-
-  const handleSendMessage = () => {
-    if (messageInput.trim()) {
-      console.log("Sending message:", messageInput);
-      setMessageInput("");
-    }
-  };
+  const priorityColor = {
+    hot: "red", warm: "orange", cold: "blue"
+  }[tenant.lead_priority as string] || "gray";
 
   return (
-    <div className="p-10">
-      {/* Back Button */}
-      <div className="mb-6">
-        <Link href="/dashboard?tab=tenants">
-          <button className="flex items-center gap-2 text-gray-700 hover:text-black font-semibold transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            Back to Tenants
-          </button>
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="max-w-5xl mx-auto p-8">
+        {/* Back */}
+        <Link href="/dashboard?tab=tenants" className="inline-flex items-center gap-2 text-gray-500 hover:text-black font-medium transition-colors mb-6">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Tenants
         </Link>
-      </div>
 
-      {/* Header Card */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 mb-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-6">
-            <img
-              src={tenant.avatar}
-              alt={tenant.name}
-              className="w-24 h-24 rounded-full"
-            />
-            <div>
-              <h1 className="text-3xl font-bold text-black mb-2">{tenant.name}</h1>
-              <div className="flex items-center gap-4 mb-3">
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${
-                  tenant.status === "Active" 
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}>
-                  {tenant.status}
-                </span>
-                <span className="text-gray-600">•</span>
-                <span className="text-gray-600">Lease ends {tenant.leaseEnd}</span>
-              </div>
-              <div className="flex items-center gap-4 text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  <span className="text-sm">{tenant.email}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  <span className="text-sm">{tenant.phone}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center gap-2 font-medium">
-              <Phone className="w-4 h-4" />
-              Call
-            </button>
-            <button className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center gap-2 font-medium">
-              <MessageSquare className="w-4 h-4" />
-              Message
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === "overview"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-600 hover:text-black"
-            }`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab("messages")}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === "messages"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-600 hover:text-black"
-            }`}
-          >
-            Messages
-          </button>
-          <button
-            onClick={() => setActiveTab("documents")}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === "documents"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-600 hover:text-black"
-            }`}
-          >
-            Documents
-          </button>
-          <button
-            onClick={() => setActiveTab("payments")}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === "payments"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-600 hover:text-black"
-            }`}
-          >
-            Payments
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === "overview" && (
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Property Info */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <h3 className="text-xl font-bold text-black mb-4">Property Information</h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-gray-600">Address</p>
-                  <p className="font-medium text-black">{tenant.property}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <DollarSign className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Monthly Rent</p>
-                  <p className="font-medium text-black">{tenant.rentAmount}/mo</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Lease Period</p>
-                  <p className="font-medium text-black">{tenant.leaseStart} - {tenant.leaseEnd}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Move-In Date</p>
-                  <p className="font-medium text-black">{tenant.moveInDate}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Info */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <h3 className="text-xl font-bold text-black mb-4">Contact Information</h3>
-            <div className="space-y-3">
+        {/* Header Card */}
+        <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 mb-6">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <Avatar src={tenant.avatar} name={tenant.name} size="xl" />
               <div>
-                <p className="text-sm text-gray-600 mb-1">Emergency Contact</p>
-                <p className="font-medium text-black">{tenant.emergencyContact}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Payment Status</p>
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${
-                  tenant.paymentStatus === "Paid"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-yellow-100 text-yellow-700"
-                }`}>
-                  {tenant.paymentStatus}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Notes</p>
-                <p className="text-black">{tenant.notes}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "messages" && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 max-h-[700px] flex flex-col">
-          {/* Messages */}
-          <div className="p-6 flex-1 overflow-y-auto space-y-4">
-            {messages.map((message) => (
-              <div key={message.id}>
-                {/* Date divider */}
-                {messages.findIndex(m => m.id === message.id) === 0 || 
-                 messages[messages.findIndex(m => m.id === message.id) - 1].date !== message.date ? (
-                  <div className="flex items-center justify-center my-4">
-                    <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                      {message.date}
-                    </span>
-                  </div>
-                ) : null}
-                
-                <div className={`flex ${message.sender === "landlord" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[70%] rounded-xl px-4 py-3 ${
-                    message.sender === "landlord"
-                      ? "bg-black text-white"
-                      : "bg-gray-100 text-black"
-                  }`}>
-                    <p>{message.text}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.sender === "landlord" ? "text-gray-300" : "text-gray-500"
-                    }`}>
-                      {message.time}
-                    </p>
-                  </div>
+                <h1 className="text-2xl font-bold text-black mb-2">{tenant.name}</h1>
+                <div className="flex items-center gap-2 flex-wrap mb-3">
+                  <Badge color={statusColor}>{tenant.status}</Badge>
+                  {tenant.lead_priority && (
+                    <Badge color={priorityColor}>
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      {tenant.lead_priority} lead
+                    </Badge>
+                  )}
+                  {tenant.lead_score != null && (
+                    <Badge color="indigo">
+                      <Star className="w-3 h-3 mr-1" />
+                      Score {tenant.lead_score}/10
+                    </Badge>
+                  )}
+                  {tenant.qualification_status && (
+                    <Badge color="purple">{tenant.qualification_status}</Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
+                  {tenant.email && (
+                    <a href={`mailto:${tenant.email}`} className="flex items-center gap-1.5 hover:text-black transition-colors">
+                      <Mail className="w-3.5 h-3.5" />{tenant.email}
+                    </a>
+                  )}
+                  {tenant.phone && (
+                    <a href={`tel:${tenant.phone}`} className="flex items-center gap-1.5 hover:text-black transition-colors">
+                      <Phone className="w-3.5 h-3.5" />{tenant.phone}
+                    </a>
+                  )}
+                  <span className="flex items-center gap-1.5 text-gray-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    Added {new Date(tenant.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Message Input */}
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Type your message..."
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-              />
-              <button
-                onClick={handleSendMessage}
-                className="w-10 h-10 bg-black text-white rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {activeTab === "documents" && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-          <div className="space-y-3">
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-black">{doc.name}</p>
-                    <p className="text-sm text-gray-600">{doc.type} • {doc.date} • {doc.size}</p>
-                  </div>
-                </div>
-                <button className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center gap-2 text-sm font-medium">
-                  <Download className="w-4 h-4" />
-                  Download
+            <div className="flex gap-2 shrink-0">
+              {tenant.email && (
+                <a href={`mailto:${tenant.email}`}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2 text-sm font-medium">
+                  <Mail className="w-4 h-4" /> Email
+                </a>
+              )}
+              <Link href={`/dashboard?tab=inbox`}>
+                <button className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800 transition-all flex items-center gap-2 text-sm font-medium">
+                  <MessageSquare className="w-4 h-4" /> Open Chat
                 </button>
-              </div>
-            ))}
+              </Link>
+            </div>
           </div>
         </div>
-      )}
 
-      {activeTab === "payments" && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Method</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Reference</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {payments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-900">{payment.date}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-black">{payment.amount}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{payment.method}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 font-mono">{payment.reference}</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                      {payment.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Main Grid */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+
+          {/* Personal Information */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-base font-bold text-black mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-gray-400" />
+              Personal Information
+            </h2>
+            <div className="space-y-0">
+              <InfoRow label="Full Name" value={tenant.name} icon={Users} />
+              <InfoRow label="Email" value={tenant.email} icon={Mail} />
+              <InfoRow label="Phone" value={tenant.phone || '—'} icon={Phone} />
+              <InfoRow label="Current Address" value={tenant.current_address || tenant.address || '—'} icon={MapPin} />
+              {tenant.notes && (
+                <div className="pt-3">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Notes</p>
+                  <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-3">{tenant.notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Property Requirements (Lead mode) */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-base font-bold text-black mb-4 flex items-center gap-2">
+              <Home className="w-4 h-4 text-gray-400" />
+              Property Requirements
+            </h2>
+            <div className="space-y-0">
+              {tenant.budget_max ? (
+                <InfoRow label="Budget (Max)" value={`$${tenant.budget_max.toLocaleString()}/mo`} icon={DollarSign} />
+              ) : (
+                <InfoRow label="Budget" value="Not specified" icon={DollarSign} />
+              )}
+              <InfoRow label="Move-In Date" value={tenant.move_in_date
+                ? new Date(tenant.move_in_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                : '—'} icon={Calendar} />
+              <InfoRow label="Bedrooms" value={tenant.bedrooms_needed ? `${tenant.bedrooms_needed} bed` : '—'} icon={Bed} />
+              <InfoRow label="Preferred Area" value={tenant.preferred_location || tenant.address_city || '—'} icon={MapPin} />
+              {tenant.pet_details && (
+                <div className="py-3 border-b border-gray-50">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Dog className="w-4 h-4 text-gray-400" />
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Pets</p>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 ml-6">{tenant.pet_details}</p>
+                </div>
+              )}
+              <InfoRow label="Lease Duration" value={tenant.lease_duration || '—'} icon={Calendar} />
+              {tenant.special_requirements && (
+                <div className="pt-3">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Special Requirements</p>
+                  <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-3">{tenant.special_requirements}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* AI Insights — only for leads */}
+        {(tenant.ai_summary || tenant.qualification_status) && (
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 mb-6">
+            <h2 className="text-base font-bold text-indigo-900 mb-4 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              AI Lead Assessment
+            </h2>
+            <div className="grid md:grid-cols-3 gap-4 mb-4">
+              {tenant.lead_score != null && (
+                <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Lead Score</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-black text-indigo-600">{tenant.lead_score}</span>
+                    <span className="text-gray-400 text-sm mb-1">/10</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
+                    <div
+                      className="bg-indigo-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${(tenant.lead_score / 10) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {tenant.lead_quality && (
+                <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Lead Quality</p>
+                  <p className="text-xl font-black text-gray-900 capitalize">{tenant.lead_quality}</p>
+                </div>
+              )}
+              {tenant.qualification_status && (
+                <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Pipeline Stage</p>
+                  <p className="text-sm font-bold text-gray-900">{tenant.qualification_status}</p>
+                </div>
+              )}
+            </div>
+            {tenant.ai_summary && (
+              <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">AI Summary</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{tenant.ai_summary}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Conversation History */}
+        {messages.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-black flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-gray-400" />
+                Conversation History
+                <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full ml-1">{messages.length}</span>
+              </h2>
+              <Link href={`/dashboard?tab=inbox`}
+                className="text-xs font-semibold text-gray-400 hover:text-black transition-colors flex items-center gap-1">
+                Open in Inbox <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+              {messages.filter(m => m.sender_type !== 'ai_reasoning').map((msg: any) => (
+                <div key={msg.id} className={`px-6 py-4 ${msg.sender_type === 'landlord' ? 'bg-gray-50/50' : ''}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${
+                      msg.sender_type === 'landlord' ? 'text-gray-500' : 'text-indigo-600'
+                    }`}>
+                      {msg.sender_type === 'landlord' ? (msg.is_ai_response ? '🤖 AI Reply' : '✉️ You') : `👤 ${tenant.name}`}
+                    </span>
+                    <span className="text-[11px] text-gray-400">
+                      {new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at{' '}
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap line-clamp-4">
+                    {msg.message_text || <span className="text-gray-400 italic">empty</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,9 @@ const config: Config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
       },
+      fontFamily: {
+        sans: ["var(--font-instrument)", "sans-serif"],
+      },
     },
   },
   plugins: [],

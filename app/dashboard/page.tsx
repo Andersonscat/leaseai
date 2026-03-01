@@ -2,16 +2,156 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Plus } from "lucide-react";
+import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
+import Avatar from "@/components/Avatar";
 
 import { Suspense } from "react";
+
+// Helper to format currency
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined) return "N/A";
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+// Showing Details Component
+function ShowingDetailsSheet({ appointment, onClose }: { appointment: any, onClose: () => void }) {
+  const date = new Date(appointment.start_time);
+  
+  return (
+    <div className="fixed inset-0 z-[60] flex justify-end">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/20 backdrop-blur-sm animate-in fade-in duration-300"
+        onClick={onClose}
+      />
+      
+      {/* Sheet */}
+      <div className="relative w-full max-w-md bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                appointment.status === 'confirmed' ? 'bg-green-500 text-black' : 'bg-yellow-500 text-black'
+              }`}>
+                {appointment.status}
+              </span>
+              <span className="text-gray-500 text-sm font-medium">Viewing Request</span>
+            </div>
+            <h3 className="text-2xl font-bold text-black">
+              {date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </h3>
+            <p className="text-gray-500 font-medium">
+              {date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Tenant Info */}
+          <section>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              PROSPECTIVE TENANT
+            </h4>
+            <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
+                    {appointment.tenants?.name?.[0] || '?'}
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-lg text-black">{appointment.tenants?.name || 'Unknown Name'}</h5>
+                    <p className="text-gray-500 text-sm">{appointment.tenants?.email || 'No email'}</p>
+                  </div>
+               </div>
+               
+               {/* Contact Actions */}
+               <div className="grid grid-cols-2 gap-3 mb-4">
+                 <a href={`mailto:${appointment.tenants?.email}`} className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium transition-colors">
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                   Email
+                 </a>
+                 <a href={`tel:${appointment.tenants?.phone}`} className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    Call
+                 </a>
+               </div>
+
+               {/* AI Notes / Context */}
+               {appointment.tenants?.notes && (
+                 <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">AI SUMMARY & CONTEXT</p>
+                    <div className="text-sm text-gray-700 bg-yellow-50 p-3 rounded-lg border border-yellow-100 leading-relaxed">
+                       {appointment.tenants.notes}
+                    </div>
+                 </div>
+               )}
+            </div>
+          </section>
+
+          {/* Property Info */}
+          <section>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+              PROPERTY OF INTEREST
+            </h4>
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.open(`/properties/${appointment.properties?.id}`, '_self')}>
+               {appointment.properties?.images?.[0] ? (
+                 <div className="h-32 w-full bg-gray-200">
+                    <img src={appointment.properties.images[0]} alt="Property" className="w-full h-full object-cover" />
+                 </div>
+               ) : (
+                 <div className="h-24 w-full bg-gray-100 flex items-center justify-center text-gray-400">
+                    <span className="text-xs">No image available</span>
+                 </div>
+               )}
+               <div className="p-4">
+                 <h5 className="font-bold text-black mb-1">{appointment.properties?.address}</h5>
+                 <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="font-semibold text-black">{appointment.properties?.price}</span>
+                    <span>•</span>
+                    <span>{appointment.properties?.beds} Beds</span>
+                    <span>•</span>
+                    <span>{appointment.properties?.baths} Baths</span>
+                 </div>
+               </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col gap-3">
+           <a 
+             href={appointment.google_event_link} 
+             target="_blank" 
+             rel="noopener noreferrer"
+             className="w-full py-3 bg-black text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 transition-all shadow-sm active:scale-[0.98]"
+           >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              Open in Google Calendar
+           </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DashboardContent() {
 
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") || "properties";
+  const activeTab = searchParams.get("tab") || "inbox";
   const successParam = searchParams.get("success");
   const deletedParam = searchParams.get("deleted");
   
@@ -89,6 +229,12 @@ function DashboardContent() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [loadingTenants, setLoadingTenants] = useState(true);
 
+  // Tenant selection state
+  const [tenantSelectionMode, setTenantSelectionMode] = useState(false);
+  const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set());
+  const [showTenantDeleteModal, setShowTenantDeleteModal] = useState(false);
+  const [deletingTenants, setDeletingTenants] = useState(false);
+
   // Load tenants from Supabase when component mounts or tenantFilter changes
   useEffect(() => {
     const fetchTenants = async () => {
@@ -108,6 +254,33 @@ function DashboardContent() {
 
     fetchTenants();
   }, [tenantFilter]);
+
+  const handleDeleteTenants = async () => {
+    setDeletingTenants(true);
+    try {
+      await Promise.all(
+        Array.from(selectedTenants).map(id =>
+          fetch(`/api/tenants/${id}`, { method: 'DELETE' })
+        )
+      );
+      setShowTenantDeleteModal(false);
+      setTenantSelectionMode(false);
+      setSelectedTenants(new Set());
+      setToastMessage(`🗑️ ${selectedTenants.size} tenant${selectedTenants.size > 1 ? 's' : ''} deleted`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      // Refresh tenants list
+      const statusParam = tenantFilter === 'all' ? '' : `?status=${tenantFilter}`;
+      const res = await fetch(`/api/tenants${statusParam}`);
+      const data = await res.json();
+      setTenants(data.tenants || []);
+    } catch (error) {
+      console.error('Error deleting tenants:', error);
+      alert('Failed to delete some tenants.');
+    } finally {
+      setDeletingTenants(false);
+    }
+  };
 
 
   // State for contracts loaded from Supabase
@@ -230,13 +403,13 @@ function DashboardContent() {
       const searchLower = propertySearch.toLowerCase();
       filtered = filtered.filter(property => 
         property.address.toLowerCase().includes(searchLower) ||
-        property.price.toLowerCase().includes(searchLower) ||
+        (property.price_monthly && property.price_monthly.toString().includes(searchLower)) ||
         property.beds.toString().includes(searchLower) ||
         property.baths.toString().includes(searchLower) ||
-        property.sqft.toLowerCase().includes(searchLower) ||
-        property.pets.toLowerCase().includes(searchLower) ||
+        (property.sqft && property.sqft.toString().includes(searchLower)) ||
+        (property.pet_policy && JSON.stringify(property.pet_policy).toLowerCase().includes(searchLower)) ||
         property.status.toLowerCase().includes(searchLower) ||
-        property.description.toLowerCase().includes(searchLower) ||
+        property.description?.toLowerCase().includes(searchLower) ||
         property.amenities?.some((a: string) => a.toLowerCase().includes(searchLower)) ||
         property.features?.some((f: string) => f.toLowerCase().includes(searchLower))
       );
@@ -247,8 +420,8 @@ function DashboardContent() {
     switch (selectedSort) {
       case "price":
         sorted.sort((a, b) => {
-          const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
-          const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
+          const priceA = a.price_monthly || 0;
+          const priceB = b.price_monthly || 0;
           return sortDirection === "asc" ? priceA - priceB : priceB - priceA;
         });
         break;
@@ -398,7 +571,7 @@ function DashboardContent() {
             <div className="flex items-center justify-between gap-4 mb-4">
               {/* Left: Title + Toggle */}
               <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-black">Properties</h2>
+                <h2 className="text-3xl font-bold text-black">Properties</h2>
                 <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                   <button
                     onClick={() => setPropertyType("rent")}
@@ -423,24 +596,51 @@ function DashboardContent() {
                 </div>
               </div>
               
-              {/* Right: Search + Actions */}
-              <div className="flex items-center gap-2">
-                {/* Compact Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={propertySearch}
-                    onChange={(e) => setPropertySearch(e.target.value)}
-                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  />
+              {/* Add Button */}
+              <Link href="/dashboard/property/new">
+                <button
+                  className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </Link>
+            </div>
+
+            {/* Sub-toolbar Row (Search + Filters - Transparent) */}
+            <div className="flex items-center justify-between gap-3 mb-6">
+              {/* Search Bar (Matching Inbox Style) */}
+              <div 
+                className="flex-1 glass-matte rounded-full p-2 flex items-center border border-white/40 focus-within:border-white focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-sm hover:shadow-xl group cursor-text"
+                onClick={() => document.getElementById('property-search')?.focus()}
+              >
+                <div className="pl-4 pr-3 text-gray-400 group-focus-within:text-black transition-colors">
+                  <Search className="w-5 h-5" />
                 </div>
-                
+                <input
+                  id="property-search"
+                  type="text"
+                  placeholder="Suburb, address, or tenant..."
+                  value={propertySearch}
+                  onChange={(e) => setPropertySearch(e.target.value)}
+                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-base font-semibold placeholder:text-gray-400 text-black h-full py-1.5"
+                />
+                <div className="pr-1 hidden sm:block">
+                  <div className="h-7 px-2.5 bg-white/50 rounded-xl border border-white/20 flex items-center justify-center text-gray-400 group-focus-within:bg-white group-focus-within:shadow-sm group-focus-within:text-black group-focus-within:border-white transition-all">
+                    <span className="text-[10px] font-bold flex items-center gap-1">
+                      <span className="opacity-50">⌘</span>
+                      K
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Group (Filter/Sort/Select only) */}
+              <div className="flex items-center gap-2 px-1">
                 {/* Sort Direction */}
                 <button
                   onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                  className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                  className="p-2.5 glass-matte text-gray-700 border border-white/40 rounded-2xl hover:bg-white transition-all font-medium shadow-sm"
                   title={sortDirection === "asc" ? "Ascending" : "Descending"}
                 >
                   {sortDirection === "asc" ? (
@@ -454,7 +654,7 @@ function DashboardContent() {
                 <div className="relative">
                   <button 
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all text-sm font-medium"
+                    className="flex items-center gap-1.5 px-3 py-2.5 glass-matte text-gray-700 border border-white/40 rounded-2xl hover:bg-white transition-all text-sm font-semibold shadow-sm"
                   >
                     <Filter className="w-4 h-4" />
                     {getFilterDisplayName()}
@@ -485,26 +685,21 @@ function DashboardContent() {
                   )}
                 </div>
 
-                {/* Select Button */}
-                <button 
-                  onClick={toggleSelectionMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                {/* Selection Toggle */}
+                <button
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) setSelectedProperties(new Set());
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg transition-all text-sm font-medium border ${
                     selectionMode 
-                      ? "bg-blue-600 text-white hover:bg-blue-700" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-black text-white border-black" 
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
-                  {selectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  <CheckSquare className="w-4 h-4" />
                   {selectionMode ? "Cancel" : "Select"}
                 </button>
-
-                {/* Add Property Button */}
-                <Link href="/properties/add">
-                  <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
-                    <Plus className="w-4 h-4" />
-                    Add
-                  </button>
-                </Link>
               </div>
             </div>
             
@@ -578,7 +773,7 @@ function DashboardContent() {
               {sortedProperties.map((property) => (
               <div 
                 key={property.id} 
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-2xl hover:-translate-y-1 hover:border-gray-300 transition-all duration-300 block group w-full relative"
+                className="glass-panel overflow-hidden shadow-sm border border-white/40 hover:shadow-2xl hover:-translate-y-2 hover:border-white transition-all duration-500 block group w-full relative"
               >
                 {/* Selection Checkbox */}
                 {selectionMode && (
@@ -640,7 +835,13 @@ function DashboardContent() {
                     }}
                   />
                   {/* Info Badge (Optional) */}
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 flex items-center gap-2">
+                    {property.ai_assisted !== false && (
+                      <span className="px-2 py-1 rounded-full text-xs font-bold bg-indigo-500/80 text-white backdrop-blur-sm flex items-center gap-1">
+                        <Bot className="w-3 h-3" />
+                        AI
+                      </span>
+                    )}
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/50 text-white backdrop-blur-sm">
                       {property.type === 'rent' ? 'For Rent' : 'For Sale'}
                     </span>
@@ -648,39 +849,33 @@ function DashboardContent() {
                 </div>
 
                 {/* Property Info */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-3 gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-2xl font-bold text-black mb-1 group-hover:text-gray-700 transition-colors">{property.price}</h3>
-                      <div className="flex items-start gap-1 text-gray-600 text-sm">
-                        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <span>
-                          {property.address}
-                          {property.city && `, ${property.city}`}
-                          {property.state && ` ${property.state}`}
-                        </span>
-                      </div>
-            </div>
+                <div className="p-4 flex flex-col gap-1">
+                  {/* Price */}
+                  <div className="flex items-start justify-between">
+                    <h3 className="text-[28px] font-bold text-gray-900 tracking-tight">
+                      {formatCurrency(property.price_monthly)}
+                      {property.type === 'rent' && <span className="text-[15px] font-normal text-gray-600 ml-1 tracking-normal">/ per month</span>}
+                    </h3>
 
                     {/* Interested Tenants Badges */}
                     {property.chatCount > 0 && (
-                      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.preventDefault()}>
+                      <div className="flex items-center gap-1 flex-shrink-0 mt-1" onClick={(e) => e.preventDefault()}>
                         <Link 
                           href={`/dashboard/property/${property.id}?openChats=true`}
                           className="flex -space-x-2 hover:opacity-80 transition-opacity"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {property.interestedTenants?.slice(0, 3).map((tenant: any, idx: number) => (
-                            <img
+                            <Avatar
                               key={idx}
                               src={tenant.avatar}
-                              alt={tenant.name}
-                              className="w-8 h-8 rounded-full border-2 border-white"
-                              title={tenant.name}
+                              name={tenant.name}
+                              size="sm"
+                              className="border-2 border-white"
                             />
                           ))}
                           {property.chatCount > 3 && (
-                            <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center tracking-tight">
                               <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
                             </div>
                           )}
@@ -689,24 +884,34 @@ function DashboardContent() {
                     )}
                   </div>
 
-                  {/* Property Details */}
-                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200">
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Bed className="w-4 h-4" />
-                      <span className="text-sm font-medium">{property.beds} BD</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Bath className="w-4 h-4" />
-                      <span className="text-sm font-medium">{property.baths} BA</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Ruler className="w-4 h-4" />
-                      <span className="text-sm font-medium">{property.sqft} sq.ft</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Dog className="w-4 h-4" />
-                      <span className="text-sm font-medium">{property.pets}</span>
-                    </div>
+                  {/* Subtitle */}
+                  <div className="text-gray-600 text-[15px] mb-1">
+                    Fees may apply
+                  </div>
+
+                  {/* Details Row */}
+                  <div className="flex items-center gap-2 text-gray-900 text-[17px] mb-1">
+                    <span className="font-bold">{property.beds}</span> <span className="font-normal">bd</span>
+                    <span className="text-gray-400">|</span>
+                    <span className="font-bold">{property.baths}</span> <span className="font-normal">ba</span>
+                    {property.sqft && (
+                      <>
+                        <span className="text-gray-400">|</span>
+                        <span className="font-bold">{property.sqft}</span> <span className="font-normal">sqft</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  <div className="text-gray-800 text-[17px] truncate font-normal">
+                    {property.address}
+                    {property.city && `, ${property.city}`}
+                    {property.state && ` ${property.state}`}
+                  </div>
+
+                  {/* Status */}
+                  <div className="text-gray-600 text-[15px]">
+                    {property.type === 'rent' ? 'For rent' : 'For sale'}
                   </div>
                 </div>
                 </Link>
@@ -718,7 +923,7 @@ function DashboardContent() {
           {/* Add Property Button */}
           <div className="mt-8 text-center">
             <Link href="/dashboard/property/new">
-              <button className="px-8 py-4 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all cursor-pointer">
+              <button className="px-8 py-4 glass-matte text-black border border-white/40 rounded-2xl font-bold hover:bg-white hover:scale-105 transition-all cursor-pointer shadow-lg shadow-black/5">
                 + Add New Property
               </button>
             </Link>
@@ -790,10 +995,11 @@ function DashboardContent() {
         <>
           {/* Linear/Stripe-style Toolbar */}
           <div className="mb-6">
+            {/* Main Header Row */}
             <div className="flex items-center justify-between gap-4 mb-4">
               {/* Left: Title + Filter Tabs */}
               <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-black">Contracts</h2>
+                <h2 className="text-3xl font-bold text-black">Contracts</h2>
                 <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                   {[
                     { key: "all", label: "All" },
@@ -816,30 +1022,46 @@ function DashboardContent() {
                 </div>
               </div>
               
-              {/* Right: Search + Add Button */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={contractSearch}
-                    onChange={(e) => setContractSearch(e.target.value)}
-                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  />
+              {/* New Contract Button */}
+              <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
+                <Plus className="w-4 h-4" />
+                New Contract
+              </button>
+            </div>
+
+            {/* Sub-toolbar Row (Search + Filters - Transparent) */}
+            <div className="flex items-center justify-between gap-3 mb-6">
+              {/* Search Bar (Matching Inbox Style) */}
+              <div 
+                className="flex-1 glass-matte rounded-full p-2 flex items-center border border-white/40 focus-within:border-white focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-sm hover:shadow-xl group cursor-text"
+                onClick={() => document.getElementById('contract-search')?.focus()}
+              >
+                <div className="pl-4 pr-3 text-gray-400 group-focus-within:text-black transition-colors">
+                  <Search className="w-5 h-5" />
                 </div>
-                
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
-                  <Plus className="w-4 h-4" />
-                  New Contract
-                </button>
+                <input
+                  id="contract-search"
+                  type="text"
+                  placeholder="Search contracts..."
+                  value={contractSearch}
+                  onChange={(e) => setContractSearch(e.target.value)}
+                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-base font-semibold placeholder:text-gray-400 text-black h-full py-1.5"
+                />
+                <div className="pr-1 hidden sm:block">
+                  <div className="h-7 px-2.5 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center text-gray-400 group-focus-within:bg-white group-focus-within:shadow-sm group-focus-within:text-blue-500 group-focus-within:border-blue-100 transition-all">
+                    <span className="text-[10px] font-bold flex items-center gap-1">
+                      <span className="opacity-50">⌘</span>
+                      K
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
             
             <p className="text-sm text-gray-500">0 contracts</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-200 text-center">
+          <div className="glass-panel p-10 shadow-sm border border-white/40 text-center">
             <FileText className="w-20 h-20 mx-auto mb-4 text-gray-300" />
             <h3 className="text-2xl font-bold text-black mb-2">Contracts Coming Soon</h3>
             <p className="text-gray-600">
@@ -854,11 +1076,11 @@ function DashboardContent() {
         <>
           {/* Linear/Stripe-style Toolbar */}
           <div className="mb-6">
-            {/* Main Toolbar Row */}
+            {/* Main Header Row */}
             <div className="flex items-center justify-between gap-4 mb-4">
               {/* Left: Title + Filter Tabs */}
               <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-black">Tenants</h2>
+                <h2 className="text-3xl font-bold text-black">Tenants</h2>
                 <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                   {[
                     { key: "all", label: "All" },
@@ -882,25 +1104,55 @@ function DashboardContent() {
                 </div>
               </div>
               
-              {/* Right: Search + Add Button */}
+              {/* Add + Select Buttons */}
               <div className="flex items-center gap-2">
-                {/* Compact Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={tenantSearch}
-                    onChange={(e) => setTenantSearch(e.target.value)}
-                    className="pl-9 pr-3 py-2 w-48 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                  />
-                </div>
-                
-                {/* Add Tenant Button */}
+                <button
+                  onClick={() => {
+                    setTenantSelectionMode(!tenantSelectionMode);
+                    setSelectedTenants(new Set());
+                  }}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg transition-all text-sm font-medium border ${
+                    tenantSelectionMode
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  {tenantSelectionMode ? 'Cancel' : 'Select'}
+                </button>
                 <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
                   <Plus className="w-4 h-4" />
                   Add
                 </button>
+              </div>
+            </div>
+
+            {/* Sub-toolbar Row (Search + Filters - Transparent) */}
+            <div className="flex items-center justify-between gap-3 mb-6">
+              {/* Search Bar (Matching Inbox Style) */}
+              <div 
+                className="flex-1 glass-matte rounded-full p-2 flex items-center border border-white/40 focus-within:border-white focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-sm hover:shadow-xl group cursor-text"
+                onClick={() => document.getElementById('tenant-search')?.focus()}
+              >
+                <div className="pl-4 pr-3 text-gray-400 group-focus-within:text-black transition-colors">
+                  <Search className="w-5 h-5" />
+                </div>
+                <input
+                  id="tenant-search"
+                  type="text"
+                  placeholder="Name, email, or property..."
+                  value={tenantSearch}
+                  onChange={(e) => setTenantSearch(e.target.value)}
+                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-base font-medium placeholder:text-gray-400 text-black h-full py-1.5"
+                />
+                <div className="pr-1 hidden sm:block">
+                  <div className="h-7 px-2.5 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center text-gray-400 group-focus-within:bg-white group-focus-within:shadow-sm group-focus-within:text-blue-500 group-focus-within:border-blue-100 transition-all">
+                    <span className="text-[10px] font-bold flex items-center gap-1">
+                      <span className="opacity-50">⌘</span>
+                      K
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -950,35 +1202,68 @@ function DashboardContent() {
                 .map((tenant) => (
                   <div
                     key={tenant.id}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+                    onClick={() => {
+                      if (tenantSelectionMode) {
+                        const next = new Set(selectedTenants);
+                        next.has(tenant.id) ? next.delete(tenant.id) : next.add(tenant.id);
+                        setSelectedTenants(next);
+                      }
+                    }}
+                    className={`glass-panel p-6 shadow-sm border border-white/40 hover:shadow-2xl hover:-translate-y-2 hover:border-white transition-all duration-500 relative ${
+                      tenantSelectionMode ? 'cursor-pointer' : ''
+                    } ${
+                      selectedTenants.has(tenant.id) ? 'ring-2 ring-black ring-offset-2' : ''
+                    }`}
                   >
+                    {/* Selection checkbox */}
+                    {tenantSelectionMode && (
+                      <div className="absolute top-3 left-3 z-10">
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shadow-sm transition-all ${
+                          selectedTenants.has(tenant.id) ? 'bg-black text-white' : 'bg-white border-2 border-gray-300'
+                        }`}>
+                          {selectedTenants.has(tenant.id) && <CheckSquare className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    )}
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <img
+                        <Avatar
                           src={tenant.avatar}
-                          alt={tenant.name}
-                          className="w-14 h-14 rounded-full"
+                          name={tenant.name}
+                          size="lg"
                         />
                         <div>
                           <h3 className="font-bold text-black text-lg">{tenant.name}</h3>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            tenant.status === "Current" 
-                              ? "bg-green-100 text-green-700"
-                              : tenant.status === "Pending"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : tenant.status === "Late Payment"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {tenant.status}
-                          </span>
                         </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        {tenant.lead_priority && (
+                          <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${
+                            tenant.lead_priority === 'hot' ? 'bg-red-50 text-red-600 border border-red-100' :
+                            tenant.lead_priority === 'warm' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                            'bg-blue-50 text-blue-600 border border-blue-100'
+                          }`}>
+                            <TrendingUp className="w-2.5 h-2.5" />
+                            {tenant.lead_priority}
+                          </div>
+                        )}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          tenant.status === "Current" 
+                            ? "bg-green-100 text-green-700"
+                            : tenant.status === "Pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : tenant.status === "Late Payment"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}>
+                          {tenant.status}
+                        </span>
                       </div>
                     </div>
 
                     {/* Contact Info */}
-                    <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
+                    <div className="space-y-2 mb-4 pb-4 border-b border-white/20">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Mail className="w-4 h-4" />
                         <span className="truncate">{tenant.email}</span>
@@ -993,31 +1278,61 @@ function DashboardContent() {
                       </div>
                     </div>
 
-                    {/* Lease Info */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Rent:</span>
-                        <span className="font-semibold text-black">{tenant.rentAmount}</span>
+                    {/* AI Insight (Lead Mode) or Lease Info */}
+                    {tenant.status === "Pending" ? (
+                      <div className="space-y-3 mb-4">
+                        <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Sparkles className="w-3 h-3 text-indigo-500" />
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">AI Summary</span>
+                          </div>
+                          <p className="text-[11px] text-indigo-900/70 font-medium line-clamp-3 leading-relaxed">
+                            {tenant.ai_summary || "Gathering insights from conversation..."}
+                          </p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                           {tenant.budget_max && (
+                             <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                               <DollarSign className="w-3 h-3 text-gray-500" />
+                               <span className="text-[10px] font-bold text-gray-700">${tenant.budget_max}</span>
+                             </div>
+                           )}
+                           {tenant.move_in_date && (
+                             <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                               <CalendarIcon className="w-3 h-3 text-gray-500" />
+                               <span className="text-[10px] font-bold text-gray-700">{tenant.move_in_date}</span>
+                             </div>
+                           )}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Lease:</span>
-                        <span className="text-gray-900">{tenant.leaseStart} - {tenant.leaseEnd}</span>
+                    ) : (
+                      /* Standard Lease Info */
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Rent:</span>
+                          <span className="font-semibold text-black">{tenant.rentAmount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Lease:</span>
+                          <span className="text-gray-900">{tenant.leaseStart} - {tenant.leaseEnd}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Payment:</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            tenant.paymentStatus === "Paid"
+                              ? "bg-green-100 text-green-700"
+                              : tenant.paymentStatus === "Pending"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}>
+                            {tenant.paymentStatus === "Paid" && <CheckCircle className="w-3 h-3" />}
+                            {tenant.paymentStatus === "Pending" && <Clock className="w-3 h-3" />}
+                            {tenant.paymentStatus}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Payment:</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          tenant.paymentStatus === "Paid"
-                            ? "bg-green-100 text-green-700"
-                            : tenant.paymentStatus === "Pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}>
-                          {tenant.paymentStatus === "Paid" && <CheckCircle className="w-3 h-3" />}
-                          {tenant.paymentStatus === "Pending" && <Clock className="w-3 h-3" />}
-                          {tenant.paymentStatus}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-2">
@@ -1035,6 +1350,40 @@ function DashboardContent() {
                   </div>
                 ))}
             </div>
+
+            {/* Tenant Bulk Delete Floating Bar */}
+            {tenantSelectionMode && selectedTenants.size > 0 && (
+              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
+                <div className="bg-black text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="w-5 h-5 text-blue-400" />
+                    <span className="font-semibold text-lg">{selectedTenants.size} selected</span>
+                  </div>
+                  <div className="h-6 w-px bg-gray-600" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (selectedTenants.size === tenants.length) {
+                          setSelectedTenants(new Set());
+                        } else {
+                          setSelectedTenants(new Set(tenants.map(t => t.id)));
+                        }
+                      }}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-all"
+                    >
+                      {selectedTenants.size === tenants.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <button
+                      onClick={() => setShowTenantDeleteModal(true)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Empty state */}
             {tenants.filter((tenant) => {
@@ -1065,8 +1414,38 @@ function DashboardContent() {
             )}
           </>
         )}
-        </>
-      )}
+
+        {/* Tenant Delete Confirmation Modal */}
+        {showTenantDeleteModal && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border border-gray-100">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2 tracking-tight">Delete Tenants?</h3>
+              <p className="text-gray-400 text-center mb-8 text-xs font-medium leading-relaxed">
+                Are you sure? This will permanently delete {selectedTenants.size} tenant{selectedTenants.size > 1 ? 's' : ''} and all their messages. This action cannot be undone.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowTenantDeleteModal(false)}
+                  className="flex-1 py-4 px-6 rounded-xl font-bold uppercase tracking-wider text-[10px] text-gray-500 bg-gray-50 hover:bg-gray-100 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteTenants}
+                  disabled={deletingTenants}
+                  className="flex-1 py-4 px-6 bg-red-600 text-white rounded-xl font-bold uppercase tracking-wider text-[10px] hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {deletingTenants ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )}
 
       {/* Calendar Tab */}
       {activeTab === "calendar" && (
@@ -1080,11 +1459,11 @@ function DashboardContent() {
                     <div className="flex items-center justify-between gap-4 mb-4">
                       {/* Left: Title + Month Navigation */}
                       <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-bold text-black">Calendar</h2>
+                        <h2 className="text-3xl font-bold text-black">Calendar</h2>
                         <div className="flex items-center gap-2">
                           <button 
                             onClick={prevMonth}
-                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                            className="p-2 glass-pill text-gray-700 hover:bg-white transition-all shadow-sm"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1095,7 +1474,7 @@ function DashboardContent() {
                           </span>
                           <button 
                             onClick={nextMonth}
-                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                            className="p-2 glass-pill text-gray-700 hover:bg-white transition-all shadow-sm"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1106,22 +1485,6 @@ function DashboardContent() {
                       
                       {/* Right: Today/Next + Add Button */}
                       <div className="flex items-center gap-2">
-                        <button 
-                          onClick={goToSmartDate}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            nextAppointment 
-                              ? 'bg-black text-white hover:bg-gray-800' 
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {nextAppointment ? (
-                            <>
-                              Next: {new Date(nextAppointment.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </>
-                          ) : (
-                            'Today'
-                          )}
-                        </button>
                         
                         <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
                           <Plus className="w-4 h-4" />
@@ -1136,7 +1499,7 @@ function DashboardContent() {
                   </div>
 
                   {/* Calendar View */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="glass-panel shadow-sm border border-white/40 overflow-hidden">
                     {/* Calendar Grid */}
                     <div className="p-6">
                       {/* Weekday Headers */}
@@ -1331,7 +1694,7 @@ function DashboardContent() {
                         >
                           <ArrowLeft className="w-4 h-4" />
                         </button>
-                        <h2 className="text-xl font-bold text-black">
+                        <h2 className="text-3xl font-bold text-black">
                            {selectedCalendarDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </h2>
                         {selectedCalendarDate.toDateString() === new Date().toDateString() && (
@@ -1698,134 +2061,5 @@ export default function DashboardPage() {
     </div>}>
       <DashboardContent />
     </Suspense>
-  );
-}
-
-// Showing Details Component
-function ShowingDetailsSheet({ appointment, onClose }: { appointment: any, onClose: () => void }) {
-  const date = new Date(appointment.start_time);
-  
-  return (
-    <div className="fixed inset-0 z-[60] flex justify-end">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/20 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
-      />
-      
-      {/* Sheet */}
-      <div className="relative w-full max-w-md bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                appointment.status === 'confirmed' ? 'bg-green-500 text-black' : 'bg-yellow-500 text-black'
-              }`}>
-                {appointment.status}
-              </span>
-              <span className="text-gray-500 text-sm font-medium">Viewing Request</span>
-            </div>
-            <h3 className="text-2xl font-bold text-black">
-              {date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-            </h3>
-            <p className="text-gray-500 font-medium">
-              {date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-50 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Tenant Info */}
-          <section>
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              PROSPECTIVE TENANT
-            </h4>
-            <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-               <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
-                    {appointment.tenants?.name?.[0] || '?'}
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-lg text-black">{appointment.tenants?.name || 'Unknown Name'}</h5>
-                    <p className="text-gray-500 text-sm">{appointment.tenants?.email || 'No email'}</p>
-                  </div>
-               </div>
-               
-               {/* Contact Actions */}
-               <div className="grid grid-cols-2 gap-3 mb-4">
-                 <a href={`mailto:${appointment.tenants?.email}`} className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium transition-colors">
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                   Email
-                 </a>
-                 <a href={`tel:${appointment.tenants?.phone}`} className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm font-medium transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                    Call
-                 </a>
-               </div>
-
-               {/* AI Notes / Context */}
-               {appointment.tenants?.notes && (
-                 <div className="mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">AI SUMMARY & CONTEXT</p>
-                    <div className="text-sm text-gray-700 bg-yellow-50 p-3 rounded-lg border border-yellow-100 leading-relaxed">
-                       {appointment.tenants.notes}
-                    </div>
-                 </div>
-               )}
-            </div>
-          </section>
-
-          {/* Property Info */}
-          <section>
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-              PROPERTY OF INTEREST
-            </h4>
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.open(`/properties/${appointment.properties?.id}`, '_self')}>
-               {appointment.properties?.images?.[0] ? (
-                 <div className="h-32 w-full bg-gray-200">
-                    <img src={appointment.properties.images[0]} alt="Property" className="w-full h-full object-cover" />
-                 </div>
-               ) : (
-                 <div className="h-24 w-full bg-gray-100 flex items-center justify-center text-gray-400">
-                    <span className="text-xs">No image available</span>
-                 </div>
-               )}
-               <div className="p-4">
-                 <h5 className="font-bold text-black mb-1">{appointment.properties?.address}</h5>
-                 <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span className="font-semibold text-black">{appointment.properties?.price}</span>
-                    <span>•</span>
-                    <span>{appointment.properties?.beds} Beds</span>
-                    <span>•</span>
-                    <span>{appointment.properties?.baths} Baths</span>
-                 </div>
-               </div>
-            </div>
-          </section>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col gap-3">
-           <a 
-             href={appointment.google_event_link} 
-             target="_blank" 
-             rel="noopener noreferrer"
-             className="w-full py-3 bg-black text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 transition-all shadow-sm active:scale-[0.98]"
-           >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              Open in Google Calendar
-           </a>
-        </div>
-      </div>
-    </div>
   );
 }

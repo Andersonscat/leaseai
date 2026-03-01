@@ -5,17 +5,25 @@ import { geminiModel } from '@/lib/gemini-client';
 
 const model = geminiModel;
 
-interface AIParserResult {
+export interface AIParserResult {
   tenant_name: string;
   tenant_email: string;
   tenant_phone?: string;
-  message: string;
-  source: string; // zillow, airbnb, facebook, email, etc
+  message: string;          // AI summary for internal use (lead scoring, analysis)
+  original_message?: string; // Original verbatim email body shown in inbox
+  source: string; 
   property_address?: string;
   intent?: 'viewing' | 'inquiry' | 'booking' | 'question';
   urgency?: 'high' | 'medium' | 'low';
   budget?: string;
   move_in_date?: string;
+  isLead: boolean;        
+  confidence: number;      
+  reason: string;          
+  messageId?: string;     // Gmail specific
+  rfcMessageId?: string;  // Gmail specific
+  threadId?: string;      // Gmail specific
+  subject?: string;       // Gmail specific
 }
 
 /**
@@ -44,13 +52,14 @@ Extract the following information:
 1. tenant_name: Full name of the person inquiring
 2. tenant_email: Their email address
 3. tenant_phone: Phone number if mentioned (format: +1-XXX-XXX-XXXX)
-4. message: Clean summary of their inquiry (2-3 sentences max)
-5. source: Which platform (zillow, airbnb, facebook, craigslist, email, other)
-6. property_address: Address of the property they're interested in
-7. intent: What they want (viewing, inquiry, booking, question)
-8. urgency: high (needs ASAP), medium (within week), low (just browsing)
-9. budget: Their budget if mentioned (e.g. "$2000/month", "$500k")
-10. move_in_date: When they want to move in if mentioned
+4. original_message: The client's NEW message only. Strip any quoted reply text (lines starting with >, "On ... wrote:", forwarded content, signatures). Copy the actual new content VERBATIM.
+5. message: A short internal summary for CRM (1-2 sentences)
+6. source: Which platform (zillow, airbnb, facebook, craigslist, email, other)
+7. property_address: Address of the property they're interested in
+8. intent: What they want (viewing, inquiry, booking, question)
+9. urgency: high (needs ASAP), medium (within week), low (just browsing)
+10. budget: Their budget if mentioned (e.g. "$2000/month", "$500k")
+11. move_in_date: When they want to move in if mentioned
 
 Return ONLY valid JSON. If information is not found, use null.
 
@@ -59,7 +68,8 @@ Example output:
   "tenant_name": "John Smith",
   "tenant_email": "john@example.com",
   "tenant_phone": "+1-555-123-4567",
-  "message": "Interested in viewing the 2BR apartment. Available this weekend.",
+  "original_message": "Hi, I saw your listing on Zillow for the 2BR apartment on Main St. I'm very interested and would love to schedule a viewing this weekend if possible. My budget is around $2500/month and I'm looking to move in by May 1st. Thanks!",
+  "message": "Interested in 2BR on Main St, wants viewing this weekend, budget $2500.",
   "source": "zillow",
   "property_address": "123 Main St, San Francisco, CA",
   "intent": "viewing",
@@ -120,48 +130,82 @@ Example output:
 }
 
 /**
- * AI-only parser: Always use AI for best accuracy
+ * UNIFIED Processor: Filters AND Parses in one single AI call to save API quota.
  */
-export async function hybridEmailParser(
+export async function unifiedEmailProcessor(
   from: string,
   subject: string,
   body: string
 ): Promise<AIParserResult | null> {
-  // Try AI first
-  const aiResult = await parseEmailWithAI(from, subject, body);
-  
-  if (aiResult) {
-    return aiResult;
+  try {
+    const prompt = `Analyze this real estate email and both CLASSIFY (is it a lead?) and EXTRACT data.
+
+FROM: ${from}
+SUBJECT: ${subject}
+BODY: ${body.substring(0, 1500)}${body.length > 1500 ? '...' : ''}
+
+STEP 1: Classify
+- isLead: true if this is a genuine inquiry about property.
+- category: inquiry, spam, newsletter, thanks, notification.
+- reason: brief explanation.
+
+STEP 2: Extract (only if isLead is true)
+- tenant_name, tenant_email, tenant_phone, property_address, intent (viewing/inquiry/booking/question), urgency (high/medium/low), budget, move_in_date.
+- original_message: The client's NEW message only. Strip any quoted reply text (lines starting with >, "On ... wrote:", forwarded content, signatures). Copy the actual new content VERBATIM.
+- message: Short internal CRM summary (1-2 sentences).
+
+Return ONLY valid JSON:
+{
+  "isLead": boolean,
+  "confidence": 0-100,
+  "category": "string",
+  "reason": "string",
+  "tenant_name": "string or null",
+  "tenant_email": "string or null",
+  "tenant_phone": "string or null",
+  "original_message": "string or null",
+  "message": "string or null",
+  "source": "zillow/airbnb/facebook/email",
+  "property_address": "string or null",
+  "intent": "string or null",
+  "urgency": "string or null",
+  "budget": "string or null",
+  "move_in_date": "string or null"
+}`;
+
+    const { generateContentWithRetry } = await import('./gemini-client');
+    const result = await generateContentWithRetry(model, {
+      contents: [{ role: "user", parts: [{ text: prompt }] }]
+    });
+
+    const responseText = result.response.text();
+    let cleanText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) cleanText = jsonMatch[0];
+
+    const parsed: AIParserResult = JSON.parse(cleanText);
+
+    if (parsed.isLead) {
+       // Ensure email
+       if (!parsed.tenant_email) {
+          const emailMatch = from.match(/[\w.-]+@[\w.-]+\.\w+/);
+          if (emailMatch) parsed.tenant_email = emailMatch[0];
+       }
+       console.log(`🤖 Unified AI: ✅ LEAD - ${parsed.reason}`);
+    } else {
+       console.log(`🤖 Unified AI: ⏭️ SKIP - ${parsed.reason}`);
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error('❌ Error in Unified AI processor:', error);
+    return null;
   }
-
-  // Fallback to regex if AI fails (no API key or error)
-  console.warn('AI parsing failed, using regex fallback');
-  
-  // Detect source from email
-  const fromLower = from.toLowerCase();
-  let source = 'email';
-  if (fromLower.includes('zillow.com')) source = 'zillow';
-  else if (fromLower.includes('airbnb.com')) source = 'airbnb';
-  else if (fromLower.includes('facebook')) source = 'facebook';
-  else if (fromLower.includes('craigslist.org')) source = 'craigslist';
-  
-  return regexParse(from, subject, body, source);
-}
-
-/**
- * Check if email has simple format (can be parsed with regex)
- */
-function isSimpleFormat(body: string): boolean {
-  // Simple emails typically have clear patterns
-  const hasPhone = /\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(body);
-  const hasAddress = /\d+\s+[\w\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)/i.test(body);
-  const isShort = body.length < 500;
-  
-  return hasPhone && hasAddress && isShort;
 }
 
 /**
  * Fallback regex-based parser (free but less accurate)
+... (rest of regexParse)
  */
 function regexParse(
   from: string,
@@ -222,5 +266,8 @@ function regexParse(
     intent,
     urgency,
     budget,
+    isLead: true, // Assume it's a lead if we're parsing it
+    confidence: 50,
+    reason: 'Parsed using regex (AI fallback)',
   };
 }
