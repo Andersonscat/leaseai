@@ -230,6 +230,10 @@ export default function SandboxPage() {
   const [clientRequirements, setClientRequirements] = useState<ClientReqState>({});
   const [expandedReasoning, setExpandedReasoning] = useState<number | null>(null);
   const [propertyMatches, setPropertyMatches] = useState<{ address: string; score: number; reason: string }[]>([]);
+  const [pendingChecks, setPendingChecks] = useState<{ property_address: string; question: string }[]>([]);
+  const [guestCard, setGuestCard] = useState<{ client: string; interests: string; concerns: string; next_step: string } | null>(null);
+  const [replayThinking, setReplayThinking] = useState<{ text: string; msgIdx: number } | null>(null);
+  const [replayDisplayed, setReplayDisplayed] = useState('');
   const [lastTiming, setLastTiming] = useState<{ aiMs: number; totalMs: number } | null>(null);
   const [propertyMeta, setPropertyMeta] = useState<{ address: string; price: number; beds: number; images: string[] }[]>([]);
   const [carouselIdx, setCarouselIdx] = useState<Record<string, number>>({});
@@ -258,6 +262,41 @@ export default function SandboxPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+
+  // Replay real thought_process with typewriter after response arrives
+  useEffect(() => {
+    if (!replayThinking) return;
+    let i = 0;
+    let rafId: number;
+    let lastTime = 0;
+    const CHARS_PER_MS = 0.22;
+
+    // Auto-expand reasoning panel for this message
+    setExpandedReasoning(replayThinking.msgIdx);
+
+    const tick = (now: number) => {
+      if (!lastTime) lastTime = now;
+      const elapsed = now - lastTime;
+      lastTime = now;
+      i = Math.min(i + elapsed * CHARS_PER_MS, replayThinking.text.length);
+      setReplayDisplayed(replayThinking.text.slice(0, Math.floor(i)));
+      if (i < replayThinking.text.length) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        // Auto-collapse after 4 seconds when done
+        setTimeout(() => {
+          setExpandedReasoning(null);
+          setReplayThinking(null);
+          setReplayDisplayed('');
+        }, 4000);
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [replayThinking]);
+
 
   const sendMessage = async (text?: string) => {
     const messageText = text || input.trim();
@@ -300,6 +339,28 @@ export default function SandboxPage() {
 
       if (data.analysis?.propertyMatches) {
         setPropertyMatches(data.analysis.propertyMatches);
+      }
+
+      if (data.analysis?.pending_checks) {
+        setPendingChecks(prev => {
+          const incoming: { property_address: string; question: string }[] = data.analysis.pending_checks;
+          const merged = [...prev];
+          for (const item of incoming) {
+            const exists = merged.some(p => p.property_address === item.property_address && p.question === item.question);
+            if (!exists) merged.push(item);
+          }
+          return merged;
+        });
+      }
+
+      if (data.analysis?.summary) {
+        const s = data.analysis.summary;
+        if (typeof s === 'object' && s.client) {
+          setGuestCard(s);
+        } else if (typeof s === 'string' && s.trim()) {
+          // Fallback: AI returned a plain string — show it as next_step
+          setGuestCard({ client: '', interests: '', concerns: '', next_step: s });
+        }
       }
 
       if (data.timing) {
@@ -449,8 +510,16 @@ export default function SandboxPage() {
 
                 let cleanText = msg.content;
                 let propertiesData: any[] | null = null;
-                
-                if (cleanText.includes('---PROPERTIES_JSON---')) {
+                let photosData: { url: string; address: string }[] | null = null;
+
+                if (cleanText.includes('---PHOTOS_JSON---')) {
+                  const parts = cleanText.split('---PHOTOS_JSON---');
+                  cleanText = parts[0].trim();
+                  try {
+                    const jsonStr = parts[1].split('---END_PHOTOS_JSON---')[0].trim();
+                    photosData = JSON.parse(jsonStr);
+                  } catch (e) {}
+                } else if (cleanText.includes('---PROPERTIES_JSON---')) {
                   const parts = cleanText.split('---PROPERTIES_JSON---');
                   cleanText = parts[0].trim();
                   try {
@@ -483,6 +552,34 @@ export default function SandboxPage() {
                           : <div className="space-y-0.5">{formatContent(cleanText)}</div>
                         }
                       </div>
+
+                      {/* Photo Grid — shown when client explicitly requests photos */}
+                      {photosData && photosData.length > 0 && (
+                        <div className="mt-2 w-full">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {photosData.map((photo, pIdx) => (
+                              <div
+                                key={pIdx}
+                                className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(photo.url, '_blank')}
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={`Photo ${pIdx + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
+                                />
+                                {pIdx === 0 && (
+                                  <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/50 rounded text-[9px] text-white font-medium">
+                                    {photosData!.length} photos
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1.5 text-center">Tap any photo to view full size</p>
+                        </div>
+                      )}
 
                       {/* Property Cards */}
                       {propertiesData && propertiesData.length > 0 && (
@@ -603,9 +700,28 @@ export default function SandboxPage() {
 
                     {/* Reasoning Panel */}
                     {expandedReasoning === idx && msg.analysis?.thought_process && (
-                      <div className="w-full max-w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-[11px] font-mono text-gray-600 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
-                        {msg.analysis.thought_process}
-                      </div>
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="w-full max-w-full overflow-hidden"
+                      >
+                        <div className="bg-gray-950 border border-gray-800 rounded-xl p-3 max-h-52 overflow-y-auto">
+                          <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-gray-800">
+                            <div className="w-2 h-2 rounded-full bg-red-500/70" />
+                            <div className="w-2 h-2 rounded-full bg-yellow-500/70" />
+                            <div className="w-2 h-2 rounded-full bg-green-500/70" />
+                            <span className="text-[9px] text-gray-500 ml-1 font-mono">AI Reasoning</span>
+                          </div>
+                          <p className="text-[10px] font-mono text-green-400 leading-relaxed whitespace-pre-wrap">
+                            {replayThinking?.msgIdx === idx ? replayDisplayed : msg.analysis.thought_process}
+                            {replayThinking?.msgIdx === idx && replayDisplayed.length < (msg.analysis.thought_process?.length ?? 0) && (
+                              <span className="inline-block w-0.5 h-3 bg-green-400 ml-0.5 animate-pulse align-middle" />
+                            )}
+                          </p>
+                        </div>
+                      </motion.div>
                     )}
 
                     {/* Booking Badge */}
@@ -639,26 +755,33 @@ export default function SandboxPage() {
               );
               })}
 
-              {/* Typing indicator */}
+              {/* Spinner — while waiting for response */}
               {loading && (
                 <div className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                    <Bot className="w-3.5 h-3.5 text-gray-500" />
+                  <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 mt-1">
+                    <Bot className="w-3.5 h-3.5 text-gray-400" />
                   </div>
-                  <div className="px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-gray-400 animate-pulse" />
-                    <div className="flex gap-1">
-                      {[0, 1, 2].map(i => (
-                        <div
-                          key={i}
-                          className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce"
-                          style={{ animationDelay: `${i * 150}ms` }}
-                        />
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-2xl rounded-tl-sm bg-white"
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                    >
+                      <Sparkles className="w-3 h-3 text-violet-400" />
+                    </motion.div>
+                    <span className="text-[11px] text-gray-400">Thinking</span>
+                    <span className="flex gap-0.5">
+                      {[0,1,2].map(d => (
+                        <span key={d} className="w-1 h-1 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: `${d * 150}ms` }} />
                       ))}
-                    </div>
-                  </div>
+                    </span>
+                  </motion.div>
                 </div>
               )}
+
               <div ref={chatEndRef} />
             </div>
           </div>
@@ -713,6 +836,38 @@ export default function SandboxPage() {
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Live Context</span>
             </div>
           </div>
+
+          {/* Guest Card — AI-generated conversation summary */}
+          {guestCard && (
+            <div className="px-4 py-3 border-b border-gray-100 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Guest Card</p>
+                <button
+                  onClick={() => {
+                    const text = `CLIENT: ${guestCard.client}\nINTERESTS: ${guestCard.interests}\nCONCERNS: ${guestCard.concerns}\nNEXT STEP: ${guestCard.next_step}`;
+                    navigator.clipboard.writeText(text);
+                  }}
+                  className="text-[9px] text-gray-400 hover:text-gray-600 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100"
+                  title="Copy to clipboard"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {[
+                  { icon: '👤', label: 'Client', value: guestCard.client },
+                  { icon: '🏠', label: 'Interests', value: guestCard.interests },
+                  { icon: '💬', label: 'Concerns', value: guestCard.concerns },
+                  { icon: '➡️', label: 'Next Step', value: guestCard.next_step },
+                ].filter(({ value }) => value && value !== '...').map(({ icon, label, value }) => (
+                  <div key={label}>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{icon} {label}</p>
+                    <p className="text-[10px] text-gray-700 leading-snug">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Response Timing */}
           {lastTiming && (
@@ -864,6 +1019,24 @@ export default function SandboxPage() {
                 </AnimatePresence>
               </div>
             </div>
+
+            {/* Pending Landlord Checks */}
+            {pendingChecks.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" />
+                  Pending Checks
+                </p>
+                <div className="space-y-1.5">
+                  {pendingChecks.map((item, i) => (
+                    <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                      <p className="text-[10px] font-medium text-amber-800 leading-snug">{item.question}</p>
+                      <p className="text-[9px] text-amber-500 mt-0.5 truncate">{item.property_address}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Human Handoff Section */}
             <div>

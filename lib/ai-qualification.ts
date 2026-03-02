@@ -187,10 +187,24 @@ PROPERTY RECOMMENDATIONS:
 
 PHOTOS & IMAGES:
 - Property photos are displayed AUTOMATICALLY in the chat whenever you use the "send_listing" action. The client can see them directly.
-- NEVER say "I can't send images" or "I can't send photos directly" — this is false. Photos ARE sent via property cards.
-- If a client asks for more photos or photos of a specific property, set action to "send_listing" with that property's address in "listing_addresses". This will re-display the card with its photo.
-- You can say something like: "Here are the photos for [address] — you can see them in the property card below." or "I've pulled up the listing with photos for you."
+- NEVER say "I can't send images" or "I can't send photos directly" — this is false. Photos ARE sent directly in the chat.
+- If a client asks for photos of a specific property (e.g. "send me pictures of option 2", "can I see more photos?", "show photos"):
+  1. Set action to "send_listing"
+  2. Set "listing_addresses" to that property's address only
+  3. Set "photo_mode": true in your JSON response (MANDATORY for photo requests)
+  4. Say ONLY something like: "Here are all the photos for [address]." — do NOT say "you can see them in the property card below"
+- If a client asks for photos of ALL listed properties at once, set photo_mode: true and include all addresses in listing_addresses.
+- NEVER say "you can see them in the property card" when responding to a photo request.
 - NEVER invent, describe, or reference specific photo content (e.g. "the kitchen has white cabinets") unless that detail is in the property description text in the database.
+
+PENDING CHECKS (MANDATORY — track every promise to verify):
+- Whenever you tell the client "I'll check with the landlord", "I'll confirm that", "I'll find out", or similar — you MUST add an entry to "pending_checks" in your JSON:
+  { "property_address": "full address", "question": "concise description of what needs to be verified" }
+- Examples:
+  Client asks about coworking → AI says "I'll check" → pending_checks: [{ property_address: "19128 112th Ave NE, Bothell, WA", question: "Coworking area availability and WiFi speed" }]
+  Client asks about pet deposit → AI says "I'll confirm" → pending_checks: [{ property_address: "...", question: "Pet deposit amount" }]
+- ACCUMULATE: always include ALL previously logged pending_checks from earlier in the conversation PLUS any new ones. Never drop a pending item that was added before.
+- When a pending item is resolved (answer found in DB or confirmed), REMOVE it from pending_checks.
 
 NEGOTIATION & OBJECTIONS:
 - **Price Objections**: If a client says it's too expensive, justify the value using specific features (e.g., "It includes parking which saves you $200/mo" or "It has a gym/pool").
@@ -252,7 +266,12 @@ CRITICAL LOGIC RULES:
    - NEVER rank a cheaper property above a better-featured same-budget property just because it's cheaper.
    - The goal is to find the best VALUE, not the cheapest option.
 
-   LISTING ORDER: Always present properties sorted by score DESC. Among equal scores, list the most feature-complete one first.
+   LISTING ORDER (MANDATORY):
+   - ALWAYS present properties in your reply text sorted by score DESC (highest first).
+   - NEVER put an over-budget property above an in-budget property, regardless of other features.
+   - NEVER put a bedroom-mismatched property above a correctly-sized property.
+   - The order in your reply text MUST match the order in listing_addresses array MUST match score order.
+   - Example: score 100 → score 92 → score 60. Always in this order, no exceptions.
 
    RECOMMENDATION FILTER: When sending listings, only include properties that score 55+. Do not send a property that fails the bedroom requirement (1+ bedrooms short) unless the client explicitly asks for cheaper/smaller options. If all available properties score below 55, send the top 3 with clear disclaimers about the mismatch.
 
@@ -481,10 +500,20 @@ export interface AiAnalysis {
     duration_minutes?: number;
   };
   extractedData?: Record<string, any>;
-  summary?: string; // Concise bullet-point summary for the UI
+  summary?: {
+    client: string;
+    interests: string;
+    concerns: string;
+    next_step: string;
+  } | string; // structured guest card summary
   priority?: 'hot' | 'warm' | 'cold';
   suggestedProperties?: string[];
-  listing_addresses?: string[]; 
+  listing_addresses?: string[];
+  photo_mode?: boolean; // true when client explicitly asked for photos
+  pending_checks?: {
+    property_address: string;
+    question: string; // What needs to be confirmed with landlord
+  }[];
   propertyMatches?: {
     address: string;
     score: number; // 0-100
@@ -558,6 +587,8 @@ TASK:
   "action": "reply",
   "action_params": { "start_time": "2026-02-01T15:00:00", "property_address": "", "client_name": "", "duration_minutes": 30 },
   "listing_addresses": ["123 Main St", "456 Oak Ave"],
+  "photo_mode": false,
+  "pending_checks": [],
   "extractedData": {
     "personal": {
       "firstName": "John",
@@ -627,7 +658,12 @@ TASK:
       "deal_breakers": ["shared_laundry", "carpet", "no_parking"]
     }
   },
-  "summary": "Brief text summary",
+  "summary": {
+    "client": "One sentence: who is the client and what do they want. E.g. 'Jade Muray, 1 person, no pets, looking to rent a 2BR in Seattle for March 1st move-in, $2,500/mo budget.'",
+    "interests": "One sentence: which properties they showed interest in or asked about. E.g. 'Interested in 19128 112th Ave NE ($2,350) and 123 Main St ($2,500). Asked about coworking and WiFi.'",
+    "concerns": "One sentence: objections, hesitations, special requirements. E.g. 'Needs quiet workspace. Asking about furnished options and coworking.' or 'None raised yet.'",
+    "next_step": "One sentence: what should happen next. E.g. 'Schedule viewing for 19128 112th Ave NE. Confirm coworking/WiFi with landlord.' or 'Waiting for budget confirmation.'"
+  },
   "escalation_reason": "Short reason why escalation was triggered, or null",
   "priority": "warm",
   "suggestedProperties": ["123 Main St"],
@@ -1118,7 +1154,7 @@ TASK: Analyze the client's latest message and generate a response. Return ONLY v
     "pets": { "has_pets": null },
     "amenities": {}
   },
-  "summary": "Brief summary",
+  "summary": { "client": "...", "interests": "...", "concerns": "...", "next_step": "..." },
   "escalation_reason": null,
   "priority": "warm",
   "suggestedProperties": [],

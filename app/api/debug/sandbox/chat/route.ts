@@ -293,6 +293,22 @@ export async function POST(req: NextRequest) {
         : (analysis.suggestedProperties?.length
             ? properties.filter(p => analysis.suggestedProperties!.some(sp => p.address.toLowerCase().includes(sp.toLowerCase())))
             : properties.slice(0, 3));
+
+      // Hard-sort by score DESC so cards always appear in score order
+      // regardless of what order the AI listed them in its text reply
+      if (analysis.propertyMatches?.length) {
+        const scoreMap = new Map(
+          analysis.propertyMatches.map((pm: any) => [
+            pm.address?.split(',')[0]?.toLowerCase().trim(),
+            pm.score ?? 0,
+          ])
+        );
+        matchedProperties.sort((a, b) => {
+          const aKey = a.address.split(',')[0].toLowerCase().trim();
+          const bKey = b.address.split(',')[0].toLowerCase().trim();
+          return (scoreMap.get(bKey) ?? 0) - (scoreMap.get(aKey) ?? 0);
+        });
+      }
     }
 
     if (matchedProperties.length > 0) {
@@ -314,7 +330,23 @@ export async function POST(req: NextRequest) {
           images: dbRow ? resolveImages(dbRow.images ?? [], dbRow.id) : [],
         };
       });
-      aiResponseText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
+      // Detect photo request either from AI flag or from the user's message keywords
+      const PHOTO_KEYWORDS = /\b(photo|photos|picture|pictures|image|images|фото|фотографии|картинк|покажи фото|send.*photo|show.*photo|more.*photo|photo.*option|снимки)\b/i;
+      const isPhotoRequest = analysis.photo_mode === true || PHOTO_KEYWORDS.test(message);
+
+      if (isPhotoRequest) {
+        // Photo mode: send all individual images inline, not property cards
+        const allPhotos = cleanProps.flatMap((p: any) =>
+          (p.images as string[]).map((url: string) => ({ url, address: p.address }))
+        );
+        if (allPhotos.length > 0) {
+          aiResponseText += `\n\n---PHOTOS_JSON---\n${JSON.stringify(allPhotos)}\n---END_PHOTOS_JSON---`;
+        } else {
+          aiResponseText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
+        }
+      } else {
+        aiResponseText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
+      }
     }
 
     const assistantMessage = { role: 'assistant' as const, content: aiResponseText };
@@ -363,6 +395,7 @@ export async function POST(req: NextRequest) {
         thought_process: analysis.thought_process,
         extractedData: analysis.extractedData,
         summary: analysis.summary,
+        pending_checks: analysis.pending_checks ?? [],
         // If AI sent a listing — filter propertyMatches to only the sent properties
         // so the right panel stays in sync with what the client actually received
         propertyMatches: matchedProperties.length > 0
