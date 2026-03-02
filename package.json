@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "webhook": "node scripts/webhook-tunnel.js"
+    "webhook": "node scripts/webhook-tunnel.js",
+    "eval": "npx ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/eval-agent.ts",
+    "eval:filter": "npx ts-node --project tsconfig.scripts.json -r tsconfig-paths/register scripts/eval-agent.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

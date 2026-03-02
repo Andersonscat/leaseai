@@ -86,6 +86,16 @@ CORE PRINCIPLES:
    - ONLY trigger clarification when the client explicitly uses a non-USD currency code (CAD, EUR, GBP, AUD, etc.).
    - NEVER silently treat a clearly non-USD amount as USD without informing the client.
 
+   ANNUAL BUDGET RULE (non-negotiable):
+   - If the client states a budget "per year" or "annually" — ACCEPT IT. Do NOT question it.
+   - Internally convert: monthly = stated_amount / 12. Store this monthly value in extractedData.financial.budget_usd AND in extractedData.budget.max_monthly_rent.
+   - Example: "$24,000 a year" → budget_usd: 2000, max_monthly_rent: 2000, budget_stated: "$24,000/year"
+   - Record budget_stated as the original annual figure.
+   - If the converted monthly amount is below all available properties, inform the client once, matter-of-factly:
+     "Our available properties start at $X/month ($Y/year). Would you like to explore options in that range?"
+   - NEVER say things like "a 2-bedroom typically costs more", "are you sure?", or ask the client to re-confirm a budget they already stated clearly. That is condescending and damages trust.
+   - The client knows their own budget. Your job is to work with it, not to audit it.
+
    RULES:
    - **HARD GATE — QUALIFICATION FIRST (NON-NEGOTIABLE)**:
      You MUST collect ALL 7 fields below before setting action to "send_listing" OR "book_calendar":
@@ -98,7 +108,7 @@ CORE PRINCIPLES:
        → Do NOT hint at matches or say "I have something for you"
    
    - Once ALL 7 are known: you may set action to "send_listing" and present matches.
-   - NEVER ask more than ONE question per message.
+   - Apply SMART BUNDLING: ask max 2 logically related missing fields per message (e.g. "How many people and any pets?" — not one by one).
    - If the client already provided a field, NEVER ask for it again.
 
    TIER 2 — PASSIVE EXTRACTION (NEVER ask, silently observe and extract):
@@ -123,7 +133,7 @@ CORE PRINCIPLES:
      If TV was already known and client now asks about gym: desired_features: ["tv", "gym"] (not just ["gym"])
 
    RULES:
-   - NEVER ask more than ONE question per message.
+   - Apply SMART BUNDLING: ask max 2 logically related missing fields per message. Never interrogate one by one.
    - If the client already provided a mini-core field, NEVER ask for it again.
    - Once mini-core is covered, STOP asking questions — focus on matching and booking.
    - **VAGUE RESPONSE RULE**: If the client sends a vague, incomplete, or single-word message that does NOT actually provide the value you asked for (e.g. you asked "how many bedrooms?" and they replied "bedrooms"), do NOT say "Thank you for confirming" or any acknowledgment phrase — treat it as a non-answer and ask again, clearly and directly.
@@ -304,6 +314,22 @@ SOFT TRIGGERS (escalate after pattern detected):
 - You have answered to the best of your ability but the client is still unsatisfied after 2+ exchanges
 - **4 consecutive unintelligible messages**: You already asked the client to clarify three times, and their message is STILL gibberish/nonsensical — escalate immediately, do not ask a fourth time
 
+BUDGET DISQUALIFICATION (escalate gracefully — do NOT loop):
+This is one of the most common situations in leasing. Handle it with dignity.
+
+STEP 1 — Gap detected: Client's budget is below all available properties.
+  → Inform them once, matter-of-factly: "Our available properties start at $X/month. Unfortunately nothing in our current inventory fits a $Y/month budget."
+  → Offer ONE alternative: "Would you like to explore 1-bedroom options, or a different area that might be more affordable?"
+
+STEP 2 — Client declines the alternative (says "no", "can't afford that", "sorry I can't pay that much", "too expensive", etc.):
+  → STOP. Do NOT offer more alternatives. Do NOT ask again.
+  → Immediately set action to "escalate" with escalation_reason: "Budget below minimum inventory — client confirmed they cannot afford available options"
+  → Reply warmly and close the loop:
+    "I completely understand — budgets are real, and I don't want to keep suggesting things that don't work for you. I'll flag your details for our team, and if anything comes up in your range we'll be sure to reach out. Is there a best way to contact you?"
+  → After this message, go silent. The human team takes over.
+
+KEY RULE: Never loop past Step 2. One gap notice + one alternative offer = your limit. Continuing to push is spam and damages trust. Industry leaders (Elise, Knock, Funnel) all stop here.
+
 When escalating:
 - Set "escalation_reason" to a short, specific sentence explaining WHY (e.g. "Client asked about lease modification twice; outside AI scope")
 - Write a warm, empathetic reply acknowledging their concern and letting them know a human agent will follow up shortly
@@ -314,8 +340,8 @@ Sign your first reply and replies where the client introduced themselves with RE
 
 === CRITICAL GUARDRAILS (ABSOLUTE — VIOLATION = SYSTEM FAILURE) ===
 1. DATABASE-ONLY: Every property fact (address, price, bedrooms, pet policy, amenities, availability, fees) MUST come verbatim from the PROPERTIES DATABASE. No exceptions.
-2. NO INFERENCE: Do NOT infer, estimate, or extrapolate property details. If a detail is absent from the database, it is simply unknown — acknowledge it naturally without a fixed phrase.
-3. NO INVENTION: NEVER create, assume, or hallucinate properties, addresses, prices, amenities, or any other data.
+2. NO INFERENCE: Do NOT infer, estimate, or extrapolate property details. If a detail is absent from the database, say "I don't have that information in our records" or "I can check with the landlord". NEVER say "yes" or confirm a feature that is not explicitly listed.
+3. NO INVENTION: NEVER create, assume, or hallucinate properties, addresses, prices, amenities, or any other data. When in doubt — it is unknown.
 4. NO MATCH = HONEST: If no properties fit, say so clearly in your own words. Do NOT create a hypothetical listing.
 5. MEETINGS: NEVER confirm or propose a meeting time the client did not explicitly state or agree to.
 6. CLIENT DATA: Record client preferences ONLY from what they explicitly state.
@@ -328,7 +354,7 @@ const geminiJsonModel = genAI.getGenerativeModel({
   systemInstruction: QUALIFICATION_SYSTEM_PROMPT,
   generationConfig: { 
     temperature: 0.1, 
-    topP: 0.4 
+    topP: 0.4,
   }
 });
 
@@ -579,16 +605,29 @@ TASK:
    - IMPORTANT: Use the CURRENT DATE/TIME above to resolve relative dates ("tomorrow", "next Monday", etc.) into precise ISO 8601 start_time values.
 4. If you want to recommend properties, set action to 'send_listing' and include 'listing_addresses' with property addresses. ONLY suggest properties from the PROPERTIES database provided. NEVER invent an address. If no properties are listed, or none match, do NOT invent them.
 5. If escalation criteria are met (legal threats, discrimination complaints, emergencies, etc.), set action to 'escalate'.
-6. Return ONLY valid JSON matching this structure:
+6. Return ONLY valid JSON matching this structure.
+   IMPORTANT: Output fields in THIS EXACT ORDER — critical fields first so partial responses are still useful:
 
 {
-  "thought_process": "Detailed internal reasoning",
-  "intent": "general",
   "action": "reply",
-  "action_params": { "start_time": "2026-02-01T15:00:00", "property_address": "", "client_name": "", "duration_minutes": 30 },
+  "intent": "general",
+  "escalation_reason": null,
   "listing_addresses": ["123 Main St", "456 Oak Ave"],
   "photo_mode": false,
+  "action_params": { "start_time": "2026-02-01T15:00:00", "property_address": "", "client_name": "", "duration_minutes": 30 },
+  "reply": "The actual message text to send to the client",
+  "priority": "warm",
   "pending_checks": [],
+  "suggestedProperties": ["123 Main St"],
+  "propertyMatches": [
+    { "address": "123 Main St", "score": 95, "reason": "Perfect budget fit and allows dogs" }
+  ],
+  "summary": {
+    "client": "Jade Muray, 1 person, no pets, looking to rent a 2BR in Seattle for March 1st move-in, $2,500/mo budget.",
+    "interests": "Interested in 19128 112th Ave NE ($2,350). Asked about gym.",
+    "concerns": "None raised yet.",
+    "next_step": "Schedule viewing for 19128 112th Ave NE."
+  },
   "extractedData": {
     "personal": {
       "firstName": "John",
@@ -659,18 +698,8 @@ TASK:
     }
   },
   "summary": {
-    "client": "One sentence: who is the client and what do they want. E.g. 'Jade Muray, 1 person, no pets, looking to rent a 2BR in Seattle for March 1st move-in, $2,500/mo budget.'",
-    "interests": "One sentence: which properties they showed interest in or asked about. E.g. 'Interested in 19128 112th Ave NE ($2,350) and 123 Main St ($2,500). Asked about coworking and WiFi.'",
-    "concerns": "One sentence: objections, hesitations, special requirements. E.g. 'Needs quiet workspace. Asking about furnished options and coworking.' or 'None raised yet.'",
-    "next_step": "One sentence: what should happen next. E.g. 'Schedule viewing for 19128 112th Ave NE. Confirm coworking/WiFi with landlord.' or 'Waiting for budget confirmation.'"
   },
-  "escalation_reason": "Short reason why escalation was triggered, or null",
-  "priority": "warm",
-  "suggestedProperties": ["123 Main St"],
-  "propertyMatches": [
-    { "address": "123 Main St", "score": 95, "reason": "Perfect budget fit and allows dogs" },
-    { "address": "456 Oak Ave", "score": 40, "reason": "Over budget and no pets allowed" }
-  ]
+  "thought_process": "Detailed internal reasoning — output LAST so truncation only affects this field"
 }
 
 IMPORTANT: Evaluate ALL available properties listed above against the current client requirements (extractedData) and provide a match score (0-100) and a brief reason for each. A high score (80+) means it meets most mini-core requirements. Sort by score in your internal reasoning.
@@ -682,12 +711,34 @@ IMPORTANT: Only include extractedData fields that you actually found in THIS mes
     const result = await generateContentWithRetry(geminiJsonModel, analysisPrompt);
     const text = result.response.text();
     
-    // Robust JSON parsing
+    // Robust JSON parsing — handles truncated responses
     let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) cleanText = jsonMatch[0];
-    
-    const analysis = JSON.parse(cleanText) as AiAnalysis;
+
+    let analysis: AiAnalysis;
+    try {
+      analysis = JSON.parse(cleanText) as AiAnalysis;
+    } catch {
+      // Log truncated tail for debugging
+      console.error('⚠️ JSON truncated. Last 300 chars:', cleanText.slice(-300));
+      // Try to salvage: grab everything up to the last complete top-level field
+      // by finding the last valid closing and appending missing braces
+      let attempt = cleanText;
+      // Count unclosed braces/brackets
+      let braces = 0; let brackets = 0;
+      for (const ch of attempt) {
+        if (ch === '{') braces++; else if (ch === '}') braces--;
+        if (ch === '[') brackets++; else if (ch === ']') brackets--;
+      }
+      // Close open arrays first, then objects
+      attempt += ']'.repeat(Math.max(0, brackets)) + '}'.repeat(Math.max(0, braces));
+      try {
+        analysis = JSON.parse(attempt) as AiAnalysis;
+      } catch {
+        throw new SyntaxError('Could not repair truncated JSON');
+      }
+    }
     console.log('🧠 Analysis result:', analysis);
     return analysis;
 
@@ -1216,8 +1267,8 @@ ${executionNote}
 RECENT CONVERSATION:
 ${compactHistoryText}
 
-TASK: Analyze the client's latest message and respond. Return ONLY valid JSON matching this schema:
-{"thought_process":"...","intent":"general","action":"reply","listing_addresses":[],"extractedData":{},"propertyMatches":${JSON.stringify(properties.map(p => ({ address: p.address, score: 0, reason: '' })))},"summary":"","reply":""}`;
+TASK: Analyze the client's latest message and respond. Return ONLY valid JSON matching this schema (fields in this order — action and reply FIRST):
+{"action":"reply","intent":"general","escalation_reason":null,"listing_addresses":[],"photo_mode":false,"reply":"","priority":"warm","pending_checks":[],"suggestedProperties":[],"propertyMatches":${JSON.stringify(properties.map(p => ({ address: p.address, score: 0, reason: '' })))},"summary":{"client":"","interests":"","concerns":"","next_step":""},"extractedData":{},"thought_process":"..."}`;
 
     const result2 = await generateContentWithRetry(geminiFlashModel, compactPrompt);
     const text2 = result2.response.text();
