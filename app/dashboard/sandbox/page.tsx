@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Send, RefreshCw, Bot, User, Sparkles,
-  Calendar, ClipboardList, ChevronDown, Trash2, Beaker, Zap, Tag
+  Calendar, ClipboardList, ChevronDown, Trash2, Beaker, Zap, Tag,
+  MapPin, Clock, ExternalLink, CheckCircle2, UserCheck, AlertTriangle, PhoneCall
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,6 +18,7 @@ interface Message {
     thought_process?: string;
     extractedData?: Record<string, any>;
     summary?: string;
+    escalation_reason?: string;
   };
   simulatedBooking?: {
     property: string;
@@ -37,7 +39,8 @@ const TENANT_CATEGORIES = [
     coreFields: [
       { key: 'personal.firstName', label: 'First Name' },
       { key: 'personal.lastName', label: 'Last Name' },
-      { key: 'budget.max_monthly_rent', label: 'Budget' },
+      { key: 'budget.budget_stated', label: 'Budget (stated)' },
+      { key: 'budget.budget_usd', label: 'Budget (USD)' },
       { key: 'timeline.move_in_date', label: 'Move-in Date' },
       { key: 'occupants.total_count', label: 'Occupants' },
       { key: 'pets.has_pets', label: 'Pets' }
@@ -46,15 +49,17 @@ const TENANT_CATEGORIES = [
 ];
 
 const PROPERTY_REQ_CATEGORIES = [
-  { 
-    key: 'property_info', 
-    label: 'Property Info', 
-    icon: '🏠', 
+  {
+    key: 'property_info',
+    label: 'Property Info',
+    icon: '🏠',
     groups: ['housing', 'location', 'amenities'],
     coreFields: [
       { key: 'timeline.lease_term_ideal_months', label: 'Lease Duration' },
       { key: 'housing.property_types', label: 'Rent/Buy' },
-      { key: 'housing.bedrooms_min', label: 'Bedrooms' }
+      { key: 'housing.bedrooms_min', label: 'Bedrooms' },
+      { key: 'housing.bathrooms_min', label: 'Bathrooms' },
+      { key: 'housing.furnished', label: 'Furnished' },
     ]
   }
 ];
@@ -90,7 +95,7 @@ function renderCategoryGroup(title: string, icon: React.ReactNode, categories: (
                   <span className={`text-[10px] font-semibold break-words max-w-[60%] text-right ${
                     hasValue ? 'text-gray-800' : 'text-gray-300 italic'
                   }`}>
-                    {hasValue ? formatValue(value) : 'Unknown'}
+                    {hasValue ? formatValue(value, valKey) : 'Unknown'}
                   </span>
                 </div>
               );
@@ -116,7 +121,10 @@ function renderCategoryGroup(title: string, icon: React.ReactNode, categories: (
                   'move_in_date',            // Already shown in Tenant Profile
                   'move_in_flexibility_days', // Internal
                   'decision_timeline',        // Internal
-                  'decision_maker'            // Internal
+                  'decision_maker',           // Internal
+                  'max_monthly_rent',         // Replaced by budget_stated + budget_usd
+                  'budget_stated',            // Shown in core fields
+                  'budget_usd',               // Shown in core fields
                 ].includes(k);
                 
                 if (isCore || isExcluded) return null;
@@ -165,10 +173,10 @@ const PRESET_PERSONAS = [
 ];
 
 const ACTION_STYLES: Record<string, { label: string; className: string }> = {
-  book_calendar: { label: 'Booked Viewing', className: 'bg-green-50 text-green-700 border-green-200' },
-  send_listing:  { label: 'Sent Listing',   className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  escalate:      { label: 'Escalated',      className: 'bg-red-50 text-red-700 border-red-200' },
-  reply:         { label: 'Replied',        className: 'bg-gray-50 text-gray-600 border-gray-200' },
+  book_calendar: { label: 'Booked Viewing',    className: 'bg-green-50 text-green-700 border-green-200' },
+  send_listing:  { label: 'Sent Listing',      className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  escalate:      { label: '🔴 Human Handoff',  className: 'bg-red-50 text-red-700 border-red-200' },
+  reply:         { label: 'Replied',           className: 'bg-gray-50 text-gray-600 border-gray-200' },
 };
 
 const PRIORITY_STYLES: Record<string, { label: string; dot: string }> = {
@@ -182,14 +190,27 @@ function mergeRequirements(prev: ClientReqState, extracted: Record<string, any>)
   const next = { ...prev };
   for (const [category, fields] of Object.entries(extracted)) {
     if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
-      next[category] = { ...(next[category] || {}), ...fields };
+      const prevCategory = next[category] || {};
+      const merged: Record<string, any> = { ...prevCategory };
+      for (const [key, val] of Object.entries(fields)) {
+        if (Array.isArray(val) && Array.isArray(prevCategory[key])) {
+          // Accumulate arrays (desired_features, deal_breakers, property_types, etc.)
+          merged[key] = Array.from(new Set([...prevCategory[key], ...val]));
+        } else {
+          merged[key] = val;
+        }
+      }
+      next[category] = merged;
     }
   }
   return next;
 }
 
 /** Format a value for display in the sidebar */
-function formatValue(v: any): string {
+function formatValue(v: any, fieldKey?: string): string {
+  if (fieldKey === 'budget_usd' && typeof v === 'number') {
+    return `$${v.toLocaleString()} USD`;
+  }
   if (Array.isArray(v)) return v.join(', ');
   if (typeof v === 'object' && v !== null) {
     // Flatten simple objects like { required: 'required', must_be_in_unit: true }
@@ -209,6 +230,27 @@ export default function SandboxPage() {
   const [clientRequirements, setClientRequirements] = useState<ClientReqState>({});
   const [expandedReasoning, setExpandedReasoning] = useState<number | null>(null);
   const [propertyMatches, setPropertyMatches] = useState<{ address: string; score: number; reason: string }[]>([]);
+  const [lastTiming, setLastTiming] = useState<{ aiMs: number; totalMs: number } | null>(null);
+  const [propertyMeta, setPropertyMeta] = useState<{ address: string; price: number; beds: number; images: string[] }[]>([]);
+  const [carouselIdx, setCarouselIdx] = useState<Record<string, number>>({});
+  const [handoff, setHandoff] = useState<{
+    triggered: boolean;
+    reason: string;
+    timestamp: string;
+    agentNotification?: {
+      sentAt: string;
+      channel: string;
+      recipient: string;
+      subject: string;
+      preview: string;
+    };
+  } | null>(null);
+  const [appointment, setAppointment] = useState<{
+    property: string;
+    time: string;
+    calendarLink: string;
+    status: 'scheduled' | 'pending';
+  } | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -221,6 +263,13 @@ export default function SandboxPage() {
     const messageText = text || input.trim();
     if (!messageText || loading) return;
 
+    // After handoff: show user message but no AI reply
+    if (handoff?.triggered) {
+      setMessages(prev => [...prev, { role: 'user', content: messageText }]);
+      setInput('');
+      return;
+    }
+
     setInput('');
     setLoading(true);
     setMessages(prev => [...prev, { role: 'user', content: messageText }]);
@@ -229,17 +278,20 @@ export default function SandboxPage() {
       const res = await fetch('/api/debug/sandbox/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText, conversationHistory, tenantData: clientRequirements }),
+        body: JSON.stringify({ message: messageText, conversationHistory, tenantData: clientRequirements, handoffTriggered: handoff?.triggered ?? false }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.reply,
-        analysis: data.analysis,
-        simulatedBooking: data.simulatedBooking,
-      }]);
+      if (data.reply !== null && data.reply !== undefined) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.reply,
+          analysis: data.analysis,
+          simulatedBooking: data.simulatedBooking,
+        }]);
+      }
+
       setConversationHistory(data.conversationHistory);
 
       if (data.analysis?.extractedData && typeof data.analysis.extractedData === 'object') {
@@ -248,6 +300,35 @@ export default function SandboxPage() {
 
       if (data.analysis?.propertyMatches) {
         setPropertyMatches(data.analysis.propertyMatches);
+      }
+
+      if (data.timing) {
+        setLastTiming(data.timing);
+      }
+
+      if (data.propertyMeta) {
+        setPropertyMeta(data.propertyMeta);
+      }
+
+      if (data.handoff) {
+        setHandoff(data.handoff);
+        // Inject a system event into the chat to show the handoff happened
+        if (data.handoff.triggered) {
+          setMessages(prev => [...prev, {
+            role: 'system' as any,
+            content: '__HANDOFF__',
+            handoffData: data.handoff,
+          } as any]);
+        }
+      }
+
+      if (data.simulatedBooking) {
+        setAppointment({
+          property: data.simulatedBooking.property,
+          time: data.simulatedBooking.time,
+          calendarLink: data.simulatedBooking.calendarLink,
+          status: 'scheduled',
+        });
       }
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
@@ -262,7 +343,7 @@ export default function SandboxPage() {
   };
 
   const resetChat = () => {
-    setMessages([]); setConversationHistory([]); setClientRequirements({}); setPropertyMatches([]); setInput(''); setExpandedReasoning(null);
+    setMessages([]); setConversationHistory([]); setClientRequirements({}); setPropertyMatches([]); setPropertyMeta([]); setAppointment(null); setHandoff(null); setInput(''); setExpandedReasoning(null);
   };
 
   const formatContent = (text: string) =>
@@ -338,6 +419,34 @@ export default function SandboxPage() {
             {/* Messages */}
             <div className="space-y-5">
               {messages.map((msg, idx) => {
+                // System event: handoff notification banner
+                if ((msg as any).role === 'system' && msg.content === '__HANDOFF__') {
+                  const hd = (msg as any).handoffData;
+                  return (
+                    <div key={idx} className="flex justify-center my-2">
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 max-w-sm w-full space-y-2 shadow-sm">
+                        {/* Header */}
+                        <div className="flex items-center gap-2">
+                          <PhoneCall className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <p className="text-[11px] font-bold text-red-700">Handed off to human agent</p>
+                        </div>
+                        {/* Reason */}
+                        <p className="text-[10px] text-red-600 leading-relaxed">{hd?.reason}</p>
+                        {/* Notification sent */}
+                        {hd?.agentNotification && (
+                          <div className="flex items-center gap-2 pt-1 border-t border-red-100">
+                            <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
+                            <p className="text-[9px] text-blue-600">
+                              Email sent to <span className="font-semibold">{hd.agentNotification.recipient}</span>
+                            </p>
+                          </div>
+                        )}
+                        <p className="text-[9px] text-red-400 text-center">AI is now silent — human agent will respond</p>
+                      </div>
+                    </div>
+                  );
+                }
+
                 let cleanText = msg.content;
                 let propertiesData: any[] | null = null;
                 
@@ -377,44 +486,93 @@ export default function SandboxPage() {
 
                       {/* Property Cards */}
                       {propertiesData && propertiesData.length > 0 && (
-                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                           {propertiesData.map((prop, pIdx) => (
-                              <div 
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                          {propertiesData.map((prop, pIdx) => {
+                            const cardKey = `${idx}-${pIdx}`;
+                            const images: string[] = prop.images ?? (prop.image ? [prop.image] : []);
+                            const currentImg = carouselIdx[cardKey] ?? 0;
+                            const hasMultiple = images.length > 1;
+                            return (
+                              <div
                                 key={pIdx}
                                 className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden bg-white hover:border-gray-300 hover:shadow-md transition-all group cursor-pointer"
+                                onClick={() => prop.id && window.open(`/dashboard/property/${prop.id}`, '_blank')}
                               >
-                                <div className="relative h-32 bg-gray-100">
-                                  <img 
-                                    src={prop.image || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=500'} 
-                                    alt={prop.address} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                  />
+                                {/* Photo carousel */}
+                                <div className="relative h-36 bg-gray-100 overflow-hidden">
+                                  {images.length > 0 ? (
+                                    <>
+                                      <img
+                                        key={currentImg}
+                                        src={images[currentImg]}
+                                        alt={prop.address}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                      />
+                                      {/* Photo counter */}
+                                      {hasMultiple && (
+                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                                          {images.map((_, i) => (
+                                            <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === currentImg ? 'bg-white' : 'bg-white/50'}`} />
+                                          ))}
+                                        </div>
+                                      )}
+                                      {/* Prev / Next */}
+                                      {hasMultiple && (
+                                        <>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); setCarouselIdx(prev => ({ ...prev, [cardKey]: (currentImg - 1 + images.length) % images.length })); }}
+                                            className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors"
+                                          >
+                                            <ChevronDown className="w-3 h-3 rotate-90" />
+                                          </button>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); setCarouselIdx(prev => ({ ...prev, [cardKey]: (currentImg + 1) % images.length })); }}
+                                            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors"
+                                          >
+                                            <ChevronDown className="w-3 h-3 -rotate-90" />
+                                          </button>
+                                        </>
+                                      )}
+                                      {/* Photo count badge */}
+                                      {hasMultiple && (
+                                        <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/50 rounded text-[9px] text-white font-medium">
+                                          {currentImg + 1}/{images.length}
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                                      <MapPin className="w-6 h-6 text-gray-300" />
+                                      <span className="text-[10px] text-gray-400">No photo in database</span>
+                                    </div>
+                                  )}
+                                  {/* Open link icon */}
+                                  {prop.id && (
+                                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="w-6 h-6 bg-black/50 rounded flex items-center justify-center">
+                                        <ExternalLink className="w-3 h-3 text-white" />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="p-3 flex flex-col gap-1">
-                                  <div className="flex items-start justify-between">
-                                    <h3 className="text-lg font-bold text-gray-900 tracking-tight">
-                                      ${Number(prop.price).toLocaleString()}
-                                      {prop.type === 'rent' && <span className="text-xs font-normal text-gray-500 ml-1 tracking-normal">/ mo</span>}
-                                    </h3>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-gray-900 text-xs mt-1 mb-1">
+                                  <h3 className="text-lg font-bold text-gray-900 tracking-tight">
+                                    ${Number(prop.price).toLocaleString()}
+                                    {prop.type === 'rent' && <span className="text-xs font-normal text-gray-500 ml-1 tracking-normal">/ mo</span>}
+                                  </h3>
+                                  <div className="flex items-center gap-1.5 text-gray-900 text-xs mt-0.5 mb-1">
                                     <span className="font-bold">{prop.beds}</span> <span className="font-normal text-gray-500">bd</span>
                                     <span className="text-gray-300">|</span>
                                     <span className="font-bold">{prop.baths || 1}</span> <span className="font-normal text-gray-500">ba</span>
-                                    {prop.sqft && (
-                                      <>
-                                        <span className="text-gray-300">|</span>
-                                        <span className="font-bold">{prop.sqft}</span> <span className="font-normal text-gray-500">sqft</span>
-                                      </>
-                                    )}
+                                    {prop.sqft && (<><span className="text-gray-300">|</span><span className="font-bold">{prop.sqft}</span> <span className="font-normal text-gray-500">sqft</span></>)}
                                   </div>
-                                  <div className="text-gray-700 text-xs truncate font-normal">
-                                    {prop.address}{prop.city ? `, ${prop.city}` : ''}
-                                  </div>
+                                  <div className="text-gray-700 text-xs truncate">{prop.address}{prop.city ? `, ${prop.city}` : ''}</div>
                                 </div>
                               </div>
-                           ))}
-                         </div>
+                            );
+                          })}
+                        </div>
                       )}
 
                     {/* Analysis badges */}
@@ -459,6 +617,23 @@ export default function SandboxPage() {
                         </span>
                       </div>
                     )}
+
+                    {/* Escalation Badge */}
+                    {msg.analysis?.action === 'escalate' && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl w-full"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-red-700 mb-0.5">Передано живому агенту</p>
+                          {msg.analysis.escalation_reason && (
+                            <p className="text-[11px] text-red-500 leading-relaxed">{msg.analysis.escalation_reason}</p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                 </div>
               );
@@ -490,13 +665,19 @@ export default function SandboxPage() {
 
           {/* Input */}
           <div className="px-6 pb-5 border-t border-gray-100 pt-4">
+            {handoff?.triggered && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-red-50 border border-red-200 rounded-lg">
+                <PhoneCall className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <p className="text-[10px] text-red-600 font-medium">Human agent assigned — AI is silent. Your messages are being received.</p>
+              </div>
+            )}
             <div className="flex gap-3 items-end bg-white border border-gray-200 rounded-xl px-4 py-3 focus-within:border-gray-400 transition-colors">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Write as a prospective tenant... (Enter to send)"
+                placeholder={handoff?.triggered ? 'Write to human agent...' : 'Write as a prospective tenant... (Enter to send)'}
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none leading-relaxed max-h-32 overflow-y-auto"
                 onInput={e => {
@@ -513,9 +694,14 @@ export default function SandboxPage() {
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-center text-[10px] text-gray-400 mt-2">
-              Sandbox mode — no real emails sent, no calendar bookings, no data stored
-            </p>
+            <div className="mt-2 flex flex-col items-center gap-0.5">
+              <p className="text-center text-[10px] text-gray-400">
+                Sandbox mode — no real emails sent, no calendar bookings, no data stored
+              </p>
+              <p className="text-center text-[10px] text-gray-400">
+                🏠 Equal Housing Opportunity &nbsp;·&nbsp; AI-assisted leasing agent
+              </p>
+            </div>
           </div>
         </div>
 
@@ -528,82 +714,436 @@ export default function SandboxPage() {
             </div>
           </div>
 
+          {/* Response Timing */}
+          {lastTiming && (
+            <div className="px-4 py-2 border-b border-gray-100 bg-white">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Response time</span>
+                <span className={`text-[10px] font-black tabular-nums ${
+                  lastTiming.totalMs < 3000 ? 'text-green-600' :
+                  lastTiming.totalMs < 7000 ? 'text-orange-500' : 'text-red-500'
+                }`}>
+                  {(lastTiming.totalMs / 1000).toFixed(1)}s
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((lastTiming.totalMs / 15000) * 100, 100)}%` }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    className={`h-full rounded-full ${
+                      lastTiming.totalMs < 3000 ? 'bg-green-500' :
+                      lastTiming.totalMs < 7000 ? 'bg-orange-400' : 'bg-red-500'
+                    }`}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[9px] text-gray-400">AI: {(lastTiming.aiMs / 1000).toFixed(1)}s</span>
+                <span className="text-[9px] text-gray-400">Total: {(lastTiming.totalMs / 1000).toFixed(1)}s</span>
+              </div>
+            </div>
+          )}
+
           <div className="p-4 space-y-5">
             {/* Best Matches */}
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
                 <span>Best Matches</span>
-                {propertyMatches.length > 0 && <Sparkles className="w-3 h-3 text-yellow-500" />}
+                {propertyMatches.length > 0 && <Sparkles className="w-3 h-3 text-yellow-500 animate-pulse" />}
               </p>
               <div className="space-y-2">
                 <AnimatePresence mode="popLayout">
-                  {(propertyMatches.length > 0 
-                    ? [...propertyMatches].sort((a, b) => b.score - a.score)
-                    : [
-                        { address: '123 Main St', score: 0, reason: 'Pending context...' },
-                        { address: '456 Oak Ave', score: 0, reason: 'Pending context...' },
-                        { address: '789 Pine St', score: 0, reason: 'Pending context...' },
-                      ]
-                  ).map((p, i) => (
-                    <motion.div 
-                      key={p.address}
-                      layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ 
-                        layout: { type: "spring", stiffness: 300, damping: 30 },
-                        opacity: { duration: 0.2 }
-                      }}
-                      className="group relative bg-white border border-gray-100 rounded-xl p-3 transition-all hover:border-gray-300 hover:shadow-sm"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              p.score >= 80 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 
-                              p.score >= 50 ? 'bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]' : 
-                              p.score > 0 ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                              'bg-gray-300'
-                            }`} />
-                            <p className="text-xs font-bold text-gray-800 truncate">{p.address}</p>
-                          </div>
-                          {p.reason && p.score > 0 && (
-                            <p className="text-[9px] text-gray-500 line-clamp-2 leading-relaxed italic">
-                              "{p.reason}"
-                            </p>
+                  {(() => {
+                    // Before any AI response: show top-3 from propertyMeta as skeleton
+                    const PLACEHOLDERS = propertyMeta.slice(0, 3).map(m => ({
+                      address: m.address, score: 0, reason: ''
+                    }));
+
+                    // After AI responds: show top-3 scored matches only
+                    const base = propertyMatches.length > 0
+                      ? [...propertyMatches].sort((a, b) => b.score - a.score).slice(0, 3)
+                      : PLACEHOLDERS.slice(0, 3);
+
+                    // Merge with metadata
+                    return base.map((p) => {
+                      const meta = propertyMeta.find(m =>
+                        m.address.toLowerCase().includes(p.address.split(',')[0].toLowerCase())
+                      );
+                      const scoreColor =
+                        p.score >= 80 ? 'text-green-600' :
+                        p.score >= 50 ? 'text-orange-500' :
+                        p.score >  0  ? 'text-red-500' : 'text-gray-300';
+                      const barColor =
+                        p.score >= 80 ? 'bg-green-500' :
+                        p.score >= 50 ? 'bg-orange-400' : 'bg-red-400';
+                      const dotColor =
+                        p.score >= 80 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' :
+                        p.score >= 50 ? 'bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.7)]' :
+                        p.score >  0  ? 'bg-red-400' : 'bg-gray-200';
+
+                      return (
+                        <motion.div
+                          key={p.address}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ layout: { type: 'spring', stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                          className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all"
+                        >
+                          {/* Thumbnail — right panel shows first image only */}
+                          {meta?.images?.[0] && (
+                            <div className="relative h-20 bg-gray-100 overflow-hidden">
+                              <img
+                                src={meta.images[0]}
+                                alt={p.address}
+                                className="w-full h-full object-cover"
+                                onError={e => {
+                                  const el = e.target as HTMLImageElement;
+                                  el.style.display = 'none';
+                                  el.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></div>';
+                                }}
+                              />
+                              <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black backdrop-blur-sm ${
+                                p.score >= 80 ? 'bg-green-500/90 text-white' :
+                                p.score >= 50 ? 'bg-orange-400/90 text-white' :
+                                p.score >  0  ? 'bg-red-400/90 text-white' :
+                                'bg-black/40 text-white'
+                              }`}>
+                                {p.score > 0 ? `${p.score}%` : '--'}
+                              </div>
+                            </div>
                           )}
-                        </div>
-                        <div className="flex flex-col items-end shrink-0 ml-2">
-                          <span className={`text-xs font-black ${
-                            p.score >= 80 ? 'text-green-600' : p.score >= 50 ? 'text-orange-500' : p.score > 0 ? 'text-red-600' : 'text-gray-400'
-                          }`}>
-                            {p.score > 0 ? `${p.score}%` : '--'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Score Bar */}
-                      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${p.score}%` }}
-                          transition={{ duration: 1, ease: "easeOut" }}
-                          className={`h-full ${
-                            p.score >= 80 ? 'bg-green-500' : p.score >= 50 ? 'bg-orange-400' : 'bg-red-500'
-                          }`}
-                        />
-                      </div>
-                    </motion.div>
-                  ))}
+
+                          <div className="p-2.5">
+                            {/* Address row */}
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                              <p className="text-[10px] font-bold text-gray-800 truncate">{p.address.split(',')[0]}</p>
+                              {!meta?.images?.[0] && (
+                                <span className={`ml-auto text-[10px] font-black shrink-0 ${scoreColor}`}>
+                                  {p.score > 0 ? `${p.score}%` : '--'}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Price + beds */}
+                            {meta && (
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-[10px] font-semibold text-gray-700">
+                                  ${meta.price.toLocaleString()}<span className="font-normal text-gray-400">/mo</span>
+                                </span>
+                                <span className="text-gray-300">·</span>
+                                <span className="text-[10px] text-gray-500">{meta.beds} bd</span>
+                              </div>
+                            )}
+
+                            {/* Reason */}
+                            {p.reason && p.score > 0 && (
+                              <p className="text-[9px] text-gray-400 italic line-clamp-2 leading-relaxed">
+                                {p.reason}
+                              </p>
+                            )}
+
+                            {/* Score bar */}
+                            <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden mt-2">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${p.score}%` }}
+                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className={`h-full rounded-full ${p.score > 0 ? barColor : 'bg-gray-200'}`}
+                              />
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    });
+                  })()}
                 </AnimatePresence>
               </div>
             </div>
+
+            {/* Human Handoff Section */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <UserCheck className="w-3 h-3" />
+                Human Handoff
+              </p>
+              <AnimatePresence mode="wait">
+                {handoff ? (
+                  <motion.div
+                    key="handoff-active"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-2"
+                  >
+                    {/* Status header */}
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                        </span>
+                        <span className="text-[11px] font-bold text-red-700">Escalated to human agent</span>
+                        <span className="ml-auto text-[9px] text-red-400">
+                          {new Date(handoff.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-red-700 leading-relaxed">{handoff.reason}</p>
+                      </div>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-0">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Timeline</p>
+
+                      {/* Step 1 — AI detected */}
+                      <div className="flex gap-2.5">
+                        <div className="flex flex-col items-center">
+                          <div className="w-4 h-4 rounded-full bg-red-100 border-2 border-red-400 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-2 h-2 text-red-500" />
+                          </div>
+                          <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                        </div>
+                        <div className="pb-3">
+                          <p className="text-[10px] font-semibold text-gray-700">AI detected escalation trigger</p>
+                          <p className="text-[9px] text-gray-400">{new Date(handoff.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                        </div>
+                      </div>
+
+                      {/* Step 2 — AI silenced */}
+                      <div className="flex gap-2.5">
+                        <div className="flex flex-col items-center">
+                          <div className="w-4 h-4 rounded-full bg-orange-100 border-2 border-orange-400 flex items-center justify-center shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                          </div>
+                          <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                        </div>
+                        <div className="pb-3">
+                          <p className="text-[10px] font-semibold text-gray-700">AI stopped responding</p>
+                          <p className="text-[9px] text-gray-400">Conversation handed off</p>
+                        </div>
+                      </div>
+
+                      {/* Step 3 — Notification sent */}
+                      {handoff.agentNotification && (
+                        <div className="flex gap-2.5">
+                          <div className="flex flex-col items-center">
+                            <div className="w-4 h-4 rounded-full bg-blue-100 border-2 border-blue-400 flex items-center justify-center shrink-0">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-blue-500" />
+                            </div>
+                            <div className="w-px flex-1 bg-gray-200 my-0.5" />
+                          </div>
+                          <div className="pb-3">
+                            <p className="text-[10px] font-semibold text-gray-700">Agent notified via email</p>
+                            <p className="text-[9px] text-gray-400">{handoff.agentNotification.recipient}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 4 — Waiting */}
+                      <div className="flex gap-2.5">
+                        <div className="flex flex-col items-center">
+                          <div className="w-4 h-4 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center shrink-0">
+                            <span className="w-1 h-1 rounded-full bg-gray-400" />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-400">Waiting for agent to take over...</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simulated email preview */}
+                    {handoff.agentNotification && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-1.5">
+                        <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Simulated email sent</p>
+                        <div className="space-y-1">
+                          <div className="flex gap-1.5">
+                            <span className="text-[9px] text-blue-400 w-8 shrink-0">To:</span>
+                            <span className="text-[9px] text-blue-700 font-medium">{handoff.agentNotification.recipient}</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <span className="text-[9px] text-blue-400 w-8 shrink-0">Subj:</span>
+                            <span className="text-[9px] text-blue-700 font-medium leading-tight">{handoff.agentNotification.subject}</span>
+                          </div>
+                          <p className="text-[9px] text-blue-600 leading-relaxed pt-1 border-t border-blue-100">
+                            {handoff.agentNotification.preview}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Take Over button */}
+                    <button className="w-full flex items-center justify-center gap-1.5 py-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-semibold rounded-lg transition-colors">
+                      <PhoneCall className="w-3 h-3" />
+                      Take Over (Sandbox)
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="handoff-idle"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-xl"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                    <p className="text-[10px] text-gray-400">AI handling — no handoff needed</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Appointment Section */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                Appointment
+              </p>
+              <AnimatePresence mode="wait">
+                {appointment ? (
+                  <motion.div
+                    key="appointment-card"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="bg-white border border-green-100 rounded-xl p-3 space-y-2.5 shadow-sm"
+                  >
+                    {/* Status */}
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        Scheduled
+                      </span>
+                      <span className="text-[9px] text-gray-400 italic">Simulated</span>
+                    </div>
+
+                    {/* Property */}
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">Property</p>
+                        <p className="text-[11px] font-semibold text-gray-800 leading-tight">{appointment.property || '—'}</p>
+                      </div>
+                    </div>
+
+                    {/* Date & Time */}
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">Date & Time</p>
+                        <p className="text-[11px] font-semibold text-gray-800 leading-tight">
+                          {appointment.time
+                            ? (() => {
+                                try {
+                                  const d = new Date(appointment.time);
+                                  return d.toLocaleString('en-US', {
+                                    weekday: 'short', month: 'short', day: 'numeric',
+                                    hour: 'numeric', minute: '2-digit', hour12: true
+                                  });
+                                } catch { return appointment.time; }
+                              })()
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Duration */}
+                    <div className="flex items-start gap-2">
+                      <Zap className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">Duration</p>
+                        <p className="text-[11px] font-semibold text-gray-800">30 minutes</p>
+                      </div>
+                    </div>
+
+                    {/* Calendar Link */}
+                    <a
+                      href={appointment.calendarLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors group"
+                    >
+                      <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />
+                      <span className="text-[10px] font-medium text-gray-500 group-hover:text-gray-700">View in Google Calendar</span>
+                    </a>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="appointment-empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center justify-center py-5 px-3 bg-gray-50/80 border border-dashed border-gray-200 rounded-xl"
+                  >
+                    <Calendar className="w-5 h-5 text-gray-300 mb-2" />
+                    <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+                      No appointment yet.<br />Viewing will appear here once booked.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Currency mismatch warning */}
+            {clientRequirements.budget?.budget_currency && clientRequirements.budget.budget_currency !== 'USD' && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-semibold text-amber-700">Currency: {clientRequirements.budget.budget_currency}</p>
+                  <p className="text-[10px] text-amber-600">
+                    Stated: {clientRequirements.budget.budget_stated ?? '—'} → ~${(clientRequirements.budget.budget_usd ?? 0).toLocaleString()} USD
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Client Requirements — grouped by category */}
             <div className="space-y-6">
               {renderCategoryGroup('Tenant Profile', <User className="w-3 h-3" />, TENANT_CATEGORIES, clientRequirements)}
               {renderCategoryGroup('Property Requirements', <ClipboardList className="w-3 h-3" />, PROPERTY_REQ_CATEGORIES, clientRequirements)}
+
+              {/* Desired Features */}
+              {(clientRequirements.amenities?.desired_features?.length > 0 || clientRequirements.amenities?.deal_breakers?.length > 0) && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Desired Features
+                  </p>
+
+                  {clientRequirements.amenities?.desired_features?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(clientRequirements.amenities.desired_features as string[]).map((key: string) => (
+                        <span key={key} className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                          ✓ {key.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {clientRequirements.amenities?.deal_breakers?.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-2">
+                        <AlertTriangle className="w-3 h-3 text-red-400" />
+                        Deal Breakers
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(clientRequirements.amenities.deal_breakers as string[]).map((key: string) => (
+                          <span key={key} className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                            ✗ {key.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
