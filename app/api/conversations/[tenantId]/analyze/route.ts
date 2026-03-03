@@ -86,6 +86,12 @@ export async function POST(
       .in('status', ['Active', 'Available']);
 
     // 4. Run AI Analysis
+    const realtorName    = user.user_metadata?.ai_signature_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
+    const realtorPhone   = user.user_metadata?.ai_phone || user.user_metadata?.phone || user.phone;
+    const realtorCompany = user.user_metadata?.company || user.user_metadata?.brokerage_name || '';
+    const timezone       = user.user_metadata?.timezone || 'America/Los_Angeles';
+    const viewingHoursStart = user.user_metadata?.viewing_hours_start || '10:00';
+    const viewingHoursEnd   = user.user_metadata?.viewing_hours_end   || '20:00';
     console.log('🧠 AI Brain: Running analyzeConversation...');
     const analysis = await analyzeConversation({
       tenant: {
@@ -97,6 +103,12 @@ export async function POST(
       },
       properties: properties || [],
       conversationHistory,
+      realtorName,
+      realtorPhone,
+      realtorCompany,
+      timezone,
+      viewingHoursStart,
+      viewingHoursEnd,
     });
 
     // 5. Build update object - only using columns we know exist

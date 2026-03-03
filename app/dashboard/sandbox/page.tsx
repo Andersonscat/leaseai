@@ -735,21 +735,6 @@ export default function SandboxPage() {
                     )}
 
                     {/* Escalation Badge */}
-                    {msg.analysis?.action === 'escalate' && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl w-full"
-                      >
-                        <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-bold text-red-700 mb-0.5">Передано живому агенту</p>
-                          {msg.analysis.escalation_reason && (
-                            <p className="text-[11px] text-red-500 leading-relaxed">{msg.analysis.escalation_reason}</p>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
                 </div>
               );

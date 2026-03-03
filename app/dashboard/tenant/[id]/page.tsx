@@ -299,7 +299,7 @@ export default function TenantDetailPage() {
                     <span className={`text-xs font-bold uppercase tracking-wider ${
                       msg.sender_type === 'landlord' ? 'text-gray-500' : 'text-indigo-600'
                     }`}>
-                      {msg.sender_type === 'landlord' ? (msg.is_ai_response ? '🤖 AI Reply' : '✉️ You') : `👤 ${tenant.name}`}
+                      {msg.sender_type === 'landlord' ? (msg.is_ai_response ? 'AI Reply' : 'You') : tenant.name}
                     </span>
                     <span className="text-[11px] text-gray-400">
                       {new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at{' '}

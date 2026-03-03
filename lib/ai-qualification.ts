@@ -440,6 +440,11 @@ export interface ConversationContext {
   lastAction?: string; 
   realtorName?: string;
   realtorPhone?: string;
+  realtorCompany?: string;
+  timezone?: string;
+  viewingHoursStart?: string;
+  viewingHoursEnd?: string;
+  defaultLanguage?: string;
 }
 
 // Function Calling Tool Definition
@@ -563,6 +568,10 @@ export async function analyzeConversation(context: ConversationContext): Promise
   const { tenant, properties, conversationHistory } = context;
 
   const realtorName = context.realtorName || 'Agent';
+  const realtorCompany = context.realtorCompany || '';
+  const timezone = context.timezone || 'America/Los_Angeles';
+  const viewingStart = context.viewingHoursStart || '10:00';
+  const viewingEnd = context.viewingHoursEnd || '20:00';
 
   const propertiesText = properties.map(p => 
     `- ${p.address}:
@@ -588,10 +597,11 @@ export async function analyzeConversation(context: ConversationContext): Promise
 
   const analysisPrompt = `
 CONTEXT:
-REALTOR_NAME: ${realtorName}
+REALTOR_NAME: ${realtorName}${realtorCompany ? ` (${realtorCompany})` : ''}
 Client: ${tenant.name} (${tenant.email})
 CURRENT DATE/TIME: ${currentDateContext}
-TIMEZONE: America/Los_Angeles (Pacific Time)
+TIMEZONE: ${timezone}
+VIEWING HOURS: ${viewingStart}–${viewingEnd} (${timezone})
 Properties:
 ${propertiesText}
 
@@ -871,7 +881,11 @@ export async function generateFinalResponse(
   }
  
   const realtorName = context.realtorName || 'Agent';
+  const realtorCompany2 = context.realtorCompany || '';
   const realtorPhone = context.realtorPhone || 'Contact office for details';
+  const timezone2 = context.timezone || 'America/Los_Angeles';
+  const viewingStart2 = context.viewingHoursStart || '10:00';
+  const viewingEnd2 = context.viewingHoursEnd || '20:00';
 
   const propertiesText = context.properties.map(p => 
     `- ${p.address}: ${p.price}, ${p.bedrooms} beds. Available: ${p.available_from || 'Now'}`
@@ -897,7 +911,9 @@ PROPERTIES DATABASE:
 ${propertiesText || 'No properties available at the moment.'}
 
 CONVERSATION CONTEXT:
-REALTOR_NAME: ${realtorName}
+REALTOR_NAME: ${realtorName}${realtorCompany2 ? ` (${realtorCompany2})` : ''}
+TIMEZONE: ${timezone2}
+VIEWING HOURS: ${viewingStart2}–${viewingEnd2} (${timezone2})
 Client: ${context.tenant.name}
 History:
 ${historyText}
@@ -1116,6 +1132,10 @@ export async function analyzeAndRespond(
   const { tenant, properties, conversationHistory } = context;
   const realtorName = context.realtorName || 'Agent';
   const realtorPhone = context.realtorPhone || '';
+  const realtorCompany3 = context.realtorCompany || '';
+  const timezone3 = context.timezone || 'America/Los_Angeles';
+  const viewingStart3 = context.viewingHoursStart || '10:00';
+  const viewingEnd3 = context.viewingHoursEnd || '20:00';
 
   const buildPropertiesText = (compact = false) => properties.map(p => {
     if (compact) {
@@ -1179,11 +1199,12 @@ PROPERTIES DATABASE:
 ${propertiesText || 'No properties available.'}
 
 CONTEXT:
-REALTOR_NAME: ${realtorName}
+REALTOR_NAME: ${realtorName}${realtorCompany3 ? ` (${realtorCompany3})` : ''}
 REALTOR_PHONE: ${realtorPhone}
 Client: ${tenant.name} (${tenant.email || 'sandbox@test.com'})
 CURRENT DATE/TIME: ${currentDateContext}
-TIMEZONE: America/Los_Angeles (Pacific Time)
+TIMEZONE: ${timezone3}
+VIEWING HOURS: ${viewingStart3}–${viewingEnd3} (${timezone3})
 ${executionNote}
 
 CONVERSATION:

@@ -38,9 +38,8 @@ export default function SignupPage() {
       if (data.user) {
         setSuccess(true);
         setTimeout(() => {
-          router.push('/dashboard');
-          router.refresh();
-        }, 2000);
+          router.push('/onboarding');
+        }, 1500);
       }
     } catch (error: any) {
       setError(error.message || 'Failed to sign up');
@@ -51,10 +50,28 @@ export default function SignupPage() {
 
   const handleSocialLogin = async (provider: 'google' | 'facebook' | 'github' | 'apple') => {
     try {
+      const isGoogle = provider === 'google';
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}/onboarding`,
+          // Request Google Calendar + Gmail scopes upfront so user
+          // grants everything in one consent screen
+          ...(isGoogle && {
+            scopes: [
+              'email',
+              'profile',
+              'https://www.googleapis.com/auth/calendar',
+              'https://www.googleapis.com/auth/calendar.events',
+              'https://www.googleapis.com/auth/gmail.modify',
+              'https://www.googleapis.com/auth/gmail.send',
+            ].join(' '),
+            queryParams: {
+              access_type: 'offline',  // get refresh token
+              prompt: 'consent',       // always show consent screen (ensures all scopes shown)
+            },
+          }),
         },
       });
 
@@ -87,7 +104,7 @@ export default function SignupPage() {
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
               <CheckCircle className="w-5 h-5 text-green-600" />
               <p className="text-green-800 text-sm font-medium">
-                Account created! Redirecting to dashboard...
+                Account created! Setting up your workspace…
               </p>
             </div>
           )}

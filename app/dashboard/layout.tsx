@@ -29,6 +29,17 @@ function DashboardLayoutContent({
   const [user, setUser] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
+  // Fallback redirect — in case user lands on /dashboard without completing onboarding
+  useEffect(() => {
+    if (!user) return;
+    if (localStorage.getItem("leaseai_onboarding_done")) return;
+    if (user.user_metadata?.onboarding_done) {
+      localStorage.setItem("leaseai_onboarding_done", "done");
+      return;
+    }
+    router.replace("/onboarding");
+  }, [user, router]);
+
   // Load user on mount
   useEffect(() => {
     const loadUser = async () => {
@@ -278,6 +289,7 @@ function DashboardLayoutContent({
 
   return (
     <div className="min-h-screen bg-premium-mesh relative overflow-hidden">
+
       {/* Background Decorative Elements for Glass Pop */}
       <div className="fixed -top-20 -left-20 w-96 h-96 bg-blue-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="fixed top-1/2 -right-20 w-96 h-96 bg-indigo-100/30 rounded-full blur-[120px] pointer-events-none" />
@@ -515,24 +527,11 @@ function DashboardLayoutContent({
                       
                       <div className="h-px bg-gray-100 my-1 mx-2" />
                       
-                      {/* Profile */}
-                      <Link href="/dashboard?tab=profile" onClick={() => setShowUserMenu(false)}>
-                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
-                           <UserIcon className="w-4 h-4 text-gray-500" />
-                           <span className="text-base font-medium">Profile</span>
-                        </div>
-                      </Link>
-                      <Link href="/dashboard?tab=settings" onClick={() => setShowUserMenu(false)}>
+                      {/* Account */}
+                      <Link href="/dashboard?tab=account" onClick={() => setShowUserMenu(false)}>
                         <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
                            <Settings className="w-4 h-4 text-gray-500" />
-                           <span className="text-base font-medium">Settings</span>
-                        </div>
-                      </Link>
-                      {/* AI Settings */}
-                      <Link href="/dashboard?tab=ai-settings" onClick={() => setShowUserMenu(false)}>
-                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
-                           <Bot className="w-4 h-4 text-indigo-500" />
-                           <span className="text-base font-medium">AI Settings</span>
+                           <span className="text-base font-medium">Account</span>
                         </div>
                       </Link>
                       

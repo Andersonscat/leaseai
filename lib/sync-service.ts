@@ -285,7 +285,12 @@ export async function syncGmailMessages(
           
           const { analyzeConversation, generateFinalResponse, formatBookingDetails } = await import('@/lib/ai-qualification');
           
-          const realtorName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
+          const realtorName    = user.user_metadata?.ai_signature_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
+          const realtorPhone   = user.user_metadata?.ai_phone || user.user_metadata?.phone || user.phone || undefined;
+          const realtorCompany = user.user_metadata?.company || user.user_metadata?.brokerage_name || '';
+          const timezone       = user.user_metadata?.timezone || 'America/Los_Angeles';
+          const viewingHoursStart = user.user_metadata?.viewing_hours_start || '10:00';
+          const viewingHoursEnd   = user.user_metadata?.viewing_hours_end   || '20:00';
 
           // 1. BRAIN: Analyze and Plan
           const analysis = await analyzeConversation({
@@ -299,7 +304,11 @@ export async function syncGmailMessages(
             properties: properties || [],
             conversationHistory,
             realtorName,
-            realtorPhone: user.user_metadata?.phone || user.phone || undefined,
+            realtorPhone,
+            realtorCompany,
+            timezone,
+            viewingHoursStart,
+            viewingHoursEnd,
           });
 
           // 2. HAND: Execute Actions
@@ -390,7 +399,11 @@ export async function syncGmailMessages(
                properties: properties || [], 
                conversationHistory,
                realtorName,
-               realtorPhone: user.user_metadata?.phone || user.phone || undefined,
+               realtorPhone,
+               realtorCompany,
+               timezone,
+               viewingHoursStart,
+               viewingHoursEnd,
             },
             analysis,
             executionResult
@@ -425,7 +438,7 @@ export async function syncGmailMessages(
               calendarLink: executionResult.data.htmlLink,
               eventTime: analysis.action_params.start_time,
               realtorName,
-              realtorPhone: user.user_metadata?.phone || user.phone || 'Contact for details',
+              realtorPhone: user.user_metadata?.ai_phone || user.user_metadata?.phone || user.phone || 'Contact for details',
             });
             // Add three newlines for better spacing in HTML conversion
             finalResponse = `${finalResponseText}\n\n\n${bookingBlock}`;

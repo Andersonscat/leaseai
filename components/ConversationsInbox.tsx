@@ -193,7 +193,7 @@ export default function ConversationsInbox() {
 
       if (!statusData.status?.configured) {
         showToastNotification(
-          '⚠️ Gmail not configured. Add credentials to .env.local (see GMAIL_QUICK_SETUP.md)',
+          'Gmail not configured. Add credentials to .env.local (see GMAIL_QUICK_SETUP.md)',
           'error'
         );
         console.warn('Gmail OAuth not configured:', statusData.status?.missing);
@@ -216,9 +216,9 @@ export default function ConversationsInbox() {
 
         // Show toast notification
         if (data.created > 0) {
-          showToastNotification(`✅ Synced! ${data.created} new lead${data.created > 1 ? 's' : ''} from ${data.synced} emails`);
+          showToastNotification(`Synced! ${data.created} new lead${data.created > 1 ? 's' : ''} from ${data.synced} emails`);
         } else {
-          showToastNotification(`✅ No new leads (checked ${data.synced} emails)`);
+          showToastNotification(`No new leads (checked ${data.synced} emails)`);
         }
 
         fetchConversations(false);
@@ -227,13 +227,13 @@ export default function ConversationsInbox() {
         refreshInboxBadge();
       } else {
         const errorMsg = data.error?.includes('No access') || data.error?.includes('refresh token')
-          ? '⚠️ Gmail OAuth not set up. See GMAIL_QUICK_SETUP.md'
-          : `❌ Error: ${data.error}`;
+          ? 'Gmail OAuth not set up. See GMAIL_QUICK_SETUP.md'
+          : `Error: ${data.error}`;
         showToastNotification(errorMsg, 'error');
       }
     } catch (error) {
       console.error('❌ Failed to sync Gmail:', error);
-      showToastNotification('❌ Failed to sync Gmail. Check console for details.', 'error');
+      showToastNotification('Failed to sync Gmail. Check console for details.', 'error');
     } finally {
       setSyncing(false);
     }
@@ -254,7 +254,7 @@ export default function ConversationsInbox() {
       }
       
       if (data.success) {
-        showToastNotification('✅ AI Analysis complete! Client data updated.', 'success');
+        showToastNotification('AI Analysis complete! Client data updated.', 'success');
         
         // Update local selectedConversation state manually to avoid full re-fetch
         setSelectedConversation(prev => {
@@ -273,7 +273,7 @@ export default function ConversationsInbox() {
       }
     } catch (err) {
       console.error('❌ AI Analysis failed:', err);
-      showToastNotification('❌ Failed to re-analyze conversation', 'error');
+      showToastNotification('Failed to re-analyze conversation', 'error');
     } finally {
       setIsAnalyzing(false);
     }
@@ -440,7 +440,7 @@ export default function ConversationsInbox() {
         console.error(`❌ API returned ${response.status} for tenant ${conversation.tenant_id}`);
         // Don't show error if we already have messages from fast path
         if (!conversation.messages?.length) {
-          showToastNotification(`❌ Failed to load messages (HTTP ${response.status})`, 'error');
+          showToastNotification(`Failed to load messages (HTTP ${response.status})`, 'error');
         }
         return;
       }
@@ -574,7 +574,7 @@ export default function ConversationsInbox() {
       const response = await apiPromise;
       if (!response.ok) {
         const errorData = await response.json();
-        alert(`❌ Error: ${errorData.error}`);
+        alert(`Error: ${errorData.error}`);
         throw new Error(errorData.error);
       }
       

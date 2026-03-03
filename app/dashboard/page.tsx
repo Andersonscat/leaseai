@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot } from "lucide-react";
+import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
 import Avatar from "@/components/Avatar";
+import { createSupabaseClient } from "@/lib/supabase";
 
 import { Suspense } from "react";
 
@@ -149,7 +150,7 @@ function ShowingDetailsSheet({ appointment, onClose }: { appointment: any, onClo
 }
 
 function DashboardContent() {
-
+  const supabase = createSupabaseClient();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "inbox";
   const successParam = searchParams.get("success");
@@ -168,6 +169,24 @@ function DashboardContent() {
   // Toast notification state
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Account page state
+  const [user, setUser] = useState<any>(null);
+  const [accountForm, setAccountForm] = useState({
+    // Basic
+    full_name: '', email: '', phone: '', company: '', job_title: '', website: '',
+    // Professional
+    license_number: '', license_state: '', license_expiration: '', brokerage_name: '', mls_id: '', nar_id: '', service_areas: '',
+    // AI / Operational
+    ai_signature_name: '', ai_phone: '', timezone: '', default_language: 'en',
+    viewing_hours_start: '10:00', viewing_hours_end: '20:00',
+    email_signature: '',
+    // Notifications
+    notif_email: true, notif_sms: false, notif_weekly: true,
+  });
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [accountTab, setAccountTab] = useState<'profile' | 'professional' | 'ai' | 'notifications' | 'security'>('profile');
   
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -182,7 +201,7 @@ function DashboardContent() {
   // Show success toast if redirected after creating or deleting property
   useEffect(() => {
     if (successParam === 'property_created') {
-      setToastMessage('✅ Property added successfully!');
+      setToastMessage('Property added successfully!');
       setShowToast(true);
       
       // Auto-hide after 4 seconds
@@ -193,7 +212,7 @@ function DashboardContent() {
       // Clear URL parameter
       window.history.replaceState({}, '', '/dashboard?tab=properties');
     } else if (deletedParam === 'success') {
-      setToastMessage('🗑️ Property deleted successfully!');
+      setToastMessage('Property deleted successfully!');
       setShowToast(true);
       
       // Auto-hide after 4 seconds
@@ -266,7 +285,7 @@ function DashboardContent() {
       setShowTenantDeleteModal(false);
       setTenantSelectionMode(false);
       setSelectedTenants(new Set());
-      setToastMessage(`🗑️ ${selectedTenants.size} tenant${selectedTenants.size > 1 ? 's' : ''} deleted`);
+      setToastMessage(`${selectedTenants.size} tenant${selectedTenants.size > 1 ? 's' : ''} deleted`);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
       // Refresh tenants list
@@ -391,7 +410,67 @@ function DashboardContent() {
     }
   }, [activeTab]);
 
+  // Load user for Account tab
+  useEffect(() => {
+    if (activeTab !== 'account') return;
+    const loadUser = async () => {
+      const { data: { user: u } } = await supabase.auth.getUser();
+      setUser(u);
+      if (u) {
+        const m = u.user_metadata || {};
+        setAccountForm({
+          full_name:            m.full_name || '',
+          email:                u.email || '',
+          phone:                m.phone || u.phone || '',
+          company:              m.company || '',
+          job_title:            m.job_title || '',
+          website:              m.website || '',
+          license_number:       m.license_number || '',
+          license_state:        m.license_state || '',
+          license_expiration:   m.license_expiration || '',
+          brokerage_name:       m.brokerage_name || '',
+          mls_id:               m.mls_id || '',
+          nar_id:               m.nar_id || '',
+          service_areas:        m.service_areas || '',
+          ai_signature_name:    m.ai_signature_name || m.full_name || '',
+          ai_phone:             m.ai_phone || m.phone || u.phone || '',
+          timezone:             m.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
+          default_language:     m.default_language || 'en',
+          viewing_hours_start:  m.viewing_hours_start || '10:00',
+          viewing_hours_end:    m.viewing_hours_end || '20:00',
+          email_signature:      m.email_signature || '',
+          notif_email:          m.notif_email !== false,
+          notif_sms:            m.notif_sms === true,
+          notif_weekly:         m.notif_weekly !== false,
+        });
+      }
+    };
+    loadUser();
+  }, [activeTab]);
 
+
+
+  // Save a subset of account fields to Supabase user_metadata
+  const saveAccountSection = async (fields: Partial<typeof accountForm>, sectionKey: string) => {
+    setSavingSection(sectionKey);
+    try {
+      const data: Record<string, any> = {};
+      (Object.keys(fields) as Array<keyof typeof accountForm>).forEach(k => {
+        // email is read-only, skip
+        if (k === 'email') return;
+        data[k] = (fields as any)[k];
+      });
+      await supabase.auth.updateUser({ data });
+      setToastMessage('Saved successfully');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+    } catch {
+      setToastMessage('Failed to save');
+      setShowToast(true);
+    } finally {
+      setSavingSection(null);
+    }
+  };
 
   // Sort properties based on selected filter and direction
   const getSortedProperties = () => {
@@ -525,32 +604,32 @@ function DashboardContent() {
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     try {
-      const deletePromises = Array.from(selectedProperties).map(propertyId =>
-        fetch(`/api/properties/${propertyId}`, { method: 'DELETE' })
+      const results = await Promise.allSettled(
+        Array.from(selectedProperties).map(propertyId =>
+          fetch(`/api/properties/${propertyId}`, { method: 'DELETE' })
+        )
       );
-      
-      const results = await Promise.all(deletePromises);
-      const allSuccessful = results.every(res => res.ok);
-      
-      if (allSuccessful) {
-        setToastMessage(`🗑️ ${selectedProperties.size} properties deleted successfully!`);
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 4000);
-        
-        // Refresh properties list
-        const response = await fetch(`/api/properties?type=${propertyType}`);
-        const data = await response.json();
-        setProperties(data.properties || []);
-        
-        // Exit selection mode
-        setSelectionMode(false);
-        setSelectedProperties(new Set());
-      } else {
-        alert('Some properties failed to delete. Please try again.');
-      }
+
+      // Count successes — treat 404 as success (already deleted / not found)
+      const failed = results.filter(r =>
+        r.status === 'rejected' ||
+        (r.status === 'fulfilled' && !r.value.ok && r.value.status !== 404)
+      );
+
+      const count = results.length - failed.length;
+      setToastMessage(`${count} ${count === 1 ? 'property' : 'properties'} deleted successfully`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+
+      // Always refresh the list regardless of partial failures
+      const response = await fetch(`/api/properties?type=${propertyType}`);
+      const data = await response.json();
+      setProperties(data.properties || []);
+
+      setSelectionMode(false);
+      setSelectedProperties(new Set());
     } catch (error) {
       console.error('Error deleting properties:', error);
-      alert('Failed to delete properties');
     } finally {
       setBulkDeleting(false);
       setShowBulkDeleteModal(false);
@@ -1915,116 +1994,497 @@ function DashboardContent() {
         </>
       )}
 
-      {/* Settings Tab */}
-      {activeTab === "settings" && (
+      {/* Account Tab */}
+      {activeTab === "account" && (
         <>
-          <div className="mb-10">
-            <h2 className="text-4xl font-bold text-black mb-2">Settings</h2>
-            <p className="text-lg text-gray-600">Manage your account and preferences</p>
+          {/* Header */}
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold text-black mb-2">Account</h2>
+            <p className="text-lg text-gray-500">Manage your profile, AI assistant and preferences</p>
           </div>
 
-          <div className="space-y-6">
-            {/* Profile Section */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
-              <h3 className="text-2xl font-bold text-black mb-6">Profile</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    placeholder="John Doe"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    placeholder="john@example.com"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 123-4567"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  />
-                </div>
-                <button className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all">
-                  Save Changes
-                </button>
-              </div>
-            </div>
+          {/* Layout: sidebar nav + content */}
+          <div className="flex gap-8 items-start">
 
-            {/* Notifications Section */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
-              <h3 className="text-2xl font-bold text-black mb-6">Notifications</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-semibold text-black">Email Notifications</p>
-                    <p className="text-sm text-gray-600">Receive updates about new messages and leads</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
-                  </label>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-semibold text-black">SMS Notifications</p>
-                    <p className="text-sm text-gray-600">Get text alerts for urgent matters</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
-                  </label>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                <div>
-                    <p className="font-semibold text-black">Weekly Reports</p>
-                    <p className="text-sm text-gray-600">Summary of your activity and performance</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
-                  </label>
-                </div>
-              </div>
-            </div>
+            {/* Left nav */}
+            <nav className="w-52 shrink-0 space-y-1">
+              {([
+                { key: 'profile',       label: 'Profile',       icon: User },
+                { key: 'professional',  label: 'Professional',  icon: Building2 },
+                { key: 'ai',            label: 'AI Assistant',  icon: Bot },
+                { key: 'notifications', label: 'Notifications', icon: Bell },
+                { key: 'security',      label: 'Security',      icon: Shield },
+              ] as const).map(({ key, label, icon: Icon }) => (
+                <button key={key} onClick={() => setAccountTab(key)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+                    accountTab === key
+                      ? 'bg-black text-white'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-black'
+                  }`}>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </nav>
 
-            {/* Security Section */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
-              <h3 className="text-2xl font-bold text-black mb-6">Security</h3>
-              <div className="space-y-4">
-                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
-                  Change Password
-                </button>
-                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
-                  Two-Factor Authentication
-                </button>
-                <button className="w-full px-6 py-3 bg-gray-100 text-black rounded-lg font-semibold hover:bg-gray-200 transition-all text-left">
-                  Connected Accounts
-                </button>
-              </div>
-            </div>
+            {/* Right content */}
+            <div className="flex-1 min-w-0">
 
-            {/* Danger Zone */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-red-200">
-              <h3 className="text-2xl font-bold text-red-600 mb-6">Danger Zone</h3>
-              <div className="space-y-4">
-                <button className="w-full px-6 py-3 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all">
-                  Delete Account
-                </button>
-              </div>
+              {/* ── Profile ─── */}
+              {accountTab === 'profile' && (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
+                    <label className="relative group cursor-pointer shrink-0">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        className="sr-only"
+                        disabled={uploadingAvatar}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || file.size > 2 * 1024 * 1024) {
+                            setToastMessage(file?.size ? 'File too large (max 2MB)' : 'No file selected');
+                            setShowToast(true);
+                            setTimeout(() => setShowToast(false), 4000);
+                            return;
+                          }
+                          setUploadingAvatar(true);
+                          try {
+                            const fd = new FormData();
+                            fd.append('file', file);
+                            const res = await fetch('/api/profile/avatar', { method: 'POST', body: fd });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Upload failed');
+                            const { data: { user: u } } = await supabase.auth.getUser();
+                            setUser(u);
+                            setToastMessage('Photo updated');
+                            setShowToast(true);
+                            setTimeout(() => setShowToast(false), 4000);
+                          } catch (err: any) {
+                            setToastMessage(err.message || 'Upload failed');
+                            setShowToast(true);
+                          } finally {
+                            setUploadingAvatar(false);
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      <div className="relative">
+                        <Avatar
+                          src={user?.user_metadata?.avatar_url}
+                          name={accountForm.full_name || user?.email}
+                          email={user?.email}
+                          size="lg"
+                          className="w-16 h-16 ring-2 ring-gray-100"
+                        />
+                        <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          {uploadingAvatar ? (
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <span className="text-xs font-medium text-white text-center px-2">Change photo</span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                    <div>
+                      <p className="text-lg font-bold text-black">{accountForm.full_name || 'Your Name'}</p>
+                      <p className="text-sm text-gray-500">{accountForm.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                      <input type="text" value={accountForm.full_name}
+                        onChange={(e) => setAccountForm(f => ({ ...f, full_name: e.target.value }))}
+                        placeholder="John Doe"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                      <input type="tel" value={accountForm.phone}
+                        onChange={(e) => setAccountForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="+1 (555) 123-4567"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                      <input type="email" value={accountForm.email} readOnly
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-lg text-sm text-gray-400 cursor-not-allowed" />
+                      <p className="text-xs text-gray-400 mt-1.5">Managed by your authentication provider</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Company / Agency</label>
+                      <input type="text" value={accountForm.company}
+                        onChange={(e) => setAccountForm(f => ({ ...f, company: e.target.value }))}
+                        placeholder="Acme Realty"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
+                      <div className="relative">
+                        <select value={accountForm.job_title}
+                          onChange={(e) => setAccountForm(f => ({ ...f, job_title: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all">
+                          <option value="">Select role…</option>
+                          <option value="agent">Agent</option>
+                          <option value="broker">Broker</option>
+                          <option value="property_manager">Property Manager</option>
+                          <option value="leasing_manager">Leasing Manager</option>
+                          <option value="owner">Owner / Landlord</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Website</label>
+                      <input type="url" value={accountForm.website}
+                        onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))}
+                        placeholder="https://yourwebsite.com"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                      <p className="text-xs text-gray-400 mt-1.5">Your personal or agency website</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+                    <button
+                      onClick={() => saveAccountSection({ full_name: accountForm.full_name, phone: accountForm.phone, company: accountForm.company, job_title: accountForm.job_title, website: accountForm.website }, 'profile')}
+                      disabled={savingSection === 'profile'}
+                      className="px-6 py-2.5 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all disabled:opacity-50"
+                    >
+                      {savingSection === 'profile' ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Professional ─── */}
+              {accountTab === 'professional' && (
+                <div className="space-y-4">
+                  {/* License expiration warning */}
+                  {(() => {
+                    if (!accountForm.license_expiration) return null;
+                    const exp = new Date(accountForm.license_expiration);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    if (daysLeft <= 0) {
+                      return (
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+                          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-red-700">License Expired</p>
+                            <p className="text-xs text-red-600 mt-0.5">Your license expired on {exp.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Operating with an expired license may violate state law. Please renew immediately.</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (daysLeft <= 60) {
+                      return (
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-700">License Expiring Soon</p>
+                            <p className="text-xs text-amber-600 mt-0.5">Your license expires in {daysLeft} day{daysLeft === 1 ? '' : 's'} ({exp.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}). Start your renewal process now to avoid interruption.</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Licensing */}
+                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <div className="mb-7">
+                      <h3 className="text-lg font-bold text-black">Licensing</h3>
+                      <p className="text-sm text-gray-500 mt-1">Your real estate license information. Required for Fair Housing compliance and brokerage disclosure.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">License Number</label>
+                        <input type="text" value={accountForm.license_number}
+                          onChange={(e) => setAccountForm(f => ({ ...f, license_number: e.target.value }))}
+                          placeholder="01234567"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">License State</label>
+                        <div className="relative">
+                          <select value={accountForm.license_state}
+                            onChange={(e) => setAccountForm(f => ({ ...f, license_state: e.target.value }))}
+                            className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all">
+                            <option value="">Select state…</option>
+                            {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">License Expiration</label>
+                        <input type="date" value={accountForm.license_expiration}
+                          onChange={(e) => setAccountForm(f => ({ ...f, license_expiration: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        <p className="text-xs text-gray-400 mt-1.5">We'll alert you 60 days before expiration</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">NAR Member ID</label>
+                        <input type="text" value={accountForm.nar_id}
+                          onChange={(e) => setAccountForm(f => ({ ...f, nar_id: e.target.value }))}
+                          placeholder="Optional"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        <p className="text-xs text-gray-400 mt-1.5">National Association of Realtors</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Brokerage & MLS */}
+                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <div className="mb-7">
+                      <h3 className="text-lg font-bold text-black">Brokerage &amp; MLS</h3>
+                      <p className="text-sm text-gray-500 mt-1">Many states require brokerage disclosure in all advertising and client communications.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Brokerage Name</label>
+                        <input type="text" value={accountForm.brokerage_name}
+                          onChange={(e) => setAccountForm(f => ({ ...f, brokerage_name: e.target.value }))}
+                          placeholder="Keller Williams Realty"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">MLS ID</label>
+                        <input type="text" value={accountForm.mls_id}
+                          onChange={(e) => setAccountForm(f => ({ ...f, mls_id: e.target.value }))}
+                          placeholder="MLS-0000001"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        <p className="text-xs text-gray-400 mt-1.5">Required when publishing listings via MLS</p>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Service Areas</label>
+                        <input type="text" value={accountForm.service_areas}
+                          onChange={(e) => setAccountForm(f => ({ ...f, service_areas: e.target.value }))}
+                          placeholder="Seattle Metro, Eastside, Bellevue, Kirkland"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        <p className="text-xs text-gray-400 mt-1.5">Markets and areas where you operate (comma-separated)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compliance info */}
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                    <div className="flex items-start gap-3">
+                      <Shield className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700">Why this matters</h4>
+                        <ul className="text-xs text-gray-500 mt-2 space-y-1.5">
+                          <li>The AI assistant will include your brokerage name in email signatures when required by state law.</li>
+                          <li>License information may be disclosed to clients upon request per Fair Housing Act requirements.</li>
+                          <li>MLS ID is included when your listings are syndicated or shared through the platform.</li>
+                          <li>Your data is stored securely and never shared with third parties.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => saveAccountSection({ license_number: accountForm.license_number, license_state: accountForm.license_state, license_expiration: accountForm.license_expiration, brokerage_name: accountForm.brokerage_name, mls_id: accountForm.mls_id, nar_id: accountForm.nar_id, service_areas: accountForm.service_areas }, 'professional')}
+                      disabled={savingSection === 'professional'}
+                      className="px-6 py-2.5 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all disabled:opacity-50"
+                    >
+                      {savingSection === 'professional' ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── AI Assistant ─── */}
+              {accountTab === 'ai' && (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-3 mb-7">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-black">AI Assistant</h3>
+                      <p className="text-sm text-gray-500">How the AI represents you to clients</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Signature Name</label>
+                      <input type="text" value={accountForm.ai_signature_name}
+                        onChange={(e) => setAccountForm(f => ({ ...f, ai_signature_name: e.target.value }))}
+                        placeholder={accountForm.full_name || "Your Name"}
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                      <p className="text-xs text-gray-400 mt-1.5">"Best regards, [Name]"</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Phone for Clients</label>
+                      <input type="tel" value={accountForm.ai_phone}
+                        onChange={(e) => setAccountForm(f => ({ ...f, ai_phone: e.target.value }))}
+                        placeholder="+1 (555) 123-4567"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Viewing Hours — From</label>
+                      <input type="time" value={accountForm.viewing_hours_start}
+                        onChange={(e) => setAccountForm(f => ({ ...f, viewing_hours_start: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Viewing Hours — To</label>
+                      <input type="time" value={accountForm.viewing_hours_end}
+                        onChange={(e) => setAccountForm(f => ({ ...f, viewing_hours_end: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>
+                      <div className="relative">
+                        <select value={accountForm.timezone}
+                          onChange={(e) => setAccountForm(f => ({ ...f, timezone: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                          <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                          <option value="America/Denver">Mountain Time (MT)</option>
+                          <option value="America/Chicago">Central Time (CT)</option>
+                          <option value="America/New_York">Eastern Time (ET)</option>
+                          <option value="America/Anchorage">Alaska (AKT)</option>
+                          <option value="Pacific/Honolulu">Hawaii (HT)</option>
+                          <option value="Europe/London">London (GMT/BST)</option>
+                          <option value="Europe/Moscow">Moscow (MSK)</option>
+                          <option value="Asia/Almaty">Almaty (ALMT)</option>
+                          <option value="Asia/Dubai">Dubai (GST)</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Default Client Language</label>
+                      <div className="relative">
+                        <select value={accountForm.default_language}
+                          onChange={(e) => setAccountForm(f => ({ ...f, default_language: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+                          <option value="en">English</option>
+                          <option value="ru">Russian</option>
+                          <option value="es">Spanish</option>
+                          <option value="zh">Chinese</option>
+                          <option value="ko">Korean</option>
+                          <option value="ar">Arabic</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1.5">AI auto-detects per conversation</p>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Email Signature</label>
+                      <textarea value={accountForm.email_signature}
+                        onChange={(e) => setAccountForm(f => ({ ...f, email_signature: e.target.value }))}
+                        rows={4}
+                        placeholder={[accountForm.full_name || 'Your Name', accountForm.job_title ? accountForm.job_title.charAt(0).toUpperCase() + accountForm.job_title.slice(1).replace('_', ' ') + (accountForm.company ? ` · ${accountForm.company}` : '') : (accountForm.company || ''), accountForm.phone || ''].filter(Boolean).join('\n')}
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none font-mono" />
+                      <p className="text-xs text-gray-400 mt-1.5">Appended to outgoing emails. Leave empty to use auto-generated.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+                    <button
+                      onClick={() => saveAccountSection({ ai_signature_name: accountForm.ai_signature_name, ai_phone: accountForm.ai_phone, viewing_hours_start: accountForm.viewing_hours_start, viewing_hours_end: accountForm.viewing_hours_end, timezone: accountForm.timezone, default_language: accountForm.default_language, email_signature: accountForm.email_signature }, 'ai')}
+                      disabled={savingSection === 'ai'}
+                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    >
+                      {savingSection === 'ai' ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Notifications ─── */}
+              {accountTab === 'notifications' && (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                  <div className="mb-7">
+                    <h3 className="text-lg font-bold text-black">Notifications</h3>
+                    <p className="text-sm text-gray-500 mt-1">Choose how you want to be notified</p>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {([
+                      { key: 'notif_email', label: 'Email Notifications', desc: 'New messages, leads and activity updates' },
+                      { key: 'notif_sms',   label: 'SMS Notifications',   desc: 'Urgent alerts sent directly to your phone' },
+                      { key: 'notif_weekly',label: 'Weekly Reports',      desc: 'Weekly summary of activity and performance' },
+                    ] as const).map(({ key, label, desc }) => (
+                      <div key={key} className="flex items-center justify-between py-5">
+                        <div>
+                          <p className="text-sm font-semibold text-black">{label}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer ml-6 shrink-0">
+                          <input type="checkbox" className="sr-only peer"
+                            checked={accountForm[key] as boolean}
+                            onChange={(e) => {
+                              setAccountForm(f => ({ ...f, [key]: e.target.checked }));
+                              supabase.auth.updateUser({ data: { [key]: e.target.checked } });
+                            }} />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Security ─── */}
+              {accountTab === 'security' && (
+                <div className="space-y-4">
+                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <div className="mb-7">
+                      <h3 className="text-lg font-bold text-black">Security</h3>
+                      <p className="text-sm text-gray-500 mt-1">Manage your account security settings</p>
+                    </div>
+                    <div className="space-y-3">
+                      {[
+                        { label: 'Change Password', desc: 'Update your account password' },
+                        { label: 'Two-Factor Authentication', desc: 'Add an extra layer of security' },
+                        { label: 'Connected Accounts', desc: 'Manage linked OAuth providers' },
+                      ].map(({ label, desc }) => (
+                        <button key={label} className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 rounded-xl text-left hover:bg-gray-100 transition-all group">
+                          <div>
+                            <p className="text-sm font-semibold text-black">{label}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                          </div>
+                          <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 group-hover:text-black transition-colors" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Danger Zone */}
+                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-red-100">
+                    <div className="flex items-center gap-2 mb-6">
+                      <AlertTriangle className="w-4 h-4 text-red-500" />
+                      <h3 className="text-sm font-bold text-red-500 uppercase tracking-wide">Danger Zone</h3>
+                    </div>
+                    <div className="flex items-start justify-between p-5 rounded-xl border border-red-100 bg-red-50/40">
+                      <div>
+                        <p className="text-sm font-semibold text-black">Delete Account</p>
+                        <p className="text-xs text-gray-500 mt-1">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                      </div>
+                      <button className="ml-6 shrink-0 px-4 py-2 text-sm font-semibold text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-all">
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </>
       )}
-
-
 
       {/* Toast Notification */}
       {showToast && (
