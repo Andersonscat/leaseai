@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { getRecentMessages, sendAutoReply } from '@/lib/gmail';
-// import { generateQualificationResponse } from '@/lib/ai-qualification';
-
-// Global sync lock to prevent concurrent syncs
-const syncLocks = new Map<string, boolean>();
 
 export async function POST(req: NextRequest) {
   try {

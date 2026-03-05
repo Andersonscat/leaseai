@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle, Radio, LogOut } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
 import Avatar from "@/components/Avatar";
@@ -155,6 +155,9 @@ function DashboardContent() {
   const activeTab = searchParams.get("tab") || "inbox";
   const successParam = searchParams.get("success");
   const deletedParam = searchParams.get("deleted");
+  const gmailConnectedParam = searchParams.get("gmail_connected");
+  const gmailErrorParam = searchParams.get("gmail_error");
+  const accountTabParam = searchParams.get("accountTab");
   
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -186,7 +189,10 @@ function DashboardContent() {
   });
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [accountTab, setAccountTab] = useState<'profile' | 'professional' | 'ai' | 'notifications' | 'security'>('profile');
+  const [accountTab, setAccountTab] = useState<'profile' | 'professional' | 'channels' | 'ai' | 'notifications' | 'security'>('profile');
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; gmail_email: string | null; loading: boolean }>({ connected: false, gmail_email: null, loading: true });
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
   
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -448,7 +454,47 @@ function DashboardContent() {
     loadUser();
   }, [activeTab]);
 
+  // Handle Gmail OAuth callback redirect
+  useEffect(() => {
+    if (gmailConnectedParam === 'true') {
+      setAccountTab('channels');
+      setGmailStatus({ connected: true, gmail_email: null, loading: true });
+      setToastMessage('Gmail connected successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      // Reload status to get the email
+      fetch('/api/gmail/status').then(r => r.json()).then(data => {
+        setGmailStatus({ connected: data.status?.connected ?? true, gmail_email: data.status?.gmail_email ?? null, loading: false });
+      }).catch(() => setGmailStatus(prev => ({ ...prev, loading: false })));
+    } else if (gmailErrorParam) {
+      setAccountTab('channels');
+      setToastMessage(`Gmail connection failed: ${gmailErrorParam}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 6000);
+    } else if (accountTabParam) {
+      setAccountTab(accountTabParam as any);
+    }
+  }, [gmailConnectedParam, gmailErrorParam, accountTabParam]);
 
+  // Load Gmail connection status when Channels tab is active
+  useEffect(() => {
+    if (activeTab !== 'account' || accountTab !== 'channels') return;
+    const loadGmailStatus = async () => {
+      setGmailStatus(prev => ({ ...prev, loading: true }));
+      try {
+        const res = await fetch('/api/gmail/status');
+        if (res.ok) {
+          const data = await res.json();
+          setGmailStatus({ connected: data.status?.connected ?? false, gmail_email: data.status?.gmail_email ?? null, loading: false });
+        } else {
+          setGmailStatus({ connected: false, gmail_email: null, loading: false });
+        }
+      } catch {
+        setGmailStatus({ connected: false, gmail_email: null, loading: false });
+      }
+    };
+    loadGmailStatus();
+  }, [activeTab, accountTab]);
 
   // Save a subset of account fields to Supabase user_metadata
   const saveAccountSection = async (fields: Partial<typeof accountForm>, sectionKey: string) => {
@@ -2011,6 +2057,7 @@ function DashboardContent() {
               {([
                 { key: 'profile',       label: 'Profile',       icon: User },
                 { key: 'professional',  label: 'Professional',  icon: Building2 },
+                { key: 'channels',      label: 'Channels',      icon: Radio },
                 { key: 'ai',            label: 'AI Assistant',  icon: Bot },
                 { key: 'notifications', label: 'Notifications', icon: Bell },
                 { key: 'security',      label: 'Security',      icon: Shield },
@@ -2035,7 +2082,7 @@ function DashboardContent() {
                 <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                   <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
                     <label className="relative group cursor-pointer shrink-0">
-                      <input
+                  <input
                         type="file"
                         accept="image/jpeg,image/jpg,image/png,image/webp"
                         className="sr-only"
@@ -2083,10 +2130,10 @@ function DashboardContent() {
                           ) : (
                             <span className="text-xs font-medium text-white text-center px-2">Change photo</span>
                           )}
-                        </div>
+                </div>
                       </div>
                     </label>
-                    <div>
+                <div>
                       <p className="text-lg font-bold text-black">{accountForm.full_name || 'Your Name'}</p>
                       <p className="text-sm text-gray-500">{accountForm.email}</p>
                     </div>
@@ -2099,14 +2146,14 @@ function DashboardContent() {
                         onChange={(e) => setAccountForm(f => ({ ...f, full_name: e.target.value }))}
                         placeholder="John Doe"
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                       <input type="tel" value={accountForm.phone}
                         onChange={(e) => setAccountForm(f => ({ ...f, phone: e.target.value }))}
-                        placeholder="+1 (555) 123-4567"
+                    placeholder="+1 (555) 123-4567"
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
-                    </div>
+                </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
                       <input type="email" value={accountForm.email} readOnly
@@ -2154,14 +2201,14 @@ function DashboardContent() {
                       className="px-6 py-2.5 bg-black text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all disabled:opacity-50"
                     >
                       {savingSection === 'profile' ? 'Saving…' : 'Save Changes'}
-                    </button>
-                  </div>
-                </div>
+                </button>
+              </div>
+            </div>
               )}
 
               {/* ── Professional ─── */}
               {accountTab === 'professional' && (
-                <div className="space-y-4">
+              <div className="space-y-4">
                   {/* License expiration warning */}
                   {(() => {
                     if (!accountForm.license_expiration) return null;
@@ -2172,22 +2219,22 @@ function DashboardContent() {
                       return (
                         <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
                           <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                          <div>
+                  <div>
                             <p className="text-sm font-semibold text-red-700">License Expired</p>
                             <p className="text-xs text-red-600 mt-0.5">Your license expired on {exp.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Operating with an expired license may violate state law. Please renew immediately.</p>
-                          </div>
-                        </div>
+                  </div>
+                </div>
                       );
                     }
                     if (daysLeft <= 60) {
                       return (
                         <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
                           <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                          <div>
+                  <div>
                             <p className="text-sm font-semibold text-amber-700">License Expiring Soon</p>
                             <p className="text-xs text-amber-600 mt-0.5">Your license expires in {daysLeft} day{daysLeft === 1 ? '' : 's'} ({exp.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}). Start your renewal process now to avoid interruption.</p>
-                          </div>
-                        </div>
+                  </div>
+                </div>
                       );
                     }
                     return null;
@@ -2201,13 +2248,13 @@ function DashboardContent() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-5">
-                      <div>
+                <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">License Number</label>
                         <input type="text" value={accountForm.license_number}
                           onChange={(e) => setAccountForm(f => ({ ...f, license_number: e.target.value }))}
                           placeholder="01234567"
                           className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
-                      </div>
+                  </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">License State</label>
                         <div className="relative">
@@ -2299,6 +2346,97 @@ function DashboardContent() {
                       {savingSection === 'professional' ? 'Saving…' : 'Save Changes'}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* ── Channels ─── */}
+              {accountTab === 'channels' && (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-6">Connected Channels</h3>
+
+                  {/* Email / Gmail */}
+                  <div className="flex items-center justify-between py-5 border-b border-gray-100">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${gmailStatus.connected ? 'bg-green-50' : 'bg-gray-100'}`}>
+                        <Mail className={`w-5 h-5 ${gmailStatus.connected ? 'text-green-600' : 'text-gray-400'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-black">Email (Gmail)</p>
+                        {gmailStatus.loading ? (
+                          <p className="text-xs text-gray-400">Checking...</p>
+                        ) : gmailStatus.connected ? (
+                          <p className="text-xs text-green-600">{gmailStatus.gmail_email || 'Connected'}</p>
+                        ) : (
+                          <p className="text-xs text-gray-400">Not connected</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {gmailStatus.loading ? (
+                        <span className="text-xs text-gray-400">...</span>
+                      ) : gmailStatus.connected ? (
+                        <button
+                          disabled={gmailDisconnecting}
+                          onClick={async () => {
+                            setGmailDisconnecting(true);
+                            try {
+                              const res = await fetch('/api/gmail/disconnect', { method: 'DELETE' });
+                              if (res.ok) {
+                                setGmailStatus({ connected: false, gmail_email: null, loading: false });
+                                setToastMessage('Gmail disconnected');
+                                setShowToast(true);
+                                setTimeout(() => setShowToast(false), 4000);
+                              }
+                            } catch { /* ignore */ } finally { setGmailDisconnecting(false); }
+                          }}
+                          className="px-4 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
+                        >
+                          {gmailDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                        </button>
+                      ) : (
+                        <button
+                          disabled={gmailConnecting}
+                          onClick={async () => {
+                            setGmailConnecting(true);
+                            try {
+                              const res = await fetch('/api/gmail/auth');
+                              const data = await res.json();
+                              if (data.authUrl) {
+                                window.location.href = data.authUrl;
+                              }
+                            } catch { setGmailConnecting(false); }
+                          }}
+                          className="px-4 py-1.5 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800"
+                        >
+                          {gmailConnecting ? 'Redirecting...' : 'Connect Gmail'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Coming soon channels */}
+                  {[
+                    { name: 'WhatsApp Business', desc: 'Two-way messaging via WhatsApp' },
+                    { name: 'SMS (Twilio)', desc: 'Send and receive text messages' },
+                    { name: 'Web Chat', desc: 'Live chat widget for your website' },
+                    { name: 'Facebook Messenger', desc: 'Connect your Facebook page' },
+                    { name: 'Instagram DM', desc: 'Direct messages from Instagram' },
+                    { name: 'Voice Calls', desc: 'AI-powered phone calls' },
+                    { name: 'Telegram', desc: 'Telegram bot integration' },
+                  ].map((ch) => (
+                    <div key={ch.name} className="flex items-center justify-between py-5 border-b border-gray-100 last:border-b-0">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center">
+                          <MessageSquare className="w-5 h-5 text-gray-300" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-400">{ch.name}</p>
+                          <p className="text-xs text-gray-300">{ch.desc}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-medium text-gray-300 uppercase tracking-wider px-2 py-0.5 bg-gray-50 rounded">Coming soon</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -2430,16 +2568,16 @@ function DashboardContent() {
                               supabase.auth.updateUser({ data: { [key]: e.target.checked } });
                             }} />
                           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  </label>
                 </div>
+                    ))}
+              </div>
+            </div>
               )}
 
               {/* ── Security ─── */}
               {accountTab === 'security' && (
-                <div className="space-y-4">
+              <div className="space-y-4">
                   <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                     <div className="mb-7">
                       <h3 className="text-lg font-bold text-black">Security</h3>
@@ -2457,12 +2595,12 @@ function DashboardContent() {
                             <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
                           </div>
                           <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 group-hover:text-black transition-colors" />
-                        </button>
+                </button>
                       ))}
-                    </div>
-                  </div>
+              </div>
+            </div>
 
-                  {/* Danger Zone */}
+            {/* Danger Zone */}
                   <div className="bg-white rounded-2xl p-8 shadow-sm border border-red-100">
                     <div className="flex items-center gap-2 mb-6">
                       <AlertTriangle className="w-4 h-4 text-red-500" />
@@ -2475,8 +2613,8 @@ function DashboardContent() {
                       </div>
                       <button className="ml-6 shrink-0 px-4 py-2 text-sm font-semibold text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-all">
                         Delete
-                      </button>
-                    </div>
+                </button>
+              </div>
                   </div>
                 </div>
               )}

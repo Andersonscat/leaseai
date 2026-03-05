@@ -1,7 +1,7 @@
 
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import { getRecentMessages, sendAutoReply, sendHtmlEmail, buildPropertyListingHtml } from '@/lib/gmail';
-// import { generateQualificationResponse } from '@/lib/ai-qualification';
+import { getOAuthTokens } from '@/lib/oauth-tokens';
 
 // Global sync lock to prevent concurrent syncs
 const syncLocks = new Map<string, boolean>();
@@ -35,8 +35,15 @@ export async function syncGmailMessages(
   console.log('📧 Starting Gmail sync service...');
 
   try {
-    // Получаем сообщения за последние 2 часа (включая прочитанные)
-    const leads = await getRecentMessages(10); 
+    // Load per-user OAuth token
+    const oauthRow = await getOAuthTokens(user.id);
+    if (!oauthRow) {
+      console.log('⚠️ No Gmail token found for user', user.id);
+      return { success: false, synced: 0, created: 0, autoRepliesSent: 0, message: 'Gmail not connected' };
+    }
+    const refreshToken = oauthRow.refresh_token;
+
+    const leads = await getRecentMessages(refreshToken, 10); 
 
     if (!leads || leads.length === 0) {
       console.log('✅ No new leads found');
@@ -334,6 +341,7 @@ export async function syncGmailMessages(
               console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
               
               const event = await createCalendarEvent(
+                refreshToken,
                 startTimeStr,
                 endTimeStr,
                 `Viewing: ${args.property_address}`,
@@ -448,12 +456,13 @@ export async function syncGmailMessages(
 
           // Send email via Gmail
           const emailResult = await sendAutoReply(
+            refreshToken,
             lead.tenant_email,
             lead.tenant_name,
             finalResponse,
             {
               threadId: lead.threadId,
-              messageId: lead.rfcMessageId || lead.messageId, // Use RFC ID if available, else fallback
+              messageId: lead.rfcMessageId || lead.messageId,
               subject: lead.subject || lead.property_address || 'Your property inquiry',
             }
           );
@@ -515,6 +524,7 @@ export async function syncGmailMessages(
           if (matchedProperties.length > 0) {
             const { html, text } = buildPropertyListingHtml(matchedProperties, realtorName);
             const listingResult = await sendHtmlEmail(
+              refreshToken,
               lead.tenant_email,
               `Property Listings — ${lead.subject || 'Your Inquiry'}`,
               html,

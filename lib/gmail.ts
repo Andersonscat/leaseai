@@ -39,21 +39,17 @@ interface ParsedLead {
 }
 
 /**
- * Initialize Gmail API client
+ * Initialize Gmail API client.
+ * Requires an explicit refresh token (loaded from oauth_tokens table by the caller).
  */
-export function getGmailClient() {
+export function getGmailClient(refreshToken: string) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
 
-  // Set credentials from stored tokens
-  if (process.env.GMAIL_REFRESH_TOKEN) {
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-    });
-  }
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
@@ -254,8 +250,8 @@ function getEmailBody(message: any): string {
 /**
  * Watch Gmail inbox for new messages
  */
-export async function watchInbox(userId: string = 'me') {
-  const gmail = getGmailClient();
+export async function watchInbox(refreshToken: string, userId: string = 'me') {
+  const gmail = getGmailClient(refreshToken);
   
   try {
     const response = await gmail.users.watch({
@@ -277,8 +273,8 @@ export async function watchInbox(userId: string = 'me') {
 /**
  * Process new email and create lead (using Unified AI)
  */
-export async function processNewEmail(messageId: string, userId: string = 'me'): Promise<AIParserResult | null> {
-  const gmail = getGmailClient();
+export async function processNewEmail(refreshToken: string, messageId: string, userId: string = 'me'): Promise<AIParserResult | null> {
+  const gmail = getGmailClient(refreshToken);
   
   try {
     const response = await gmail.users.messages.get({
@@ -312,8 +308,8 @@ export async function processNewEmail(messageId: string, userId: string = 'me'):
  * Get recent unread messages (for initial sync)
  * Filters out newsletters, receipts, and non-lead emails
  */
-export async function getRecentMessages(maxResults: number = 10, userId: string = 'me') {
-  const gmail = getGmailClient();
+export async function getRecentMessages(refreshToken: string, maxResults: number = 10, userId: string = 'me') {
+  const gmail = getGmailClient(refreshToken);
   
   try {
     // Sync all messages from inbox in the last 2 hours (read or unread)
@@ -384,6 +380,7 @@ export async function getRecentMessages(maxResults: number = 10, userId: string 
  * @param inReplyTo - Optional: Message-ID header for proper threading
  */
 export async function sendEmail(
+  refreshToken: string,
   to: string,
   subject: string,
   body: string,
@@ -393,7 +390,7 @@ export async function sendEmail(
     userId?: string;
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const gmail = getGmailClient();
+  const gmail = getGmailClient(refreshToken);
   const userId = options?.userId || 'me';
   
   try {
@@ -466,6 +463,7 @@ export async function sendEmail(
  * Send HTML email via Gmail API (for property listing emails with photos)
  */
 export async function sendHtmlEmail(
+  refreshToken: string,
   to: string,
   subject: string,
   htmlBody: string,
@@ -476,7 +474,7 @@ export async function sendHtmlEmail(
     userId?: string;
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const gmail = getGmailClient();
+  const gmail = getGmailClient(refreshToken);
   const userId = options?.userId || 'me';
   
   try {
@@ -602,6 +600,7 @@ export function buildPropertyListingHtml(
  * Converts basic Markdown to HTML for hyperlink support.
  */
 export async function sendAutoReply(
+  refreshToken: string,
   leadEmail: string,
   leadName: string,
   replyMessage: string,
@@ -633,12 +632,12 @@ export async function sendAutoReply(
       </div>
     `;
     
-    // Send as HTML email (sendHtmlEmail handles both text and html parts)
     const result = await sendHtmlEmail(
+      refreshToken,
       leadEmail,
       subject,
       formattedHtml,
-      replyMessage, // Plain text fallback
+      replyMessage,
       {
         threadId: options?.threadId,
         inReplyTo: options?.messageId,

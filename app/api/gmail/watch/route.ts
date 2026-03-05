@@ -1,42 +1,40 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getGmailClient } from '@/lib/gmail';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { watchInbox } from '@/lib/gmail';
+import { getOAuthTokens } from '@/lib/oauth-tokens';
 
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   return NextResponse.json({ status: 'ok', message: 'Watch endpoint is reachable' });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const gmail = getGmailClient();
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+    );
 
-    // Setup the watch (subscribe to Push Notifications)
-    // We need to specify the topic name created in Google Cloud Console
-    // Format: projects/PROJECT_ID/topics/TOPIC_NAME
-    const topicName = process.env.GMAIL_PUBSUB_TOPIC;
-
-    if (!topicName) {
-      return NextResponse.json(
-        { error: 'GMAIL_PUBSUB_TOPIC environment variable is not set' },
-        { status: 500 }
-      );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const response = await gmail.users.watch({
-      userId: 'me',
-      requestBody: {
-        topicName: topicName,
-        labelIds: ['INBOX'], // Only watch Inbox
-      },
-    });
+    const tokens = await getOAuthTokens(user.id);
+    if (!tokens) {
+      return NextResponse.json({ error: 'Gmail not connected' }, { status: 400 });
+    }
 
-    console.log('✅ Gmail Watch Started:', response.data);
+    const result = await watchInbox(tokens.refresh_token);
+
+    console.log('✅ Gmail Watch Started:', result);
 
     return NextResponse.json({
       success: true,
-      historyId: response.data.historyId,
-      expiration: response.data.expiration,
+      historyId: result.historyId,
+      expiration: result.expiration,
     });
   } catch (error: any) {
     console.error('❌ Error setting up Gmail watch:', error);

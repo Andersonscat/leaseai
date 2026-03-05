@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { upsertOAuthTokens } from '@/lib/oauth-tokens';
 
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const code = searchParams.get('code');
+    const state = searchParams.get('state'); // user_id
 
     if (!code) {
-      return NextResponse.json(
-        { error: 'Authorization code not provided' },
-        { status: 400 }
+      return NextResponse.redirect(
+        new URL('/dashboard?tab=account&accountTab=channels&gmail_error=no_code', req.url)
+      );
+    }
+
+    if (!state) {
+      return NextResponse.redirect(
+        new URL('/dashboard?tab=account&accountTab=channels&gmail_error=no_state', req.url)
       );
     }
 
@@ -19,40 +26,40 @@ export async function GET(req: NextRequest) {
       process.env.GOOGLE_REDIRECT_URI
     );
 
-    // Exchange authorization code for tokens
     const { tokens } = await oauth2Client.getToken(code);
 
-    console.log('✅ OAuth tokens received:', {
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
-      expiryDate: tokens.expiry_date,
-    });
-
     if (!tokens.refresh_token) {
-      return NextResponse.json(
-        {
-          error: 'No refresh token received',
-          message:
-            'This can happen if you already authorized this app before. Try revoking access in Google Account settings and authorize again.',
-          access_token: tokens.access_token ? 'received' : 'not received',
-        },
-        { status: 400 }
+      return NextResponse.redirect(
+        new URL('/dashboard?tab=account&accountTab=channels&gmail_error=no_refresh_token', req.url)
       );
     }
 
-    return NextResponse.json({
-      success: true,
+    // Fetch the connected Gmail address
+    oauth2Client.setCredentials(tokens);
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data: userInfo } = await oauth2.userinfo.get();
+    const gmailEmail = userInfo.email || null;
+
+    // Store tokens in DB
+    await upsertOAuthTokens(state, {
       refresh_token: tokens.refresh_token,
-      message: 'Copy the refresh_token above and add it to your .env.local file as GMAIL_REFRESH_TOKEN',
+      access_token: tokens.access_token ?? null,
+      expires_at: tokens.expiry_date
+        ? new Date(tokens.expiry_date).toISOString()
+        : null,
+      scope: tokens.scope ?? null,
+      gmail_email: gmailEmail,
     });
+
+    console.log('✅ OAuth tokens stored for user:', state, 'email:', gmailEmail);
+
+    return NextResponse.redirect(
+      new URL('/dashboard?tab=account&accountTab=channels&gmail_connected=true', req.url)
+    );
   } catch (error: any) {
     console.error('Error in Gmail callback:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to exchange code for tokens',
-        details: error.message,
-      },
-      { status: 500 }
+    return NextResponse.redirect(
+      new URL(`/dashboard?tab=account&accountTab=channels&gmail_error=${encodeURIComponent(error.message || 'unknown')}`, req.url)
     );
   }
 }

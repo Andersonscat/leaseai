@@ -2,22 +2,17 @@
 import { google } from 'googleapis';
 
 /**
- * Initialize Google Calendar API client
- * Reuses the same OAuth credentials as Gmail
+ * Initialize Google Calendar API client.
+ * Requires an explicit refresh token (loaded from oauth_tokens table by the caller).
  */
-export function getCalendarClient() {
+export function getCalendarClient(refreshToken: string) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
 
-  // Set credentials from stored tokens
-  if (process.env.GMAIL_REFRESH_TOKEN) {
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-    });
-  }
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   return google.calendar({ version: 'v3', auth: oauth2Client });
 }
@@ -32,11 +27,12 @@ export interface TimeSlot {
  * Uses Google Calendar Free/Busy API
  */
 export async function getFreeBusyIntervals(
+  refreshToken: string,
   startDate: Date,
   endDate: Date,
-  timeZone: string = 'America/New_York' // Default to NY, should be configurable
+  timeZone: string = 'America/New_York'
 ): Promise<TimeSlot[]> {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(refreshToken);
 
   try {
     const response = await calendar.freebusy.query({
@@ -73,13 +69,14 @@ export async function getFreeBusyIntervals(
  * Create a calendar event for a viewing
  */
 export async function createCalendarEvent(
+  refreshToken: string,
   startTime: string,
   endTime: string,
   summary: string,
   description: string,
   attendeeEmail?: string
 ) {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(refreshToken);
 
   try {
     console.log('📅 Creating calendar event:', {
@@ -132,6 +129,7 @@ export async function createCalendarEvent(
  * default: 9am - 6pm, weekdays (can be expanded)
  */
 export async function getAvailableSlots(
+  refreshToken: string,
   startDate: Date,
   daysToScan: number = 7
 ): Promise<string[]> {
@@ -139,8 +137,7 @@ export async function getAvailableSlots(
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + daysToScan);
     
-    // 1. Get busy intervals
-    const busySlots = await getFreeBusyIntervals(startDate, endDate);
+    const busySlots = await getFreeBusyIntervals(refreshToken, startDate, endDate);
     
     // 2. Generate all potential slots (9am-6pm)
     const potentialSlots: Date[] = [];
@@ -225,10 +222,11 @@ export async function getAvailableSlots(
  * List calendar events for a date range
  */
 export async function listEvents(
+  refreshToken: string,
   startDate: Date,
   endDate: Date
 ) {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(refreshToken);
   
   try {
     const response = await calendar.events.list({

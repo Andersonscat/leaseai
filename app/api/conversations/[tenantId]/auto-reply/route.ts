@@ -10,6 +10,7 @@ import {
   verifyResponseHallucinations,
   extractLeadData
 } from '@/lib/ai-qualification';
+import { getOAuthTokens } from '@/lib/oauth-tokens';
 
 export async function POST(
   req: NextRequest,
@@ -173,35 +174,32 @@ export async function POST(
     let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
     
     if (analysis.action === 'book_calendar' && analysis.action_params) {
-      // ... (Calendar execution logic remains same)
       console.log('📅 Action: Booking Calendar...');
       console.log('📅 Action Params:', JSON.stringify(analysis.action_params, null, 2));
       try {
          const { createCalendarEvent } = await import('@/lib/calendar-client');
+         const oauthRow = await getOAuthTokens(user.id);
+         if (!oauthRow) throw new Error('Calendar not connected — no OAuth token');
          const args = analysis.action_params;
          
-         // Strip any timezone suffix the AI might add — we want a naive datetime
-         // since Google Calendar will use the timeZone field (America/Los_Angeles)
          const startTimeStr = args.start_time
            .replace(/Z$/i, '')
            .replace(/[+-]\d{2}:\d{2}$/, '')
            .replace(/\.\d{3}$/, '');
          
-         // Validate the datetime format
          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(startTimeStr)) {
            throw new Error(`Invalid start_time format from AI: "${args.start_time}"`);
          }
          
-         // Compute end time without timezone interference:
-         // Parse as UTC (append Z) so the math is clean, then strip it back
          const duration = args.duration_minutes || 30;
          const startAsUtc = new Date(startTimeStr + 'Z');
          const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
-         const endTimeStr = endAsUtc.toISOString().slice(0, 19); // "YYYY-MM-DDTHH:mm:ss"
+         const endTimeStr = endAsUtc.toISOString().slice(0, 19);
          
          console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
          
          const event = await createCalendarEvent(
+            oauthRow.refresh_token,
             startTimeStr,
             endTimeStr,
             `Viewing: ${args.property_address}`,

@@ -1,67 +1,69 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { getOAuthTokens } from '@/lib/oauth-tokens';
 
-/**
- * Diagnostic endpoint to check Gmail API configuration
- * Helps debug OAuth issues
- */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const status = {
-      configured: false,
-      missing: [] as string[],
-      ready: false,
-      message: '',
-    };
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+    );
 
-    // Check required environment variables
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      status.missing.push('GOOGLE_CLIENT_ID');
-    }
-    
-    if (!process.env.GOOGLE_CLIENT_SECRET) {
-      status.missing.push('GOOGLE_CLIENT_SECRET');
-    }
-    
-    if (!process.env.GOOGLE_REDIRECT_URI) {
-      status.missing.push('GOOGLE_REDIRECT_URI');
-    }
-    
-    if (!process.env.GMAIL_REFRESH_TOKEN) {
-      status.missing.push('GMAIL_REFRESH_TOKEN (optional for now)');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Determine status
-    if (status.missing.length === 0) {
-      status.configured = true;
-      status.ready = true;
-      status.message = '✅ Gmail API is configured! You can use Sync Gmail.';
-    } else if (status.missing.length === 1 && status.missing[0].includes('REFRESH_TOKEN')) {
-      status.configured = true;
-      status.ready = false;
-      status.message = '⚠️ OAuth configured, but no refresh token. You need to complete OAuth flow first.';
-    } else {
-      status.configured = false;
-      status.ready = false;
-      status.message = `❌ Missing credentials: ${status.missing.join(', ')}. See GMAIL_QUICK_SETUP.md`;
+    // Check shared OAuth app credentials
+    const missingCreds: string[] = [];
+    if (!process.env.GOOGLE_CLIENT_ID) missingCreds.push('GOOGLE_CLIENT_ID');
+    if (!process.env.GOOGLE_CLIENT_SECRET) missingCreds.push('GOOGLE_CLIENT_SECRET');
+    if (!process.env.GOOGLE_REDIRECT_URI) missingCreds.push('GOOGLE_REDIRECT_URI');
+
+    if (missingCreds.length > 0) {
+      return NextResponse.json({
+        status: {
+          configured: false,
+          connected: false,
+          ready: false,
+          gmail_email: null,
+          message: `Missing credentials: ${missingCreds.join(', ')}`,
+        },
+      });
+    }
+
+    // Check per-user token in DB
+    const tokens = await getOAuthTokens(user.id);
+
+    if (!tokens) {
+      return NextResponse.json({
+        status: {
+          configured: true,
+          connected: false,
+          ready: false,
+          gmail_email: null,
+          message: 'Gmail not connected. Click "Connect Gmail" to set up.',
+        },
+      });
     }
 
     return NextResponse.json({
-      status,
-      help: {
-        documentation: '/Users/assylzhantati/Downloads/realtoros/GMAIL_QUICK_SETUP.md',
-        steps: [
-          '1. Get Google OAuth credentials from https://console.cloud.google.com/',
-          '2. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.local',
-          '3. Restart server: npm run dev',
-          '4. For now, use "New Conversation" to add leads manually',
-        ],
+      status: {
+        configured: true,
+        connected: true,
+        ready: true,
+        gmail_email: tokens.gmail_email,
+        message: tokens.gmail_email
+          ? `Connected as ${tokens.gmail_email}`
+          : 'Gmail connected',
       },
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Failed to check Gmail status',
-      },
+      { error: error instanceof Error ? error.message : 'Failed to check Gmail status' },
       { status: 500 }
     );
   }
