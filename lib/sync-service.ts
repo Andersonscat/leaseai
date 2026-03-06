@@ -541,42 +541,67 @@ export async function syncGmailMessages(
             }
           }
 
-          // Update tenant with extracted data
+          // Update tenant with extracted data (mapped to actual DB columns)
           if (analysis.extractedData || analysis.summary) {
-            const updateData: any = { 
-              ...(analysis.extractedData || {}),
-              ai_summary: analysis.summary,
-              lead_priority: analysis.priority || 'warm',
+            const ed = analysis.extractedData || {};
+            const updateData: any = {
               last_auto_reply_at: new Date().toISOString(),
             };
-            
-            // Calculate lead score if new data extracted
-            const updatedTenant = { 
-              ...(existingTenant || {}), 
-              ...(analysis.extractedData || {}),
-              lead_priority: analysis.priority || 'warm'
-            };
+
+            // Map structured extractedData to flat DB columns
+            if (analysis.summary) {
+              updateData.notes = typeof analysis.summary === 'string'
+                ? analysis.summary
+                : [analysis.summary.client, analysis.summary.interests, analysis.summary.concerns, analysis.summary.next_step]
+                    .filter(Boolean).join(' | ');
+            }
+            const budgetVal = ed.budget?.budget_usd ?? ed.budget?.max_monthly_rent ?? ed.budget_max;
+            if (budgetVal) updateData.budget_max = budgetVal;
+            const moveIn = ed.timeline?.move_in_date ?? ed.move_in_date;
+            if (moveIn) updateData.move_in_date = moveIn;
+            if (ed.timeline?.lease_term_ideal_months) updateData.lease_duration = `${ed.timeline.lease_term_ideal_months}_months`;
+            if (ed.housing?.bedrooms_min != null) updateData.bedrooms = ed.housing.bedrooms_min;
+            if (ed.housing?.bathrooms_min != null) updateData.bathrooms = ed.housing.bathrooms_min;
+            if (ed.housing?.furnished) updateData.furnishing = ed.housing.furnished;
+            if (Array.isArray(ed.housing?.property_types) && ed.housing.property_types.length > 0) updateData.property_type = ed.housing.property_types[0];
+            if (ed.occupants?.total_count != null) updateData.num_occupants = ed.occupants.total_count;
+            if (ed.pets?.has_pets !== undefined) updateData.has_pets = ed.pets.has_pets;
+            if (ed.pets && Object.keys(ed.pets).length > 0) updateData.pet_details = ed.pets;
+            if (ed.has_pets !== undefined && updateData.has_pets === undefined) updateData.has_pets = ed.has_pets;
+            if (ed.pet_details && !updateData.pet_details) updateData.pet_details = ed.pet_details;
+            if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.length > 0) updateData.must_haves = ed.amenities.desired_features;
+            if (Array.isArray(ed.amenities?.deal_breakers) && ed.amenities.deal_breakers.length > 0) updateData.deal_breakers = ed.amenities.deal_breakers;
+            if (ed.amenities?.parking?.required === 'required') updateData.needs_parking = true;
+            if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) updateData.preferred_neighborhoods = ed.location.neighborhoods_must;
 
             const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
+            const updatedTenant = { ...(existingTenant || {}), ...updateData };
             const newScore = calculateLeadScore(updatedTenant);
-            const newQuality = analysis.priority || getLeadQuality(newScore); // Prefer AI's priority assessment
+            const newQuality = analysis.priority || getLeadQuality(newScore);
             
             updateData.lead_score = newScore;
-            updateData.lead_priority = newQuality;
-            
+            updateData.lead_quality = newQuality;
             if (newScore >= 6) updateData.qualification_status = 'qualified';
             else if (newScore >= 3) updateData.qualification_status = 'qualifying';
             
-            const { error: updateError } = await supabase
+            let { error: updateError } = await supabase
               .from('tenants')
               .update(updateData)
               .eq('id', tenantId);
 
+            // Fallback: if extended columns don't exist yet, save only basic fields
+            if (updateError?.code === '42703') {
+              console.log('⚠️ Extended columns not found, saving basic fields only');
+              const basicUpdate: any = { last_auto_reply_at: new Date().toISOString() };
+              if (updateData.move_in_date) basicUpdate.move_in_date = updateData.move_in_date;
+              const fallback = await supabase.from('tenants').update(basicUpdate).eq('id', tenantId);
+              updateError = fallback.error;
+            }
+
             if (updateError) {
               console.error('Error updating tenant with AI data:', updateError);
             }
-          }
- else {
+          } else {
             await supabase
               .from('tenants')
               .update({ last_auto_reply_at: new Date().toISOString() })

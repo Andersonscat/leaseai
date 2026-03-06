@@ -52,12 +52,12 @@ export async function GET(request: NextRequest) {
         is_read,
         created_at,
         tenant:tenants!left(
-          id,
-          name,
-          email,
-          phone,
-          avatar,
-          auto_reply_enabled
+          id, name, email, phone, avatar, auto_reply_enabled, notes,
+          budget_max, move_in_date, pet_details, has_pets,
+          lead_score, lead_quality, qualification_status,
+          bedrooms, bathrooms, num_occupants, lease_duration,
+          furnishing, property_type, must_haves, deal_breakers,
+          required_amenities, preferred_neighborhoods, needs_parking
         ),
         property:properties!left(
           id,
@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('user_id', user.id)
-      .not('tenant_id', 'is', null)  // Only show messages linked to a tenant
+      .not('tenant_id', 'is', null)
       .order('created_at', { ascending: false });
-    
+
     // Filter by source if provided
     if (source && source !== 'all') {
       query = query.eq('source', source);

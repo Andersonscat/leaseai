@@ -2145,14 +2145,14 @@ function DashboardContent() {
                       <input type="text" value={accountForm.full_name}
                         onChange={(e) => setAccountForm(f => ({ ...f, full_name: e.target.value }))}
                         placeholder="John Doe"
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                       <input type="tel" value={accountForm.phone}
                         onChange={(e) => setAccountForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="+1 (555) 123-4567"
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                 </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
@@ -2165,7 +2165,7 @@ function DashboardContent() {
                       <input type="text" value={accountForm.company}
                         onChange={(e) => setAccountForm(f => ({ ...f, company: e.target.value }))}
                         placeholder="Acme Realty"
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
@@ -2189,7 +2189,7 @@ function DashboardContent() {
                       <input type="url" value={accountForm.website}
                         onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))}
                         placeholder="https://yourwebsite.com"
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                       <p className="text-xs text-gray-400 mt-1.5">Your personal or agency website</p>
                     </div>
                   </div>
@@ -2253,7 +2253,7 @@ function DashboardContent() {
                         <input type="text" value={accountForm.license_number}
                           onChange={(e) => setAccountForm(f => ({ ...f, license_number: e.target.value }))}
                           placeholder="01234567"
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                   </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">License State</label>
@@ -2273,7 +2273,7 @@ function DashboardContent() {
                         <label className="block text-sm font-semibold text-gray-700 mb-2">License Expiration</label>
                         <input type="date" value={accountForm.license_expiration}
                           onChange={(e) => setAccountForm(f => ({ ...f, license_expiration: e.target.value }))}
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                         <p className="text-xs text-gray-400 mt-1.5">We'll alert you 60 days before expiration</p>
                       </div>
                       <div>
@@ -2281,7 +2281,7 @@ function DashboardContent() {
                         <input type="text" value={accountForm.nar_id}
                           onChange={(e) => setAccountForm(f => ({ ...f, nar_id: e.target.value }))}
                           placeholder="Optional"
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                         <p className="text-xs text-gray-400 mt-1.5">National Association of Realtors</p>
                       </div>
                     </div>
@@ -2300,14 +2300,14 @@ function DashboardContent() {
                         <input type="text" value={accountForm.brokerage_name}
                           onChange={(e) => setAccountForm(f => ({ ...f, brokerage_name: e.target.value }))}
                           placeholder="Keller Williams Realty"
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">MLS ID</label>
                         <input type="text" value={accountForm.mls_id}
                           onChange={(e) => setAccountForm(f => ({ ...f, mls_id: e.target.value }))}
                           placeholder="MLS-0000001"
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                         <p className="text-xs text-gray-400 mt-1.5">Required when publishing listings via MLS</p>
                       </div>
                       <div className="col-span-2">
@@ -2315,7 +2315,7 @@ function DashboardContent() {
                         <input type="text" value={accountForm.service_areas}
                           onChange={(e) => setAccountForm(f => ({ ...f, service_areas: e.target.value }))}
                           placeholder="Seattle Metro, Eastside, Bellevue, Kirkland"
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" />
                         <p className="text-xs text-gray-400 mt-1.5">Markets and areas where you operate (comma-separated)</p>
                       </div>
                     </div>
@@ -2459,7 +2459,7 @@ function DashboardContent() {
                       <input type="text" value={accountForm.ai_signature_name}
                         onChange={(e) => setAccountForm(f => ({ ...f, ai_signature_name: e.target.value }))}
                         placeholder={accountForm.full_name || "Your Name"}
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
                       <p className="text-xs text-gray-400 mt-1.5">"Best regards, [Name]"</p>
                     </div>
                     <div>
@@ -2467,19 +2467,19 @@ function DashboardContent() {
                       <input type="tel" value={accountForm.ai_phone}
                         onChange={(e) => setAccountForm(f => ({ ...f, ai_phone: e.target.value }))}
                         placeholder="+1 (555) 123-4567"
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Viewing Hours — From</label>
                       <input type="time" value={accountForm.viewing_hours_start}
                         onChange={(e) => setAccountForm(f => ({ ...f, viewing_hours_start: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Viewing Hours — To</label>
                       <input type="time" value={accountForm.viewing_hours_end}
                         onChange={(e) => setAccountForm(f => ({ ...f, viewing_hours_end: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>
@@ -2524,7 +2524,7 @@ function DashboardContent() {
                         onChange={(e) => setAccountForm(f => ({ ...f, email_signature: e.target.value }))}
                         rows={4}
                         placeholder={[accountForm.full_name || 'Your Name', accountForm.job_title ? accountForm.job_title.charAt(0).toUpperCase() + accountForm.job_title.slice(1).replace('_', ' ') + (accountForm.company ? ` · ${accountForm.company}` : '') : (accountForm.company || ''), accountForm.phone || ''].filter(Boolean).join('\n')}
-                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none font-mono" />
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-lg text-sm text-gray-900 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none font-mono" />
                       <p className="text-xs text-gray-400 mt-1.5">Appended to outgoing emails. Leave empty to use auto-generated.</p>
                     </div>
                   </div>

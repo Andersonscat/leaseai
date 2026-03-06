@@ -111,20 +111,81 @@ export async function POST(
       viewingHoursEnd,
     });
 
-    // 5. Build update object - only using columns we know exist
-    const updateData: any = {
-      ai_summary: analysis.summary
-    };
+    // 5. Build update object — map the full AI extractedData to existing DB columns
+    const updateData: any = {};
 
-    // Safely map extracted data to columns
+    // AI summary — stored in notes until ai_summary column is added
+    let aiSummaryText: string | undefined;
+    if (analysis.summary) {
+      aiSummaryText = typeof analysis.summary === 'string'
+        ? analysis.summary
+        : [analysis.summary.client, analysis.summary.interests, analysis.summary.concerns, analysis.summary.next_step]
+            .filter(Boolean).join(' | ');
+      updateData.notes = aiSummaryText;
+    }
+
     if (analysis.extractedData) {
       const ed = analysis.extractedData;
-      if (ed.budget_max) updateData.budget_max = ed.budget_max;
-      if (ed.move_in_date) updateData.move_in_date = ed.move_in_date;
-      if (ed.has_pets !== undefined) updateData.has_pets = ed.has_pets;
-      
-      // pet_details is JSONB in schema, AI gives string. We'll wrap it or just send string if it works.
-      if (ed.pet_details) updateData.pet_details = ed.pet_details;
+
+      // --- Budget ---
+      const budgetVal = ed.budget?.budget_usd ?? ed.budget?.max_monthly_rent ?? ed.budget_max;
+      if (budgetVal) updateData.budget_max = budgetVal;
+
+      // --- Timeline ---
+      const moveIn = ed.timeline?.move_in_date ?? ed.move_in_date;
+      if (moveIn) updateData.move_in_date = moveIn;
+
+      const leaseTerm = ed.timeline?.lease_term_ideal_months;
+      if (leaseTerm) updateData.lease_duration = `${leaseTerm}_months`;
+
+      // --- Housing ---
+      const bedrooms = ed.housing?.bedrooms_min;
+      if (bedrooms != null) updateData.bedrooms = bedrooms;
+
+      const bathrooms = ed.housing?.bathrooms_min;
+      if (bathrooms != null) updateData.bathrooms = bathrooms;
+
+      const furnished = ed.housing?.furnished;
+      if (furnished) updateData.furnishing = furnished;
+
+      const propTypes = ed.housing?.property_types;
+      if (Array.isArray(propTypes) && propTypes.length > 0) {
+        updateData.property_type = propTypes[0];
+      }
+
+      // --- Occupants ---
+      const occupants = ed.occupants?.total_count;
+      if (occupants != null) updateData.num_occupants = occupants;
+
+      // --- Pets ---
+      if (ed.pets?.has_pets !== undefined) updateData.has_pets = ed.pets.has_pets;
+      if (ed.pets && Object.keys(ed.pets).length > 0) {
+        updateData.pet_details = ed.pets;
+      }
+      // Legacy flat fields
+      if (ed.has_pets !== undefined && updateData.has_pets === undefined) updateData.has_pets = ed.has_pets;
+      if (ed.pet_details && !updateData.pet_details) updateData.pet_details = ed.pet_details;
+
+      // --- Amenities / Must-haves / Deal-breakers ---
+      if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.length > 0) {
+        updateData.must_haves = ed.amenities.desired_features;
+      }
+      if (Array.isArray(ed.amenities?.deal_breakers) && ed.amenities.deal_breakers.length > 0) {
+        updateData.deal_breakers = ed.amenities.deal_breakers;
+      }
+      if (ed.amenities?.parking?.required === 'required') {
+        updateData.needs_parking = true;
+      }
+
+      // --- Location ---
+      if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) {
+        updateData.preferred_neighborhoods = ed.location.neighborhoods_must;
+      }
+
+      // Priority stored in lead_quality (lead_priority column doesn't exist yet)
+      if (analysis.priority) {
+        updateData.lead_quality = analysis.priority;
+      }
     }
 
     // Recalculate scoring - trigger in DB does this too, but we do it for immediate UI update
@@ -135,11 +196,24 @@ export async function POST(
 
     console.log('💾 AI Analysis: Updating database with', updateData);
 
-    // 6. Update DB
-    const { error: updateError } = await supabase
+    // 6. Update DB — try full update first, fall back if extended columns don't exist yet
+    let { error: updateError } = await supabase
       .from('tenants')
       .update(updateData)
       .eq('id', tenantId);
+
+    if (updateError?.code === '42703') {
+      console.log('⚠️ Extended columns not found, falling back to basic fields');
+      const basicUpdate: any = {};
+      if (updateData.move_in_date) basicUpdate.move_in_date = updateData.move_in_date;
+      if (updateData.notes) basicUpdate.notes = updateData.notes;
+
+      const fallback = await supabase
+        .from('tenants')
+        .update(basicUpdate)
+        .eq('id', tenantId);
+      updateError = fallback.error;
+    }
 
     if (updateError) {
       console.error('❌ AI Analysis: DB update failed', updateError);

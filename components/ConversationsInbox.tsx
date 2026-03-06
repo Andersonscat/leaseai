@@ -18,6 +18,7 @@ import { SOURCE_ICONS, SOURCE_NAMES } from "@/lib/sources";
 import AIThinkingPanel, { ThinkingStep } from './AIThinkingPanel';
 import ActiveLeadsTable from './ActiveLeadsTable';
 import AIActivityTimeline, { ActivityEvent } from './AIActivityTimeline';
+import InboxContextPanel from './InboxContextPanel';
 import { createSupabaseClient } from '@/lib/supabase';
 import Avatar from './Avatar';
 
@@ -30,14 +31,27 @@ interface Conversation {
     phone: string;
     avatar: string;
     auto_reply_enabled: boolean;
+    notes?: string;
     ai_summary?: string;
     budget_max?: number;
     move_in_date?: string;
+    has_pets?: boolean;
     lead_priority?: 'hot' | 'warm' | 'cold';
-    pet_details?: string;
+    pet_details?: string | Record<string, any>;
     qualification_status?: string;
     lead_score?: number;
     lead_quality?: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    num_occupants?: number;
+    lease_duration?: string;
+    furnishing?: string;
+    property_type?: string;
+    must_haves?: string[];
+    deal_breakers?: string[];
+    required_amenities?: string[];
+    preferred_neighborhoods?: string[];
+    needs_parking?: boolean;
   };
   property?: {
     id: string;
@@ -1174,9 +1188,9 @@ export default function ConversationsInbox() {
           )}
         </div>
 
-        {/* PANE 3: AI ACTIVITY LOG - Shrinks second (before Inbox) */}
+        {/* PANE 3: LIVE CONTEXT - Shrinks second (before Inbox) */}
         <div className="w-[340px] min-w-[220px] flex-shrink-[3] bg-white flex flex-col overflow-hidden rounded-2xl border border-gray-200/60 shadow-sm">
-          <AIActivityTimeline events={activityEvents} />
+          <InboxContextPanel selectedConversation={selectedConversation} />
         </div>
       </div>
 
