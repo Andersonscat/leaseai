@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         id,
         address,
         images,
-        price,
+        price_monthly,
         beds,
         baths
       )

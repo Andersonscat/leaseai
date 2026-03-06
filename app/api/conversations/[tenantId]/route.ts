@@ -41,24 +41,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid tenant ID', messages: [] }, { status: 400 });
     }
     
-    // Get all messages for this tenant
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select(`
-        *,
-        tenant:tenants(name, email, phone, avatar, auto_reply_enabled),
-        property:properties(address, price)
-      `)
-      .eq('tenant_id', tenantId)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-    
-    if (error) {
-      console.error('Error fetching conversation:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    
-    // Mark all tenant messages as read
+    // Mark all tenant messages as read FIRST (most important action)
     const { error: updateError } = await supabase
       .from('messages')
       .update({ is_read: true })
@@ -69,6 +52,23 @@ export async function GET(
       
     if (updateError) {
       console.error('Failed to update is_read status:', updateError);
+    }
+
+    // Get all messages for this tenant
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select(`
+        *,
+        tenant:tenants(name, email, phone, avatar, auto_reply_enabled),
+        property:properties(id, address)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching conversation:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
     return NextResponse.json({ messages: messages || [] });

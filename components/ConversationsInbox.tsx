@@ -303,7 +303,15 @@ export default function ConversationsInbox() {
         : `/api/conversations?source=${selectedSource}`;
       const response = await fetch(url);
       const data = await response.json();
-      setConversations(data.conversations || []);
+      const convs: Conversation[] = data.conversations || [];
+
+      // Apply local read state: conversations opened this session always show unread_count: 0
+      const readSet = readConversationsRef.current;
+      const patched = convs.map(c =>
+        readSet.has(c.tenant_id) ? { ...c, unread_count: 0 } : c
+      );
+
+      setConversations(patched);
     } catch (error) {
       console.error('Error fetching conversations:', error);
     } finally {
@@ -422,10 +430,16 @@ export default function ConversationsInbox() {
 
   const [loadingMessages, setLoadingMessages] = useState(false);
 
+  // Track which conversations have been opened (read) this session
+  const readConversationsRef = useRef<Set<string>>(new Set());
+
   const openConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
     setConversationMessages([]); // Clear stale messages immediately
     setLoadingMessages(true);
+
+    // Mark this conversation as read locally
+    readConversationsRef.current.add(conversation.tenant_id);
 
     // Optimistically update local unread counts
     setConversations(prev => prev.map(c => 
@@ -452,7 +466,6 @@ export default function ConversationsInbox() {
       
       if (!response.ok) {
         console.error(`❌ API returned ${response.status} for tenant ${conversation.tenant_id}`);
-        // Don't show error if we already have messages from fast path
         if (!conversation.messages?.length) {
           showToastNotification(`Failed to load messages (HTTP ${response.status})`, 'error');
         }
@@ -463,13 +476,13 @@ export default function ConversationsInbox() {
       console.log(`📬 Messages from detail API: ${data.messages?.length ?? 0}`);
       
       if (data.messages && data.messages.length > 0) {
-        setConversationMessages(data.messages); // Update with full data (includes tenant/property joins)
+        setConversationMessages(data.messages);
       }
 
       // Refresh inbox badge in sidebar
       refreshInboxBadge();
-      // Refresh conversations to update unread count
-      fetchConversations(false);
+      // Small delay to let the DB commit the is_read update before refetching
+      setTimeout(() => fetchConversations(false), 500);
     } catch (error) {
       console.error('Error fetching conversation messages:', error);
     } finally {
@@ -814,22 +827,38 @@ export default function ConversationsInbox() {
     });
   };
 
+  // Derive a display-friendly pipeline stage from DB status + conversation state
+  const getDisplayStage = (conv: Conversation): string => {
+    const dbStatus = conv.tenant?.qualification_status;
+    if (dbStatus && !['new', 'New Lead'].includes(dbStatus)) {
+      const formatted = dbStatus.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return formatted;
+    }
+    // If AI or landlord has replied, it's no longer "New"
+    const hasReply = conv.messages?.some(m => m.sender_type === 'landlord');
+    if (hasReply) return 'Contacted';
+    return 'New';
+  };
+
   // Map conversations to Leads format for the table
-  const tableLeads = filteredConversations.map(conv => ({
+  const tableLeads = filteredConversations.map(conv => {
+    const stage = getDisplayStage(conv);
+    return {
     id: conv.tenant_id,
     name: conv.tenant?.name || 'Unknown',
     avatar: conv.tenant?.avatar,
     source: conv.source,
     propertyAddress: conv.property?.address || 'Unknown Property',
     propertyUnit: '402',
-    pipelineStage: conv.tenant?.qualification_status || 'New Lead',
-    status: conv.tenant?.qualification_status || 'New Lead',
+    pipelineStage: stage,
+    status: stage,
     leadScore: conv.tenant?.lead_score || 0,
     leadQuality: conv.tenant?.lead_quality || 'cold',
     lastAction: getLastSyncText() || 'Just now',
     updatedAt: conv.last_message_time || new Date().toISOString(),
     nextStep: conv.unread_count > 0 ? 'Reply Needed' : 'Wait for response'
-  }));
+  };
+  });
 
   return (
     <div className="h-screen flex flex-col bg-premium-mesh overflow-hidden relative">
