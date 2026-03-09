@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, Dispatch, SetStateAction } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle, Radio, LogOut, CreditCard, Check, ExternalLink, Receipt, Zap, ArrowUpRight, Download } from "lucide-react";
 import Link from "next/link";
@@ -149,6 +149,329 @@ function ShowingDetailsSheet({ appointment, onClose }: { appointment: any, onClo
   );
 }
 
+interface SimulateState {
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  message: string;
+  sending: boolean;
+  conversation: { role: 'user' | 'assistant'; content: string; meta?: any }[];
+  tenantId: string | null;
+  lastAnalysis: any;
+}
+
+const SIMULATE_INITIAL: SimulateState = {
+  clientName: '', clientEmail: '', clientPhone: '', message: '',
+  sending: false, conversation: [], tenantId: null, lastAnalysis: null,
+};
+
+function SimulateClient({ state, setState }: { state: SimulateState; setState: Dispatch<SetStateAction<SimulateState>> }) {
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const { clientName, clientEmail, clientPhone, message, sending, conversation, tenantId, lastAnalysis } = state;
+  const set = (patch: Partial<SimulateState>) => setState(prev => ({ ...prev, ...patch }));
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => { scrollToBottom(); }, [conversation]);
+
+  const handleSend = async () => {
+    if (!message.trim() || sending) return;
+    const text = message.trim();
+    set({ message: '', sending: true });
+
+    setState(prev => ({ ...prev, conversation: [...prev.conversation, { role: 'user', content: text }] }));
+
+    try {
+      const res = await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: clientName || 'Test Client',
+          clientEmail: clientEmail || undefined,
+          clientPhone: clientPhone || undefined,
+          message: text,
+          tenantId: state.tenantId || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setState(prev => ({ ...prev, conversation: [...prev.conversation, { role: 'assistant', content: `Error: ${data.error}` }] }));
+        return;
+      }
+
+      const cleanReply = (data.aiResponse || '')
+        .replace(/---PROPERTIES_JSON---[\s\S]*?---END_PROPERTIES_JSON---/g, '')
+        .replace(/---PHOTOS_JSON---[\s\S]*?---END_PHOTOS_JSON---/g, '')
+        .trim();
+
+      setState(prev => ({
+        ...prev,
+        tenantId: prev.tenantId || data.tenantId || null,
+        lastAnalysis: data.analysis,
+        conversation: [...prev.conversation, {
+          role: 'assistant',
+          content: cleanReply,
+          meta: {
+            action: data.analysis?.action,
+            intent: data.analysis?.intent,
+            priority: data.analysis?.priority,
+            thought_process: data.analysis?.thought_process,
+            extractedData: data.analysis?.extractedData,
+            summary: data.analysis?.summary,
+            matchedProperties: data.matchedProperties,
+            booking: data.booking,
+            isNewTenant: data.isNewTenant,
+            timing: data.timing,
+          },
+        }],
+      }));
+
+    } catch (err: any) {
+      setState(prev => ({ ...prev, conversation: [...prev.conversation, { role: 'assistant', content: `Network error: ${err.message}` }] }));
+    } finally {
+      set({ sending: false });
+    }
+  };
+
+  const handleReset = () => {
+    setState({ ...SIMULATE_INITIAL });
+  };
+
+  const presets = [
+    { label: 'New Lead', msg: 'Hi, I saw your listing and I\'m looking for a 2-bedroom apartment under $3000/month. Can I schedule a viewing this weekend?' },
+    { label: 'Budget Buyer', msg: 'Hello, I\'m interested in buying a home in the area. My budget is around $500k and I need at least 3 bedrooms. I have a dog. When can I visit?' },
+    { label: 'Urgent Move', msg: 'I need to move ASAP, ideally by next week. Looking for anything available, 1-2 bedrooms, pet-friendly. What do you have?' },
+    { label: 'Question Only', msg: 'What\'s the pet policy on your properties? Do you allow large dogs?' },
+  ];
+
+  return (
+    <>
+      <div className="mb-8">
+        <h2 className="text-4xl font-bold text-black mb-2">Simulate Client</h2>
+        <p className="text-lg text-gray-500">Write as a client to test the full AI pipeline — creates real tenants, messages, calendar events</p>
+      </div>
+
+      <div className="flex gap-6 h-[calc(100vh-220px)]">
+        {/* Chat Panel */}
+        <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Client Identity Bar */}
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 flex gap-3">
+                <input
+                  value={clientName}
+                  onChange={e => set({ clientName: e.target.value })}
+                  placeholder="Client name"
+                  className="flex-1 px-3 py-2 text-sm text-black bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 placeholder:text-gray-400"
+                />
+                <input
+                  value={clientEmail}
+                  onChange={e => set({ clientEmail: e.target.value })}
+                  placeholder="Email (auto-generated if empty)"
+                  className="flex-1 px-3 py-2 text-sm text-black bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 placeholder:text-gray-400"
+                />
+                <input
+                  value={clientPhone}
+                  onChange={e => set({ clientPhone: e.target.value })}
+                  placeholder="Phone (optional)"
+                  className="w-40 px-3 py-2 text-sm text-black bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 placeholder:text-gray-400"
+                />
+              </div>
+              {conversation.length > 0 && (
+                <button onClick={handleReset} className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  Reset
+                </button>
+              )}
+            </div>
+            {/* Presets */}
+            {conversation.length === 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {presets.map((p, i) => (
+                  <button key={i} onClick={() => set({ message: p.msg })}
+                    className="px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 rounded-full hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-600"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {conversation.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                  <MessageSquare className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Start a test conversation</h3>
+                <p className="text-sm text-gray-400 max-w-sm">Write a message as a potential client. The AI will respond using the full pipeline — tenant creation, qualification, property matching, calendar booking.</p>
+              </div>
+            )}
+            {conversation.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[75%] ${msg.role === 'user' ? '' : ''}`}>
+                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-black text-white rounded-br-md'
+                      : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                  {/* Meta info for AI messages */}
+                  {msg.meta && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {msg.meta.action && (
+                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full ${
+                            msg.meta.action === 'book_calendar' ? 'bg-blue-50 text-blue-700' :
+                            msg.meta.action === 'send_listing' ? 'bg-green-50 text-green-700' :
+                            msg.meta.action === 'escalate' ? 'bg-red-50 text-red-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {msg.meta.action}
+                          </span>
+                        )}
+                        {msg.meta.intent && (
+                          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium text-gray-500 bg-gray-50 rounded-full">
+                            {msg.meta.intent}
+                          </span>
+                        )}
+                        {msg.meta.priority && (
+                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full ${
+                            msg.meta.priority === 'hot' ? 'bg-red-50 text-red-600' :
+                            msg.meta.priority === 'warm' ? 'bg-orange-50 text-orange-600' :
+                            'bg-gray-50 text-gray-500'
+                          }`}>
+                            {msg.meta.priority}
+                          </span>
+                        )}
+                        {msg.meta.isNewTenant && (
+                          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold bg-purple-50 text-purple-700 rounded-full">
+                            new tenant
+                          </span>
+                        )}
+                        {msg.meta.timing && (
+                          <span className="text-[10px] text-gray-400">{(msg.meta.timing.totalMs / 1000).toFixed(1)}s</span>
+                        )}
+                      </div>
+                      {msg.meta.booking && msg.meta.booking.success && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-blue-600">
+                          <CalendarIcon className="w-3 h-3" />
+                          <span>Calendar event created</span>
+                          {msg.meta.booking.calendarLink && !msg.meta.booking.calendarLink.includes('simulated') && (
+                            <a href={msg.meta.booking.calendarLink} target="_blank" rel="noopener" className="underline">Open</a>
+                          )}
+                        </div>
+                      )}
+                      {msg.meta.matchedProperties?.length > 0 && (
+                        <div className="text-[11px] text-green-600">
+                          Matched {msg.meta.matchedProperties.length} {msg.meta.matchedProperties.length === 1 ? 'property' : 'properties'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {sending && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
+                  <div className="flex gap-1.5">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-4 border-t border-gray-100">
+            <div className="flex gap-3">
+              <input
+                value={message}
+                onChange={e => set({ message: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                placeholder="Write as a client..."
+                disabled={sending}
+                className="flex-1 px-4 py-3 text-sm text-black bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 focus:bg-white transition-all disabled:opacity-50 placeholder:text-gray-400"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!message.trim() || sending}
+                className="px-5 py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel — AI Reasoning */}
+        <div className="w-80 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">AI Reasoning</h3>
+            <p className="text-xs text-gray-400 mt-0.5">See how the AI thinks</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 text-xs space-y-4">
+            {!lastAnalysis ? (
+              <p className="text-gray-400 text-center py-10">Send a message to see AI reasoning</p>
+            ) : (
+              <>
+                {lastAnalysis.thought_process && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Thought Process</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{lastAnalysis.thought_process}</p>
+                  </div>
+                )}
+                {lastAnalysis.summary && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Summary</p>
+                    <p className="text-gray-700 bg-gray-50 rounded-lg p-3">
+                      {typeof lastAnalysis.summary === 'string'
+                        ? lastAnalysis.summary
+                        : Object.entries(lastAnalysis.summary).map(([k, v]) => `${k}: ${v}`).join('\n')}
+                    </p>
+                  </div>
+                )}
+                {lastAnalysis.extractedData && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Extracted Data</p>
+                    <pre className="text-gray-600 bg-gray-50 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(lastAnalysis.extractedData, null, 2)}</pre>
+                  </div>
+                )}
+                {lastAnalysis.escalation_reason && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1.5">Escalation</p>
+                    <p className="text-red-600 bg-red-50 rounded-lg p-3">{lastAnalysis.escalation_reason}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          {/* Quick info */}
+          {tenantId && (
+            <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+              <p className="text-[10px] text-gray-400">Tenant ID</p>
+              <p className="text-xs font-mono text-gray-600 truncate">{tenantId}</p>
+              <a href={`/dashboard?tab=inbox`} className="text-[11px] text-blue-600 hover:underline mt-1 inline-block">
+                View in Inbox →
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function DashboardContent() {
   const supabase = createSupabaseClient();
   const searchParams = useSearchParams();
@@ -193,6 +516,9 @@ function DashboardContent() {
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; gmail_email: string | null; loading: boolean }>({ connected: false, gmail_email: null, loading: true });
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
+
+  // Simulate tab state (persists across tab switches)
+  const [simulateState, setSimulateState] = useState<SimulateState>({ ...SIMULATE_INITIAL });
   
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -2039,6 +2365,9 @@ function DashboardContent() {
           </div>
         </>
       )}
+
+      {/* Simulate Tab */}
+      {activeTab === "simulate" && <SimulateClient state={simulateState} setState={setSimulateState} />}
 
       {/* Account Tab */}
       {activeTab === "account" && (
