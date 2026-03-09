@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Mail, X, Send, Clock, MessageSquare, Trash2, CheckSquare, 
   Bot, Sparkles, RefreshCw, Search, Home, Phone, 
@@ -8,7 +8,7 @@ import {
   MoreVertical, ChevronRight, Hash, Inbox, Flag, Layout, ChevronDown,
   PanelLeftClose, PanelLeftOpen, ChevronsLeft, ChevronsRight,
   DollarSign, Calendar, ChevronUp, MapPin, ExternalLink,
-  Star, CornerUpLeft
+  Star, CornerUpLeft, ArrowUpRight, Zap
 } from 'lucide-react';
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -75,7 +75,7 @@ interface Message {
   created_at: string;
   is_read: boolean;
   is_ai_response?: boolean; 
-  thoughts?: ThinkingStep[]; // For persistent reasoning
+  thoughts?: ThinkingStep[] | Record<string, any>;
 }
 
 interface ActionCard {
@@ -88,6 +88,218 @@ interface ActionCard {
   status: string;
   buttonText: string;
   link: string;
+}
+
+const SIMULATE_PRESETS = [
+  { label: 'New inquiry', message: "Hi, I saw your listing on Zillow. I'm looking for a 2-bedroom apartment in Seattle with a budget of around $2,500/month. I'm planning to move in by April 1st. No pets. Do you have any options?" },
+  { label: 'Budget question', message: "What are your most affordable 1-bedroom units available right now?" },
+  { label: 'Pet policy', message: "Hi, I have a small dog (15 lbs, French Bulldog). Are pets allowed at any of your properties? What's the pet deposit?" },
+  { label: 'Tour request', message: "I'd like to schedule a viewing for tomorrow afternoon if possible. I'm interested in the property on Main Street." },
+];
+
+function SimulateInlineForm({ onConversationCreated }: { onConversationCreated: (tenantId: string) => Promise<void> }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSend = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: name || undefined,
+          clientEmail: email || undefined,
+          clientPhone: phone || undefined,
+          message: message.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Simulation failed');
+
+      setName('');
+      setEmail('');
+      setPhone('');
+      setMessage('');
+
+      if (data.tenantId) {
+        await onConversationCreated(data.tenantId);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-lg space-y-6">
+      {/* Header */}
+      <div className="text-center">
+        <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center mx-auto mb-4">
+          <Zap className="w-6 h-6 text-white" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900">Simulate a Client</h3>
+        <p className="text-sm text-gray-400 mt-1">
+          Test your AI pipeline with a simulated email — processed identically to real ones
+        </p>
+      </div>
+
+      {/* Client identity fields */}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="John Doe"
+            className="w-full px-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400 focus:bg-white transition-all placeholder:text-gray-300"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Auto-generated"
+            className="w-full px-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400 focus:bg-white transition-all placeholder:text-gray-300"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Phone</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            placeholder="Optional"
+            className="w-full px-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400 focus:bg-white transition-all placeholder:text-gray-300"
+          />
+        </div>
+      </div>
+
+      {/* Quick presets */}
+      <div>
+        <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Quick Presets</label>
+        <div className="flex flex-wrap gap-1.5">
+          {SIMULATE_PRESETS.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                setMessage(p.message);
+                setTimeout(() => {
+                  if (textareaRef.current) {
+                    textareaRef.current.style.height = 'auto';
+                    textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
+                  }
+                }, 0);
+              }}
+              className="px-3 py-1.5 text-[11px] font-medium bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 rounded-full transition-all text-gray-600"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Message input */}
+      <div>
+        <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Client Message</label>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl focus-within:border-gray-400 focus-within:bg-white transition-all">
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Write as a client would in an email..."
+            rows={3}
+            className="w-full px-4 py-3 text-sm text-gray-900 bg-transparent resize-none focus:outline-none placeholder:text-gray-300 leading-relaxed max-h-40 overflow-y-auto"
+            onInput={e => {
+              const t = e.target as HTMLTextAreaElement;
+              t.style.height = 'auto';
+              t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+            }}
+          />
+          <div className="flex items-center justify-between px-4 pb-3">
+            <p className="text-[10px] text-gray-300">Shift+Enter for new line</p>
+            <button
+              onClick={handleSend}
+              disabled={!message.trim() || sending}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              {sending ? (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '1.5s' }} />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  Send as Client
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+          <p className="text-[11px] text-red-600">{error}</p>
+        </div>
+      )}
+
+      {/* Info note */}
+      <div className="flex items-start gap-2.5 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl">
+        <Bot className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-gray-400 leading-relaxed">
+          Messages are processed through the full AI pipeline — same as real emails.
+          The conversation will appear in your inbox after sending.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PropertyCardImage({ propId, inlineImage, alt }: { propId?: string; inlineImage?: string; alt: string }) {
+  const [src, setSrc] = useState(inlineImage || '');
+  const [loaded, setLoaded] = useState(!!inlineImage);
+
+  useEffect(() => {
+    if (inlineImage || !propId) return;
+    let cancelled = false;
+    fetch(`/api/properties/${propId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const img = data?.images?.[0] || data?.image || '';
+        if (img) setSrc(img);
+        setLoaded(true);
+      })
+      .catch(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [propId, inlineImage]);
+
+  const fallback = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=500';
+  return (
+    <img
+      src={src || fallback}
+      alt={alt}
+      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
+    />
+  );
 }
 
 export default function ConversationsInbox() {
@@ -103,6 +315,7 @@ export default function ConversationsInbox() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [replyText, setReplyText] = useState('');
+  const [replyMode, setReplyMode] = useState<'agent' | 'client'>('agent');
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isSyncingManual, setIsSyncingManual] = useState(false);
@@ -134,6 +347,7 @@ export default function ConversationsInbox() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pendingSimulateTenantRef = useRef<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [showAIOverview, setShowAIOverview] = useState(true);
@@ -348,6 +562,26 @@ export default function ConversationsInbox() {
     return () => clearTimeout(timer);
   }, [selectedSource]);
 
+  useEffect(() => {
+    const pending = pendingSimulateTenantRef.current;
+    if (!pending) return;
+    const conv = conversations.find(c => c.tenant_id === pending);
+    if (conv) {
+      pendingSimulateTenantRef.current = null;
+      openConversation(conv);
+    }
+  }, [conversations]);
+
+  // Keep selectedConversation in sync with latest data (property, lead score, etc.)
+  useEffect(() => {
+    if (!selectedConversation) return;
+    const updated = conversations.find(c => c.tenant_id === selectedConversation.tenant_id);
+    if (updated && JSON.stringify(updated.tenant) !== JSON.stringify(selectedConversation.tenant)
+        || updated && JSON.stringify(updated.property) !== JSON.stringify(selectedConversation.property)) {
+      setSelectedConversation(prev => prev ? { ...prev, tenant: updated.tenant, property: updated.property, source: updated.source } : null);
+    }
+  }, [conversations]);
+
   // Refresh inbox when user brings browser tab back into focus
   useEffect(() => {
     const handleVisibility = () => {
@@ -387,7 +621,11 @@ export default function ConversationsInbox() {
     };
   }, [selectedSource]);
 
-  // 🔴 Supabase Realtime — instantly update inbox when a new message arrives
+  // Keep a ref to selectedConversation so realtime callback can access current value
+  const selectedConversationRef = useRef(selectedConversation);
+  useEffect(() => { selectedConversationRef.current = selectedConversation; }, [selectedConversation]);
+
+  // 🔴 Supabase Realtime — instantly update inbox + open thread when a new message arrives
   useEffect(() => {
     const supabase = createSupabaseClient();
 
@@ -396,9 +634,40 @@ export default function ConversationsInbox() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => {
+        (payload: any) => {
           console.log('📨 Realtime: new message — refreshing inbox...');
           fetchConversations(false);
+
+          const newMsg = payload.new;
+          const openTenantId = selectedConversationRef.current?.tenant_id;
+          if (newMsg && openTenantId && newMsg.tenant_id === openTenantId) {
+            // If Realtime payload is missing message_text (too large), fetch from API
+            if (!newMsg.message_text && newMsg.is_ai_response) {
+              console.log('📨 Realtime: AI message missing text (payload too large), fetching from API...');
+              fetch(`/api/conversations/${openTenantId}`)
+                .then(r => r.json())
+                .then(data => { if (data.messages?.length) setConversationMessages(data.messages); })
+                .catch(() => {});
+              return;
+            }
+
+            setConversationMessages(prev => {
+              if (prev.some(m => m.id === newMsg.id)) return prev;
+
+              const tempIdx = prev.findIndex(m =>
+                m.id.startsWith('temp-') &&
+                m.sender_type === newMsg.sender_type &&
+                m.message_text === newMsg.message_text
+              );
+              if (tempIdx !== -1) {
+                const updated = [...prev];
+                updated[tempIdx] = newMsg;
+                return updated;
+              }
+
+              return [...prev, newMsg];
+            });
+          }
         }
       )
       .subscribe();
@@ -538,6 +807,37 @@ export default function ConversationsInbox() {
   const handleReply = async () => {
     if (!selectedConversation || !replyText.trim()) return;
 
+    if (replyMode === 'client') {
+      const messageText = replyText.trim();
+      const optimisticMsg: Message = {
+        id: `temp-${Date.now()}`,
+        sender_type: 'tenant',
+        sender_name: selectedConversation.tenant?.name || 'Client',
+        message_text: messageText,
+        is_read: true,
+        created_at: new Date().toISOString(),
+      };
+      setConversationMessages(prev => [...prev, optimisticMsg]);
+      setReplyText('');
+
+      fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: selectedConversation.tenant?.name || 'Test Client',
+          clientEmail: selectedConversation.tenant?.email,
+          clientPhone: selectedConversation.tenant?.phone,
+          message: messageText,
+          tenantId: selectedConversation.tenant_id,
+        }),
+      }).then(() => {
+        fetchConversations(false);
+      }).catch(err => {
+        console.error('Simulate error:', err);
+      });
+      return;
+    }
+
     setSending(true);
     try {
       const response = await fetch(`/api/conversations/${selectedConversation.tenant_id}`, {
@@ -545,12 +845,11 @@ export default function ConversationsInbox() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: replyText }),
       });
-
       if (response.ok) {
         const data = await response.json();
         setConversationMessages([...conversationMessages, data.message]);
         setReplyText('');
-        fetchConversations(false); // Refresh in background to update last message
+        fetchConversations(false);
       }
     } catch (error) {
       console.error('Error sending reply:', error);
@@ -861,7 +1160,7 @@ export default function ConversationsInbox() {
   });
 
   return (
-    <div className="h-screen flex flex-col bg-premium-mesh overflow-hidden relative">
+    <div className="h-[calc(100vh-2rem)] flex flex-col bg-premium-mesh overflow-hidden relative">
       {/* Masked Grid Background (Aligned with Landing Page) */}
       <div className="absolute inset-0 z-0 opacity-[0.12] pointer-events-none" 
            style={{ 
@@ -1074,7 +1373,7 @@ export default function ConversationsInbox() {
                           <div key={message.id || idx} className="group transition-colors hover:bg-black/[0.01]">
                             {isReasoning ? (
                               <div className="px-8 py-4 border-b border-black/[0.03] bg-indigo-50/10">
-                                 <AIThinkingPanel steps={message.thoughts || []} isStatic={true} />
+                                 <AIThinkingPanel steps={Array.isArray(message.thoughts) ? message.thoughts : []} isStatic={true} />
                               </div>
                             ) : (
                               <div className="px-8 py-6 border-b border-black/[0.03]">
@@ -1129,11 +1428,7 @@ export default function ConversationsInbox() {
                                               className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden bg-white hover:border-gray-300 hover:shadow-md transition-all group"
                                             >
                                               <div className="relative h-40 bg-gray-100">
-                                                <img 
-                                                  src={prop.image || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=500'} 
-                                                  alt={prop.address} 
-                                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                />
+                                                <PropertyCardImage propId={prop.id} inlineImage={prop.image} alt={prop.address} />
                                               </div>
                                               <div className="p-4 flex flex-col gap-1">
                                                 <div className="flex items-start justify-between">
@@ -1181,45 +1476,87 @@ export default function ConversationsInbox() {
               </div>
 
               {/* Reply Input */}
-              <div className="p-8 border-t border-black/[0.03] bg-white/10 backdrop-blur-md">
-                  <div className="glass-matte rounded-[24px] p-2 border border-white/60 focus-within:border-black/10 transition-all flex items-end gap-2 shadow-sm">
+              <div className="px-8 pb-6 pt-4 border-t border-black/[0.03]">
+                  {/* Role toggle */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="inline-flex items-center bg-gray-100 rounded-full p-0.5">
+                      <button
+                        onClick={() => setReplyMode('agent')}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
+                          replyMode === 'agent'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <User className="w-3 h-3" />
+                        Agent
+                      </button>
+                      <button
+                        onClick={() => setReplyMode('client')}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
+                          replyMode === 'client'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        Client
+                      </button>
+                    </div>
+                    {replyMode === 'client' && (
+                      <span className="text-[10px] text-gray-400">
+                        Sends as client — AI will respond automatically
+                      </span>
+                    )}
+                  </div>
+                  <div className={`rounded-2xl p-2 border transition-all flex items-end gap-2 shadow-sm ${
+                    replyMode === 'client'
+                      ? 'bg-gray-900 border-gray-800'
+                      : 'bg-white border-gray-200 focus-within:border-gray-300'
+                  }`}>
                      <textarea
                        ref={textareaRef}
                        value={replyText}
                        onChange={(e) => setReplyText(e.target.value)}
-                       placeholder="Message to lead..."
+                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
+                       placeholder={replyMode === 'client' ? 'Write as client...' : 'Reply as agent...'}
                        rows={1}
-                       className="flex-1 p-3 bg-transparent border-0 focus:ring-0 text-sm font-medium min-h-[48px] resize-none text-black placeholder:text-gray-400"
+                       className={`flex-1 p-3 bg-transparent border-0 focus:ring-0 focus:outline-none text-sm font-medium min-h-[48px] resize-none placeholder:text-gray-400 ${
+                         replyMode === 'client' ? 'text-white placeholder:text-gray-500' : 'text-gray-900'
+                       }`}
                      />
                      <div className="pb-1 pr-1">
                         <button 
                           onClick={handleReply}
-                          className="h-10 px-6 bg-black text-white rounded-full text-[11px] font-bold uppercase tracking-wider hover:scale-[1.02] transition-all active:scale-95 shadow-lg shadow-black/10"
+                          disabled={!replyText.trim() || sending}
+                          className={`h-10 px-5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${
+                            replyMode === 'client'
+                              ? 'bg-white text-gray-900 hover:bg-gray-100'
+                              : 'bg-gray-900 text-white hover:bg-gray-800'
+                          }`}
                         >
-                          Send
+                          {sending && <Sparkles className="w-3 h-3 animate-spin" style={{ animationDuration: '1.5s' }} />}
+                          {replyMode === 'client' ? 'Send as Client' : 'Send'}
                         </button>
                      </div>
                   </div>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-16">
-              {/* Minimalist Icon */}
-              <div className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mb-6 border border-gray-100">
-                <MessageSquare className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
-              </div>
-              
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No conversation selected</h3>
-              <p className="text-sm text-gray-400 max-w-[280px]">
-                Choose a lead from the list to view their messages
-              </p>
+            <div className="flex-1 flex flex-col items-center justify-center p-8">
+              <SimulateInlineForm
+                onConversationCreated={async (tenantId: string) => {
+                  pendingSimulateTenantRef.current = tenantId;
+                  await fetchConversations(false);
+                }}
+              />
             </div>
           )}
         </div>
 
         {/* PANE 3: LIVE CONTEXT - Shrinks second (before Inbox) */}
         <div className="w-[340px] min-w-[220px] flex-shrink-[3] bg-white flex flex-col overflow-hidden rounded-2xl border border-gray-200/60 shadow-sm">
-          <InboxContextPanel selectedConversation={selectedConversation} />
+          <InboxContextPanel selectedConversation={selectedConversation} messages={conversationMessages} />
         </div>
       </div>
 

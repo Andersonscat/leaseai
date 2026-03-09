@@ -155,26 +155,65 @@ interface SimulateState {
   clientPhone: string;
   message: string;
   sending: boolean;
-  conversation: { role: 'user' | 'assistant'; content: string; meta?: any }[];
+  conversation: { role: 'user' | 'assistant'; content: string; meta?: any; properties?: any[] }[];
   tenantId: string | null;
   lastAnalysis: any;
+  lastPipeline: { stage: string; durationMs: number; detail?: string }[] | null;
+  lastTiming: { totalMs: number } | null;
 }
 
 const SIMULATE_INITIAL: SimulateState = {
   clientName: '', clientEmail: '', clientPhone: '', message: '',
   sending: false, conversation: [], tenantId: null, lastAnalysis: null,
+  lastPipeline: null, lastTiming: null,
+};
+
+const PIPELINE_STAGE_KEYS = ['brain', 'hand', 'judge'] as const;
+const PIPELINE_LABELS: Record<string, { label: string; desc: string }> = {
+  brain: { label: 'Brain + Voice', desc: 'Analyze & Respond' },
+  hand:  { label: 'Hand',          desc: 'Execute Actions' },
+  judge: { label: 'Judge',         desc: 'Anti-Hallucination' },
+};
+
+const SIM_ACTION_STYLES: Record<string, { label: string; className: string }> = {
+  book_calendar: { label: 'Booked Viewing', className: 'bg-green-50 text-green-700 border border-green-200' },
+  send_listing:  { label: 'Sent Listing',   className: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  escalate:      { label: 'Escalated',       className: 'bg-red-50 text-red-700 border border-red-200' },
+  reply:         { label: 'Replied',         className: 'bg-gray-50 text-gray-600 border border-gray-200' },
+};
+
+const SIM_PRIORITY_STYLES: Record<string, { label: string; dot: string }> = {
+  hot:  { label: 'Hot',  dot: 'bg-red-500' },
+  warm: { label: 'Warm', dot: 'bg-orange-400' },
+  cold: { label: 'Cold', dot: 'bg-blue-400' },
 };
 
 function SimulateClient({ state, setState }: { state: SimulateState; setState: Dispatch<SetStateAction<SimulateState>> }) {
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const { clientName, clientEmail, clientPhone, message, sending, conversation, tenantId, lastAnalysis } = state;
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { clientName, clientEmail, clientPhone, message, sending, conversation, tenantId, lastAnalysis, lastPipeline, lastTiming } = state;
   const set = (patch: Partial<SimulateState>) => setState(prev => ({ ...prev, ...patch }));
+  const [expandedThought, setExpandedThought] = useState<number | null>(null);
+  const [activeStage, setActiveStage] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => { scrollToBottom(); }, [conversation]);
+  useEffect(() => { scrollToBottom(); }, [conversation, sending]);
+
+  useEffect(() => {
+    if (!sending) { setActiveStage(null); return; }
+    const stages = [...PIPELINE_STAGE_KEYS];
+    let i = 0;
+    setActiveStage(stages[0]);
+    const interval = setInterval(() => {
+      i++;
+      if (i < stages.length) setActiveStage(stages[i]);
+      else clearInterval(interval);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, [sending]);
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
@@ -203,18 +242,37 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
         return;
       }
 
-      const cleanReply = (data.aiResponse || '')
-        .replace(/---PROPERTIES_JSON---[\s\S]*?---END_PROPERTIES_JSON---/g, '')
-        .replace(/---PHOTOS_JSON---[\s\S]*?---END_PHOTOS_JSON---/g, '')
-        .trim();
+      const rawReply = data.aiResponse || '';
+      let propertiesData: any[] | null = null;
+
+      let cleanReply = rawReply;
+      if (cleanReply.includes('---PROPERTIES_JSON---')) {
+        const parts = cleanReply.split('---PROPERTIES_JSON---');
+        cleanReply = parts[0].trim();
+        try {
+          const jsonStr = parts[1].split('---END_PROPERTIES_JSON---')[0].trim();
+          propertiesData = JSON.parse(jsonStr);
+        } catch {}
+      }
+      cleanReply = cleanReply.replace(/---PHOTOS_JSON---[\s\S]*?---END_PHOTOS_JSON---/g, '').trim();
+
+      const allProps = [
+        ...(propertiesData || []),
+        ...(data.matchedProperties || []).filter((mp: any) =>
+          !propertiesData?.some(p => p.id === mp.id)
+        ),
+      ];
 
       setState(prev => ({
         ...prev,
         tenantId: prev.tenantId || data.tenantId || null,
         lastAnalysis: data.analysis,
+        lastPipeline: data.pipeline || null,
+        lastTiming: data.timing || null,
         conversation: [...prev.conversation, {
           role: 'assistant',
           content: cleanReply,
+          properties: allProps.length > 0 ? allProps : undefined,
           meta: {
             action: data.analysis?.action,
             intent: data.analysis?.intent,
@@ -226,6 +284,8 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
             booking: data.booking,
             isNewTenant: data.isNewTenant,
             timing: data.timing,
+            pipeline: data.pipeline,
+            hallucinationBlocked: data.hallucinationBlocked,
           },
         }],
       }));
@@ -234,11 +294,13 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
       setState(prev => ({ ...prev, conversation: [...prev.conversation, { role: 'assistant', content: `Network error: ${err.message}` }] }));
     } finally {
       set({ sending: false });
+      inputRef.current?.focus();
     }
   };
 
   const handleReset = () => {
     setState({ ...SIMULATE_INITIAL });
+    setExpandedThought(null);
   };
 
   const presets = [
@@ -248,14 +310,36 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
     { label: 'Question Only', msg: 'What\'s the pet policy on your properties? Do you allow large dogs?' },
   ];
 
+  const formatContent = (text: string) =>
+    text.split('\n').map((line, i) => {
+      const html = line
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">$1</a>');
+      return <p key={i} className={i > 0 ? 'mt-1' : ''} dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} />;
+    });
+
   return (
     <>
-      <div className="mb-8">
-        <h2 className="text-4xl font-bold text-black mb-2">Simulate Client</h2>
-        <p className="text-lg text-gray-500">Write as a client to test the full AI pipeline — creates real tenants, messages, calendar events</p>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
+            <Radio className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-black">Simulate Client</h2>
+            <p className="text-sm text-gray-500">Full pipeline test — creates real tenants, messages, calendar events</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+          </span>
+          <span className="text-[11px] text-gray-500">Live — messages are processed identically to real emails</span>
+        </div>
       </div>
 
-      <div className="flex gap-6 h-[calc(100vh-220px)]">
+      <div className="flex gap-5 h-[calc(100vh-230px)]">
         {/* Chat Panel */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Client Identity Bar */}
@@ -282,12 +366,12 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
                 />
               </div>
               {conversation.length > 0 && (
-                <button onClick={handleReset} className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                <button onClick={handleReset} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200">
+                  <Trash2 className="w-3 h-3" />
                   Reset
                 </button>
               )}
             </div>
-            {/* Presets */}
             {conversation.length === 0 && (
               <div className="flex gap-2 mt-3 flex-wrap">
                 {presets.map((p, i) => (
@@ -302,7 +386,7 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
             {conversation.length === 0 && (
               <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
                 <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
@@ -313,157 +397,376 @@ function SimulateClient({ state, setState }: { state: SimulateState; setState: D
               </div>
             )}
             {conversation.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] ${msg.role === 'user' ? '' : ''}`}>
+              <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  msg.role === 'user' ? 'bg-black' : 'bg-gray-100 border border-gray-200'
+                }`}>
+                  {msg.role === 'user'
+                    ? <User className="w-3.5 h-3.5 text-white" />
+                    : <Bot className="w-3.5 h-3.5 text-gray-500" />
+                  }
+                </div>
+                <div className={`flex flex-col gap-2 max-w-[72%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-black text-white rounded-br-md'
-                      : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                      ? 'bg-black text-white rounded-tr-sm'
+                      : 'bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm'
                   }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'user'
+                      ? <p className="whitespace-pre-wrap">{msg.content}</p>
+                      : <div className="space-y-0.5">{formatContent(msg.content)}</div>
+                    }
                   </div>
-                  {/* Meta info for AI messages */}
-                  {msg.meta && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {msg.meta.action && (
-                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                            msg.meta.action === 'book_calendar' ? 'bg-blue-50 text-blue-700' :
-                            msg.meta.action === 'send_listing' ? 'bg-green-50 text-green-700' :
-                            msg.meta.action === 'escalate' ? 'bg-red-50 text-red-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {msg.meta.action}
-                          </span>
-                        )}
-                        {msg.meta.intent && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium text-gray-500 bg-gray-50 rounded-full">
-                            {msg.meta.intent}
-                          </span>
-                        )}
-                        {msg.meta.priority && (
-                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                            msg.meta.priority === 'hot' ? 'bg-red-50 text-red-600' :
-                            msg.meta.priority === 'warm' ? 'bg-orange-50 text-orange-600' :
-                            'bg-gray-50 text-gray-500'
-                          }`}>
-                            {msg.meta.priority}
-                          </span>
-                        )}
-                        {msg.meta.isNewTenant && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold bg-purple-50 text-purple-700 rounded-full">
-                            new tenant
-                          </span>
-                        )}
-                        {msg.meta.timing && (
-                          <span className="text-[10px] text-gray-400">{(msg.meta.timing.totalMs / 1000).toFixed(1)}s</span>
-                        )}
-                      </div>
-                      {msg.meta.booking && msg.meta.booking.success && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-blue-600">
-                          <CalendarIcon className="w-3 h-3" />
-                          <span>Calendar event created</span>
-                          {msg.meta.booking.calendarLink && !msg.meta.booking.calendarLink.includes('simulated') && (
-                            <a href={msg.meta.booking.calendarLink} target="_blank" rel="noopener" className="underline">Open</a>
+
+                  {/* Property Cards */}
+                  {msg.properties && msg.properties.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+                      {msg.properties.map((prop: any, pIdx: number) => (
+                        <div
+                          key={pIdx}
+                          className="flex flex-col rounded-xl border border-gray-200 overflow-hidden bg-white hover:border-gray-300 hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => prop.id && window.open(`/dashboard/property/${prop.id}`, '_blank')}
+                        >
+                          {(prop.image || prop.images?.[0]) && (
+                            <div className="relative h-28 bg-gray-100 overflow-hidden">
+                              <img
+                                src={prop.image || prop.images?.[0]}
+                                alt={prop.address}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                              {prop.id && (
+                                <div className="absolute top-2 left-2 opacity-0 hover:opacity-100 transition-opacity">
+                                  <div className="w-5 h-5 bg-black/50 rounded flex items-center justify-center">
+                                    <ExternalLink className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           )}
+                          <div className="p-2.5">
+                            <p className="text-sm font-bold text-gray-900">
+                              ${Number(prop.price).toLocaleString()}
+                              {prop.type === 'rent' && <span className="text-[10px] font-normal text-gray-400 ml-0.5">/mo</span>}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-600 mt-0.5">
+                              {prop.beds && <><span className="font-semibold">{prop.beds}</span> bd</>}
+                              {prop.baths && <><span className="text-gray-300 mx-0.5">|</span><span className="font-semibold">{prop.baths}</span> ba</>}
+                              {prop.sqft && <><span className="text-gray-300 mx-0.5">|</span><span className="font-semibold">{prop.sqft}</span> sqft</>}
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{prop.address}{prop.city ? `, ${prop.city}` : ''}</p>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Meta badges */}
+                  {msg.meta && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {msg.meta.action && SIM_ACTION_STYLES[msg.meta.action] && (
+                        <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full ${SIM_ACTION_STYLES[msg.meta.action].className}`}>
+                          {SIM_ACTION_STYLES[msg.meta.action].label}
+                        </span>
                       )}
-                      {msg.meta.matchedProperties?.length > 0 && (
-                        <div className="text-[11px] text-green-600">
-                          Matched {msg.meta.matchedProperties.length} {msg.meta.matchedProperties.length === 1 ? 'property' : 'properties'}
+                      {msg.meta.priority && SIM_PRIORITY_STYLES[msg.meta.priority] && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500">
+                          <span className={`w-1.5 h-1.5 rounded-full ${SIM_PRIORITY_STYLES[msg.meta.priority].dot}`} />
+                          {SIM_PRIORITY_STYLES[msg.meta.priority].label}
+                        </span>
+                      )}
+                      {msg.meta.isNewTenant && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold bg-purple-50 text-purple-700 rounded-full border border-purple-200">
+                          New Tenant
+                        </span>
+                      )}
+                      {msg.meta.hallucinationBlocked && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+                          Hallucination Blocked
+                        </span>
+                      )}
+                      {msg.meta.timing && (
+                        <span className={`text-[10px] font-medium tabular-nums ${
+                          msg.meta.timing.totalMs < 5000 ? 'text-green-500' :
+                          msg.meta.timing.totalMs < 10000 ? 'text-orange-500' : 'text-red-500'
+                        }`}>{(msg.meta.timing.totalMs / 1000).toFixed(1)}s</span>
+                      )}
+                      {msg.meta.thought_process && (
+                        <button
+                          onClick={() => setExpandedThought(expandedThought === i ? null : i)}
+                          className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Reasoning
+                          <ChevronDown className={`w-3 h-3 transition-transform ${expandedThought === i ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Booking confirmation */}
+                  {msg.meta?.booking?.success && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-xl">
+                      <CalendarIcon className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                      <span className="text-[11px] text-green-700">
+                        <strong>Calendar event created</strong>
+                        {msg.meta.booking.calendarLink && !msg.meta.booking.calendarLink.includes('simulated') && (
+                          <> — <a href={msg.meta.booking.calendarLink} target="_blank" rel="noopener" className="underline">Open</a></>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Expanded reasoning */}
+                  {expandedThought === i && msg.meta?.thought_process && (
+                    <div className="w-full">
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 max-h-48 overflow-y-auto">
+                        <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-gray-100">
+                          <Sparkles className="w-3 h-3 text-gray-400" />
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">AI Reasoning</span>
                         </div>
-                      )}
+                        <p className="text-[10px] text-gray-600 leading-relaxed whitespace-pre-wrap">{msg.meta.thought_process}</p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             ))}
+
+            {/* Loading animation with pipeline stages */}
             {sending && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-2xl rounded-tl-sm bg-white">
+                    <Sparkles className="w-3 h-3 text-violet-400 animate-spin" style={{ animationDuration: '1.5s' }} />
+                    <span className="text-[11px] text-gray-500">Processing</span>
+                    <span className="flex gap-0.5">
+                      {[0,1,2].map(d => (
+                        <span key={d} className="w-1 h-1 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: `${d * 150}ms` }} />
+                      ))}
+                    </span>
+                  </div>
                   <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    {PIPELINE_STAGE_KEYS.map((key, idx) => {
+                      const info = PIPELINE_LABELS[key];
+                      const isActive = activeStage === key;
+                      const activeIdx = PIPELINE_STAGE_KEYS.indexOf(activeStage as any);
+                      const isPast = activeIdx > idx;
+                      return (
+                        <div key={key} className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium transition-all ${
+                          isActive ? 'bg-violet-50 text-violet-700 border border-violet-200 scale-105' :
+                          isPast ? 'bg-green-50 text-green-600 border border-green-200' :
+                          'bg-gray-50 text-gray-400 border border-gray-100'
+                        }`}>
+                          {isPast ? <Check className="w-3 h-3" /> :
+                           key === 'brain' ? <Sparkles className="w-3 h-3" /> :
+                           key === 'hand' ? <Zap className="w-3 h-3" /> :
+                           <Shield className="w-3 h-3" />}
+                          <span>{info.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
+
             <div ref={chatEndRef} />
           </div>
 
           {/* Input */}
           <div className="p-4 border-t border-gray-100">
-            <div className="flex gap-3">
-              <input
+            <div className="flex gap-3 items-end bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus-within:border-gray-400 focus-within:bg-white transition-all">
+              <textarea
+                ref={inputRef}
                 value={message}
                 onChange={e => set({ message: e.target.value })}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Write as a client..."
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Write as a client... (Shift+Enter for new line)"
                 disabled={sending}
-                className="flex-1 px-4 py-3 text-sm text-black bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 focus:bg-white transition-all disabled:opacity-50 placeholder:text-gray-400"
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 resize-none focus:outline-none disabled:opacity-50 leading-relaxed max-h-32 overflow-y-auto"
+                onInput={e => {
+                  const t = e.target as HTMLTextAreaElement;
+                  t.style.height = 'auto';
+                  t.style.height = Math.min(t.scrollHeight, 128) + 'px';
+                }}
               />
               <button
                 onClick={handleSend}
                 disabled={!message.trim() || sending}
-                className="px-5 py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 bg-black hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg transition-colors shrink-0"
               >
-                Send
+                {sending ? <Sparkles className="w-4 h-4 animate-spin" style={{ animationDuration: '1.5s' }} /> : <ArrowUpRight className="w-4 h-4" />}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Right Panel — AI Reasoning */}
+        {/* Right Panel — AI Reasoning + Pipeline */}
         <div className="w-80 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
           <div className="p-4 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">AI Reasoning</h3>
-            <p className="text-xs text-gray-400 mt-0.5">See how the AI thinks</p>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-500" />
+              <h3 className="text-sm font-bold text-gray-900">AI Reasoning</h3>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-0.5">Pipeline stages and AI thought process</p>
           </div>
           <div className="flex-1 overflow-y-auto p-4 text-xs space-y-4">
-            {!lastAnalysis ? (
-              <p className="text-gray-400 text-center py-10">Send a message to see AI reasoning</p>
+            {!lastAnalysis && !lastPipeline ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                  <Sparkles className="w-5 h-5 text-gray-300" />
+                </div>
+                <p className="text-gray-400 text-[11px]">Send a message to see AI reasoning</p>
+              </div>
             ) : (
               <>
-                {lastAnalysis.thought_process && (
+                {/* Pipeline timing */}
+                {lastPipeline && (
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Thought Process</p>
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{lastAnalysis.thought_process}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pipeline</p>
+                    <div className="space-y-1.5">
+                      {lastPipeline.filter(s => s.stage !== 'tenant').map(s => {
+                        const info = PIPELINE_LABELS[s.stage];
+                        if (!info) return null;
+                        const StageIcon = s.stage === 'brain' ? Sparkles : s.stage === 'hand' ? Zap : Shield;
+                        return (
+                          <div key={s.stage} className="flex items-center gap-2.5 px-2.5 py-2 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="w-6 h-6 rounded-md bg-white border border-gray-200 flex items-center justify-center shrink-0">
+                              <StageIcon className="w-3 h-3 text-gray-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-gray-700">{info.label}</p>
+                              <p className="text-[9px] text-gray-400">{info.desc}{s.detail ? ` · ${s.detail}` : ''}</p>
+                            </div>
+                            <span className={`text-[10px] font-bold tabular-nums ${
+                              s.durationMs < 2000 ? 'text-green-500' :
+                              s.durationMs < 5000 ? 'text-orange-500' : 'text-red-500'
+                            }`}>{(s.durationMs / 1000).toFixed(1)}s</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {lastTiming && (
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                        <span className="text-[10px] text-gray-400">Total</span>
+                        <span className={`text-[11px] font-black tabular-nums ${
+                          lastTiming.totalMs < 5000 ? 'text-green-600' :
+                          lastTiming.totalMs < 10000 ? 'text-orange-500' : 'text-red-500'
+                        }`}>{(lastTiming.totalMs / 1000).toFixed(1)}s</span>
+                      </div>
+                    )}
                   </div>
                 )}
-                {lastAnalysis.summary && (
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Summary</p>
-                    <p className="text-gray-700 bg-gray-50 rounded-lg p-3">
-                      {typeof lastAnalysis.summary === 'string'
-                        ? lastAnalysis.summary
-                        : Object.entries(lastAnalysis.summary).map(([k, v]) => `${k}: ${v}`).join('\n')}
-                    </p>
+
+                {/* Action & priority */}
+                {(lastAnalysis?.action || lastAnalysis?.priority) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lastAnalysis.action && SIM_ACTION_STYLES[lastAnalysis.action] && (
+                      <span className={`inline-flex items-center text-[10px] font-semibold px-2.5 py-1 rounded-full ${SIM_ACTION_STYLES[lastAnalysis.action].className}`}>
+                        {SIM_ACTION_STYLES[lastAnalysis.action].label}
+                      </span>
+                    )}
+                    {lastAnalysis.priority && SIM_PRIORITY_STYLES[lastAnalysis.priority] && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 border border-gray-200">
+                        <span className={`w-1.5 h-1.5 rounded-full ${SIM_PRIORITY_STYLES[lastAnalysis.priority].dot}`} />
+                        {SIM_PRIORITY_STYLES[lastAnalysis.priority].label} Lead
+                      </span>
+                    )}
+                    {lastAnalysis.intent && (
+                      <span className="inline-flex items-center text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-500 border border-gray-100">
+                        {lastAnalysis.intent}
+                      </span>
+                    )}
                   </div>
                 )}
-                {lastAnalysis.extractedData && (
+
+                {/* Thought process */}
+                {lastAnalysis?.thought_process && (
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Extracted Data</p>
-                    <pre className="text-gray-600 bg-gray-50 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(lastAnalysis.extractedData, null, 2)}</pre>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Thought Process</p>
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 max-h-52 overflow-y-auto">
+                      <p className="text-[10px] text-gray-600 leading-relaxed whitespace-pre-wrap">{lastAnalysis.thought_process}</p>
+                    </div>
                   </div>
                 )}
-                {lastAnalysis.escalation_reason && (
+
+                {/* Summary */}
+                {lastAnalysis?.summary && (
                   <div>
-                    <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1.5">Escalation</p>
-                    <p className="text-red-600 bg-red-50 rounded-lg p-3">{lastAnalysis.escalation_reason}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Summary</p>
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      {typeof lastAnalysis.summary === 'string' ? (
+                        <p className="text-[11px] text-gray-700 leading-relaxed">{lastAnalysis.summary}</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {Object.entries(lastAnalysis.summary).filter(([, v]) => v).map(([k, v]) => (
+                            <div key={k}>
+                              <p className="text-[9px] font-bold text-gray-400 uppercase">{k.replace(/_/g, ' ')}</p>
+                              <p className="text-[10px] text-gray-700">{String(v)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Extracted data */}
+                {lastAnalysis?.extractedData && Object.keys(lastAnalysis.extractedData).length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Extracted Data</p>
+                    <div className="space-y-1">
+                      {Object.entries(lastAnalysis.extractedData).map(([category, fields]) => {
+                        if (!fields || typeof fields !== 'object') return null;
+                        return (
+                          <div key={category} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">{category.replace(/_/g, ' ')}</p>
+                            {Object.entries(fields as Record<string, any>).filter(([, v]) => v != null && v !== '').map(([k, v]) => (
+                              <div key={k} className="flex justify-between items-start gap-2 py-0.5">
+                                <span className="text-[10px] text-gray-400 capitalize">{k.replace(/_/g, ' ')}</span>
+                                <span className="text-[10px] font-semibold text-gray-700 text-right max-w-[55%] break-words">
+                                  {typeof v === 'boolean' ? (v ? 'Yes' : 'No') : Array.isArray(v) ? v.join(', ') : String(v)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Escalation */}
+                {lastAnalysis?.escalation_reason && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                      <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Escalation</p>
+                    </div>
+                    <p className="text-[11px] text-red-700 leading-relaxed">{lastAnalysis.escalation_reason}</p>
                   </div>
                 )}
               </>
             )}
           </div>
-          {/* Quick info */}
+
+          {/* Tenant link */}
           {tenantId && (
             <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-[10px] text-gray-400">Tenant ID</p>
-              <p className="text-xs font-mono text-gray-600 truncate">{tenantId}</p>
-              <a href={`/dashboard?tab=inbox`} className="text-[11px] text-blue-600 hover:underline mt-1 inline-block">
-                View in Inbox →
-              </a>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-gray-400">Tenant created</p>
+                  <p className="text-[10px] font-mono text-gray-500 truncate max-w-[180px]">{tenantId}</p>
+                </div>
+                <a href="/dashboard?tab=inbox" className="text-[11px] text-blue-600 hover:underline font-medium flex items-center gap-1">
+                  Inbox <ArrowUpRight className="w-3 h-3" />
+                </a>
+              </div>
             </div>
           )}
         </div>
@@ -517,8 +820,7 @@ function DashboardContent() {
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
 
-  // Simulate tab state (persists across tab switches)
-  const [simulateState, setSimulateState] = useState<SimulateState>({ ...SIMULATE_INITIAL });
+  // Simulate tab removed — state no longer needed
   
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -1009,7 +1311,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className={`min-w-0 ${activeTab === "inbox" ? "" : "p-10"}`}>
+    <div className={`min-w-0 ${activeTab === "inbox" ? "h-[calc(100vh-2rem)] overflow-hidden" : "p-10"}`}>
       {/* Inbox Tab */}
       {activeTab === "inbox" && <ConversationsInbox />}
       
@@ -2366,8 +2668,7 @@ function DashboardContent() {
         </>
       )}
 
-      {/* Simulate Tab */}
-      {activeTab === "simulate" && <SimulateClient state={simulateState} setState={setSimulateState} />}
+      {/* Simulate tab removed — functionality lives in Inbox (inline form + client mode toggle) */}
 
       {/* Account Tab */}
       {activeTab === "account" && (

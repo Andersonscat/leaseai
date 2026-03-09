@@ -10,6 +10,7 @@ const geminiFlashModel = genAI.getGenerativeModel({
   generationConfig: {
     temperature: 0.15,
     topP: 0.4,
+    maxOutputTokens: 8192,
     // @ts-ignore — thinkingConfig is valid for Gemini 2.5 models
     thinkingConfig: { thinkingBudget: 0 },
   }
@@ -31,11 +32,11 @@ CORE PRINCIPLES:
    LANGUAGE ACCESS: If the conversation is conducted in a non-English language, note this in your summary so a human agent can provide translated lease documents if required by law.
 
 2a. AI DISCLOSURE (LEGALLY REQUIRED — NON-NEGOTIABLE)
-   - You MUST identify yourself as an AI in your very first message of every new conversation.
-   - Required disclosure format (adapt naturally to your opening): "I'm an AI leasing assistant for [property/company]. A licensed human agent is always available if you'd prefer to speak with someone directly."
-   - After the first message, you do NOT need to repeat this disclosure unless the client directly asks "are you a bot/AI/human?"
-   - If asked directly: ALWAYS confirm you are an AI. NEVER claim to be human.
-   - Exception: if the conversation history already contains an AI disclosure, do not repeat it.
+   - Check IS_FIRST_MESSAGE in the CONTEXT section below.
+   - If IS_FIRST_MESSAGE is true: include the AI disclosure ONCE: "I'm an AI leasing assistant for [property/company]. A licensed human agent is always available if you'd prefer to speak with someone directly."
+   - If IS_FIRST_MESSAGE is false: DO NOT include ANY AI disclosure or introduction. Jump straight into your answer. NEVER re-introduce yourself. NEVER say "Hi [Name], I'm an AI..." again. The client already knows who you are.
+   - Only exception: if the client explicitly asks "are you a bot/AI/human?" — confirm you are an AI.
+   - NEVER claim to be human.
 
 3. TWO-TIER DATA COLLECTION
 
@@ -575,8 +576,10 @@ export async function analyzeConversation(context: ConversationContext): Promise
 
   const propertiesText = properties.map(p => 
     `- ${p.address}:
-       Price: ${p.price}
-       Beds: ${p.bedrooms}
+       Price: $${p.price_monthly || p.price || 'Unknown'}/month
+       Beds: ${p.beds ?? p.bedrooms ?? 'Unknown'}
+       Baths: ${p.baths ?? p.bathrooms ?? 'Unknown'}
+       Sqft: ${p.sqft || 'Unknown'}
        Status: ${p.status}
        Description: ${p.description || 'N/A'}
        Available: ${p.available_from || 'Now'}
@@ -888,12 +891,15 @@ export async function generateFinalResponse(
   const viewingEnd2 = context.viewingHoursEnd || '20:00';
 
   const propertiesText = context.properties.map(p => 
-    `- ${p.address}: ${p.price}, ${p.bedrooms} beds. Available: ${p.available_from || 'Now'}`
+    `- ${p.address}: $${p.price_monthly || p.price || '?'}/mo, ${p.beds ?? p.bedrooms ?? '?'} beds/${p.baths ?? p.bathrooms ?? '?'} baths. Available: ${p.available_from || 'Now'}`
   ).join('\n');
 
   const historyText = context.conversationHistory.map(m => 
     `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`
   ).join('\n');
+
+  const hasAgentMessages = context.conversationHistory.some(m => m.role === 'assistant');
+  const isFirstMessage = !hasAgentMessages;
 
   const prompt = `
 ${QUALIFICATION_SYSTEM_PROMPT}
@@ -914,6 +920,7 @@ CONVERSATION CONTEXT:
 REALTOR_NAME: ${realtorName}${realtorCompany2 ? ` (${realtorCompany2})` : ''}
 TIMEZONE: ${timezone2}
 VIEWING HOURS: ${viewingStart2}–${viewingEnd2} (${timezone2})
+IS_FIRST_MESSAGE: ${isFirstMessage}
 Client: ${context.tenant.name}
 History:
 ${historyText}
@@ -940,85 +947,99 @@ Generate ONLY the message body text. No JSON, no extra formatting.
 
 /**
  * PHASE 4: THE JUDGE
- * Verify if the generated response contains ANY property addresses or details 
- * that are NOT in our provided properties list.
+ * Deterministic check — extract street addresses from the AI response and verify
+ * they exist in the known properties list. No LLM call needed.
  */
 export async function verifyResponseHallucinations(
   responseText: string,
   properties: Property[]
 ): Promise<VerificationResult> {
-  console.log('⚖️ AI Judge: Verifying hallucinations...');
-  
-  const knownAddresses = properties.map(p => p.address);
-  
-  const verificationPrompt = `
-    You are a strict Auditor. Your task is to check a "Generated Message" for INVENTED property addresses.
-    
-    KNOWN PROPERTIES (FACTS):
-    ${knownAddresses.map(addr => `- ${addr}`).join('\n')}
-    ${knownAddresses.length === 0 ? 'No properties available.' : ''}
-    
-    GENERATED MESSAGE:
-    "${responseText}"
-    
-    TASK:
-    1. Find any STREET ADDRESSES (format: "123 Street Name") mentioned in the message.
-    2. A hallucination is ONLY if the message contains a specific STREET ADDRESS that is NOT in the KNOWN PROPERTIES list above.
-    3. Neighborhood names (Capitol Hill, Queen Anne, Belltown, Downtown, etc.), city names, and general descriptions are NOT hallucinations — they may come from property descriptions.
-    4. Prices, bedroom counts, and amenities that match a known property are NOT hallucinations.
-    
-    RETURN ONLY VALID JSON:
-    {
-      "hasHallucinations": boolean,
-      "hallucinatedAddresses": ["only invented street addresses here"],
-      "reason": "Brief explanation"
-    }
-  `;
+  console.log('⚖️ AI Judge: Verifying hallucinations (deterministic)...');
 
-  try {
-    const result = await generateContentWithRetry(geminiFlashModel, verificationPrompt);
-    let text = result.response.text();
-    
-    // Parse JSON safely
-    let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) cleanText = jsonMatch[0];
-    
-    const verification = JSON.parse(cleanText) as VerificationResult;
-    return verification;
-  } catch (err) {
-    console.error('❌ Verification failed, assuming safe:', err);
+  if (!properties.length) {
     return { hasHallucinations: false, hallucinatedAddresses: [] };
   }
+
+  const knownAddresses = properties.map(p => (p.address || '').toLowerCase().trim());
+
+  // Match street addresses like "123 Main St", "4500 Broadway Ave", etc.
+  const addressPattern = /\b\d{1,6}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3}\s+(?:St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Rd|Road|Ln|Lane|Ct|Court|Way|Pl|Place|Cir|Circle|Pkwy|Parkway|Ter|Terrace|Loop|Trail|Run|Pass)\b\.?/gi;
+
+  const foundAddresses = responseText.match(addressPattern) || [];
+  const hallucinatedAddresses: string[] = [];
+
+  for (const addr of foundAddresses) {
+    const normalized = addr.toLowerCase().trim().replace(/\.$/, '');
+    const isKnown = knownAddresses.some(known =>
+      known.includes(normalized) || normalized.includes(known.split(',')[0].trim())
+    );
+    if (!isKnown) {
+      hallucinatedAddresses.push(addr);
+    }
+  }
+
+  if (hallucinatedAddresses.length > 0) {
+    console.warn('🚨 Hallucinated addresses found:', hallucinatedAddresses);
+  }
+
+  return {
+    hasHallucinations: hallucinatedAddresses.length > 0,
+    hallucinatedAddresses,
+    reason: hallucinatedAddresses.length > 0
+      ? `Found ${hallucinatedAddresses.length} address(es) not in property list: ${hallucinatedAddresses.join(', ')}`
+      : undefined,
+  };
 }
 
 /**
  * Calculate lead score based on tenant data
  * Simple scoring system (0-10)
  */
-export function calculateLeadScore(tenant: Partial<TenantData>): number {
-  let score = 0;
-  
-  // Basic contact info
-  if (tenant.email) score += 1;
-  if (tenant.phone) score += 2; // Phone is valuable
-  if (tenant.name) score += 1;
-  
-  // Qualification details
-  if (tenant.budget) score += 2;
-  if (tenant.move_in_date) score += 2;
-  if (tenant.requirements) score += 1;
-  
-  // Cap at 10
-  return Math.min(score, 10);
+export function calculateLeadScore(tenant: Partial<TenantData> & Record<string, any>): number {
+  let points = 0;
+  const max = 100;
+
+  // Contact info (max 15)
+  if (tenant.name) points += 5;
+  if (tenant.email) points += 5;
+  if (tenant.phone) points += 5;
+
+  // Budget (max 20) — check both old and new fields
+  if (tenant.budget_max || tenant.budget_min || tenant.budget) points += 20;
+
+  // Timeline (max 15)
+  if (tenant.move_in_date) points += 15;
+
+  // Housing preferences (max 20)
+  if (tenant.bedrooms != null) points += 7;
+  if (tenant.bathrooms != null) points += 3;
+  if (tenant.property_type) points += 5;
+  if (tenant.lease_duration || tenant.lease_term_months) points += 5;
+
+  // Lifestyle (max 10)
+  if (tenant.has_pets !== undefined) points += 3;
+  if (tenant.num_occupants != null || tenant.occupants != null) points += 3;
+  if (tenant.needs_parking !== undefined || tenant.parking_needed !== undefined) points += 2;
+  if (tenant.furnishing) points += 2;
+
+  // Location (max 10)
+  if (tenant.preferred_neighborhoods && (
+    Array.isArray(tenant.preferred_neighborhoods) ? tenant.preferred_neighborhoods.length > 0 : true
+  )) points += 10;
+
+  // Amenities & specifics (max 10)
+  if (tenant.must_haves && (Array.isArray(tenant.must_haves) ? tenant.must_haves.length > 0 : true)) points += 5;
+  if (tenant.deal_breakers && (Array.isArray(tenant.deal_breakers) ? tenant.deal_breakers.length > 0 : true)) points += 5;
+
+  return Math.min(points, max);
 }
 
 /**
  * Get lead quality label from score
  */
 export function getLeadQuality(score: number): 'hot' | 'warm' | 'cold' {
-  if (score >= 7) return 'hot';
-  if (score >= 4) return 'warm';
+  if (score >= 70) return 'hot';
+  if (score >= 40) return 'warm';
   return 'cold';
 }
 
@@ -1138,9 +1159,11 @@ export async function analyzeAndRespond(
   const viewingEnd3 = context.viewingHoursEnd || '20:00';
 
   const buildPropertiesText = (compact = false) => properties.map(p => {
+    const price = p.price_monthly || p.price;
+    const beds = p.beds ?? p.bedrooms;
+    const baths = p.baths ?? p.bathrooms;
     if (compact) {
-      // Minimal version for retry — just key facts
-      return `- ${p.address}: ${p.price}, ${p.bedrooms}bd, pets=${p.pet_policy || 'unknown'}, available=${p.available_from || 'now'}`;
+      return `- ${p.address}: $${price || '?'}/mo, ${beds ?? '?'}bd/${baths ?? '?'}ba, ${p.sqft || '?'}sqft, pets=${p.pet_policy || 'unknown'}, available=${p.available_from || 'now'}`;
     }
     const amenitiesList = Array.isArray(p.amenities) && p.amenities.length > 0
       ? `Amenities: [${p.amenities.join(', ')}].`
@@ -1148,11 +1171,10 @@ export async function analyzeAndRespond(
     const parking = p.parking_type ? `Parking: ${p.parking_type}${p.parking_fee ? ` (+$${p.parking_fee}/mo)` : ''}.` : '';
     const deposit = p.security_deposit ? `Deposit: $${p.security_deposit}.` : '';
     const appFee = p.application_fee ? `App fee: $${p.application_fee}.` : '';
-    // Truncate description to 400 chars max to avoid token overflow
     const desc = (p.description || 'No description.').slice(0, 400);
     return `PROPERTY:
   Address: ${p.address}
-  Price: ${p.price} | Bedrooms: ${p.bedrooms} | Status: ${p.status} | Available: ${p.available_from || 'now'} | Pets: ${p.pet_policy || 'unknown'}
+  Price: $${price || 'Unknown'}/month | Bedrooms: ${beds ?? 'Unknown'} | Bathrooms: ${baths ?? 'Unknown'} | Sqft: ${p.sqft || 'Unknown'} | Status: ${p.status} | Available: ${p.available_from || 'now'} | Pets: ${p.pet_policy || 'unknown'}
   ${amenitiesList}
   ${parking} ${deposit} ${appFee}
   Description: ${desc}`;
@@ -1163,6 +1185,9 @@ export async function analyzeAndRespond(
   const historyText = conversationHistory.map(m =>
     `${m.role === 'user' ? 'Client' : 'Agent'}: ${m.content}`
   ).join('\n');
+
+  const hasAgentMessages = conversationHistory.some(m => m.role === 'assistant');
+  const isFirstMessage = !hasAgentMessages;
 
   const now = new Date();
   const currentDateContext = `${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
@@ -1205,6 +1230,7 @@ Client: ${tenant.name} (${tenant.email || 'sandbox@test.com'})
 CURRENT DATE/TIME: ${currentDateContext}
 TIMEZONE: ${timezone3}
 VIEWING HOURS: ${viewingStart3}–${viewingEnd3} (${timezone3})
+IS_FIRST_MESSAGE: ${isFirstMessage}
 ${executionNote}
 
 CONVERSATION:
@@ -1251,17 +1277,25 @@ IMPORTANT:
     if (jsonMatch) cleanText = jsonMatch[0];
     const parsed = JSON.parse(cleanText);
     const { reply, ...analysisFields } = parsed;
+    const fallback = `Hi ${(tenant.name || 'there').split(' ')[0]}, thanks for your message. I'll get back to you shortly.`;
+    const finalReply = (typeof reply === 'string' && reply.trim()) ? reply : fallback;
+    console.log(`📝 parseResponse: reply type=${typeof reply}, length=${reply?.length ?? 'null'}, empty=${!reply?.trim()}, using=${finalReply === fallback ? 'FALLBACK' : 'AI_REPLY'}`);
     return {
       analysis: analysisFields as AiAnalysis,
-      reply: reply || `Hi ${(tenant.name || 'there').split(' ')[0]}, thanks for your message. I'll get back to you shortly.`,
+      reply: finalReply,
     };
   };
 
   // Attempt 1 — full prompt
   try {
     const result = await generateContentWithRetry(geminiFlashModel, prompt);
+    const candidate = result.response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
     const text = result.response.text();
-    console.log('🔍 analyzeAndRespond attempt 1 (first 300):', text.substring(0, 300));
+    console.log(`🔍 analyzeAndRespond attempt 1: finishReason=${finishReason}, textLen=${text.length}, first 300:`, text.substring(0, 300));
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn('⚠️ Response truncated by MAX_TOKENS — reply field may be missing');
+    }
     return parseResponse(text);
   } catch (err1: any) {
     console.warn('⚠️ analyzeAndRespond attempt 1 failed:', err1?.message);
@@ -1283,6 +1317,7 @@ ${compactPropertiesText || 'No properties available.'}
 
 CONTEXT:
 Client: ${tenant.name} | Date: ${new Date().toLocaleDateString('en-US')}
+IS_FIRST_MESSAGE: ${isFirstMessage}
 ${executionNote}
 
 RECENT CONVERSATION:

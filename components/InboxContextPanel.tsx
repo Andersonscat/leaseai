@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   User, ClipboardList, Calendar, MapPin, Clock, CheckCircle2,
   UserCheck, AlertTriangle, Sparkles, RefreshCw, ExternalLink,
-  Bot, DollarSign, Home, Dog, Users as UsersIcon, Mail, Phone
+  Bot, DollarSign, Home, Dog, Users as UsersIcon, Mail, Phone,
+  Zap, Shield, MessageSquare, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -18,11 +19,9 @@ interface ConversationProp {
     avatar: string;
     auto_reply_enabled: boolean;
     notes?: string;
-    ai_summary?: string;
     budget_max?: number;
     move_in_date?: string;
     has_pets?: boolean;
-    lead_priority?: 'hot' | 'warm' | 'cold';
     pet_details?: string | Record<string, any>;
     qualification_status?: string;
     lead_score?: number;
@@ -47,9 +46,31 @@ interface ConversationProp {
   source: string;
 }
 
+interface MessageProp {
+  id: string;
+  is_ai_response?: boolean;
+  thoughts?: any;
+  created_at?: string;
+  [key: string]: any;
+}
+
 interface InboxContextPanelProps {
   selectedConversation: ConversationProp | null;
+  messages?: MessageProp[];
 }
+
+const ACTION_STYLES: Record<string, { label: string; className: string }> = {
+  book_calendar: { label: 'Booked Viewing', className: 'bg-green-50 text-green-700 border border-green-200' },
+  send_listing:  { label: 'Sent Listing',   className: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  escalate:      { label: 'Escalated',       className: 'bg-red-50 text-red-700 border border-red-200' },
+  reply:         { label: 'Replied',         className: 'bg-gray-50 text-gray-600 border border-gray-200' },
+};
+
+const PRIORITY_BADGE: Record<string, { label: string; dot: string }> = {
+  hot:  { label: 'Hot',  dot: 'bg-red-500' },
+  warm: { label: 'Warm', dot: 'bg-orange-400' },
+  cold: { label: 'Cold', dot: 'bg-blue-400' },
+};
 
 const PRIORITY_STYLES: Record<string, { label: string; dot: string; bg: string }> = {
   hot:  { label: 'Hot Lead',  dot: 'bg-red-500',    bg: 'bg-red-50 text-red-700 border-red-200' },
@@ -76,10 +97,33 @@ function FieldRow({ label, value, icon }: { label: string; value?: string | numb
   );
 }
 
-export default function InboxContextPanel({ selectedConversation }: InboxContextPanelProps) {
+export default function InboxContextPanel({ selectedConversation, messages = [] }: InboxContextPanelProps) {
   const [appointment, setAppointment] = useState<any>(null);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [reasoningExpanded, setReasoningExpanded] = useState(true);
+
+  const latestAiThoughts = useMemo(() => {
+    const aiMessages = messages
+      .filter(m => m.is_ai_response && m.thoughts && !Array.isArray(m.thoughts) && typeof m.thoughts === 'object')
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const t = aiMessages[0]?.thoughts;
+    if (!t || !t.thought_process) return null;
+    return t as { thought_process?: string; action?: string; intent?: string; priority?: string };
+  }, [messages]);
+
+  const matchedProperties = useMemo(() => {
+    const aiMsgs = [...messages]
+      .filter(m => m.is_ai_response && m.message_text?.includes('---PROPERTIES_JSON---'))
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    if (!aiMsgs.length) return [];
+    try {
+      const text = aiMsgs[0].message_text;
+      const jsonStr = text.split('---PROPERTIES_JSON---')[1]?.split('---END_PROPERTIES_JSON---')[0]?.trim();
+      if (!jsonStr) return [];
+      return JSON.parse(jsonStr) as { id: string; address: string; city?: string; state?: string; price: any; beds?: number; baths?: number; sqft?: number; image?: string }[];
+    } catch { return []; }
+  }, [messages]);
 
   useEffect(() => {
     if (!selectedConversation) {
@@ -126,7 +170,7 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
       <div className="flex flex-col h-full">
         <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-2">
           <Bot className="w-3.5 h-3.5 text-gray-300" />
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Agent Activity</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lead Intelligence</span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <Bot className="w-8 h-8 text-gray-200 mb-3" />
@@ -134,7 +178,7 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
             Select a conversation
           </p>
           <p className="text-[10px] text-gray-300 mt-1 text-center">
-            Lead context will appear here
+            AI-extracted lead insights will appear here
           </p>
         </div>
       </div>
@@ -143,8 +187,8 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
 
   const tenant = selectedConversation.tenant;
   const property = selectedConversation.property;
-  const summaryText = tenant?.ai_summary || tenant?.notes;
-  const priority = tenant?.lead_priority || (tenant?.lead_quality as 'hot' | 'warm' | 'cold' | undefined);
+  const summaryText = tenant?.notes;
+  const priority = (tenant?.lead_quality as 'hot' | 'warm' | 'cold' | undefined);
   const priorityStyle = priority ? PRIORITY_STYLES[priority] : null;
   const score = tenant?.lead_score;
   const scoreColor = (score ?? 0) >= 80 ? 'text-green-600' : (score ?? 0) >= 50 ? 'text-orange-500' : 'text-gray-400';
@@ -183,8 +227,8 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
       {/* Header */}
       <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <Bot className="w-3.5 h-3.5 text-yellow-500" />
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Agent Activity</span>
+          <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Lead Intelligence</span>
         </div>
         {score != null && score > 0 && (
           <span className={`text-[11px] font-black tabular-nums ${scoreColor}`}>
@@ -207,6 +251,65 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
             {reanalyzing ? 'Reanalyzing...' : 'Reanalyze Conversation'}
           </span>
         </button>
+
+        {/* AI Reasoning — from latest AI response */}
+        {latestAiThoughts && (
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+            <button
+              onClick={() => setReasoningExpanded(!reasoningExpanded)}
+              className="w-full flex items-center justify-between px-3.5 py-3 hover:bg-gray-50/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-2.5 h-2.5 text-violet-500" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Reasoning</span>
+              </div>
+              <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${reasoningExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {reasoningExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-3.5 pb-3.5 space-y-3">
+                    {/* Action & priority badges */}
+                    {(latestAiThoughts.action || latestAiThoughts.priority || latestAiThoughts.intent) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {latestAiThoughts.action && ACTION_STYLES[latestAiThoughts.action] && (
+                          <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full ${ACTION_STYLES[latestAiThoughts.action].className}`}>
+                            {ACTION_STYLES[latestAiThoughts.action].label}
+                          </span>
+                        )}
+                        {latestAiThoughts.priority && PRIORITY_BADGE[latestAiThoughts.priority] && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200">
+                            <span className={`w-1.5 h-1.5 rounded-full ${PRIORITY_BADGE[latestAiThoughts.priority].dot}`} />
+                            {PRIORITY_BADGE[latestAiThoughts.priority].label} Lead
+                          </span>
+                        )}
+                        {latestAiThoughts.intent && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-100">
+                            {latestAiThoughts.intent}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {/* Thought process text */}
+                    {latestAiThoughts.thought_process && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 max-h-40 overflow-y-auto scrollbar-hide">
+                        <p className="text-[10px] text-gray-600 leading-relaxed whitespace-pre-wrap">{latestAiThoughts.thought_process}</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Guest Card */}
         <AnimatePresence>
@@ -259,13 +362,95 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
           </div>
         )}
 
-        {/* Best Match (Property) */}
+        {/* Best Matches (Properties) */}
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-            <span>Property Match</span>
-            {property && <Sparkles className="w-3 h-3 text-yellow-500" />}
+            <span>Best Matches</span>
+            {matchedProperties.length > 0 && <Sparkles className="w-3 h-3 text-yellow-500" />}
           </p>
-          {property ? (
+          {matchedProperties.length > 0 ? (
+            <div className="space-y-2">
+              {matchedProperties.map((p) => {
+                const priceNum = typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/[^0-9]/g, ''));
+                const budgetMax = tenant?.budget_max;
+                let matchScore = 0;
+                if (budgetMax && !isNaN(priceNum)) {
+                  const ratio = priceNum / budgetMax;
+                  if (ratio <= 1) matchScore = 90 + Math.round((1 - ratio) * 10);
+                  else if (ratio <= 1.1) matchScore = 75;
+                  else if (ratio <= 1.2) matchScore = 60;
+                  else matchScore = 40;
+                  if (tenant?.bedrooms && p.beds && p.beds >= tenant.bedrooms) matchScore = Math.min(matchScore + 5, 100);
+                } else {
+                  matchScore = 70;
+                }
+                const scoreColor = matchScore >= 80 ? 'bg-green-500/90' : matchScore >= 50 ? 'bg-orange-400/90' : 'bg-red-400/90';
+                const barColor = matchScore >= 80 ? 'bg-green-500' : matchScore >= 50 ? 'bg-orange-400' : 'bg-red-400';
+                const dotColor = matchScore >= 80 ? 'bg-green-500' : matchScore >= 50 ? 'bg-orange-400' : 'bg-red-400';
+
+                return (
+                  <motion.a
+                    key={p.id || p.address}
+                    href={p.id ? `/dashboard/property/${p.id}` : '#'}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="block bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all"
+                  >
+                    {p.image && (
+                      <div className="relative h-20 bg-gray-100 overflow-hidden">
+                        <img src={p.image} alt={p.address} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black text-white backdrop-blur-sm ${scoreColor}`}>
+                          {matchScore}%
+                        </div>
+                      </div>
+                    )}
+                    <div className="p-2.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                        <p className="text-[10px] font-bold text-gray-800 truncate">{p.address}</p>
+                        {!p.image && (
+                          <span className={`ml-auto text-[10px] font-black shrink-0 ${matchScore >= 80 ? 'text-green-600' : matchScore >= 50 ? 'text-orange-500' : 'text-red-500'}`}>
+                            {matchScore}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] font-semibold text-gray-700">
+                          ${!isNaN(priceNum) ? priceNum.toLocaleString() : p.price}<span className="font-normal text-gray-400">/mo</span>
+                        </span>
+                        {p.beds && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[10px] text-gray-500">{p.beds} bd</span>
+                          </>
+                        )}
+                        {p.baths && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[10px] text-gray-500">{p.baths} ba</span>
+                          </>
+                        )}
+                        {p.sqft && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[10px] text-gray-500">{p.sqft} sqft</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${matchScore}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                          className={`h-full rounded-full ${barColor}`}
+                        />
+                      </div>
+                    </div>
+                  </motion.a>
+                );
+              })}
+            </div>
+          ) : property ? (
             <motion.a
               href={`/dashboard/property/${property.id}`}
               initial={{ opacity: 0, y: 6 }}
@@ -276,15 +461,6 @@ export default function InboxContextPanel({ selectedConversation }: InboxContext
                 <div className="flex items-center gap-1.5 mb-1">
                   <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
                   <p className="text-[11px] font-bold text-gray-800 truncate">{property.address}</p>
-                </div>
-                {property.price && (
-                  <p className="text-[10px] font-semibold text-gray-600 ml-[18px]">
-                    {property.price}
-                  </p>
-                )}
-                <div className="flex items-center gap-1 mt-2 ml-[18px] opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ExternalLink className="w-3 h-3 text-gray-400" />
-                  <span className="text-[9px] text-gray-400">View property</span>
                 </div>
               </div>
             </motion.a>

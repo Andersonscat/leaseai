@@ -68,7 +68,7 @@ export async function syncGmailMessages(
       .from('properties')
       .select('*')
       .eq('user_id', user.id)
-      .in('status', ['Active', 'Available', 'active', 'available']);
+      .is('deleted_at', null);
     
     // 🚨 DEBUG: Log properties to see what AI receives
     console.log('🏠 Properties loaded for AI:', {
@@ -417,6 +417,10 @@ export async function syncGmailMessages(
             executionResult
           );
 
+          if (!finalResponseText?.trim()) {
+            finalResponseText = `Hi ${(lead.tenant_name || 'there').split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
+          }
+
           // 4. THE JUDGE: Anti-Hallucination Enforcement
           const { verifyResponseHallucinations } = await import('@/lib/ai-qualification');
           const verification = await verifyResponseHallucinations(finalResponseText, properties || []);
@@ -488,7 +492,14 @@ export async function syncGmailMessages(
           // Generate db message text (includes invisible JSON for the frontend to render cards)
           let dbMessageText = finalResponse;
           if (matchedProperties.length > 0) {
-             const cleanProps = matchedProperties.map(p => ({
+             const getImageUrl = (p: any): string | null => {
+               const candidates = [p.images?.[0], p.image, p.thumbnail].filter(Boolean);
+               for (const img of candidates) {
+                 if (typeof img === 'string' && !img.startsWith('data:')) return img;
+               }
+               return null;
+             };
+             const cleanProps = matchedProperties.slice(0, 5).map(p => ({
                id: p.id,
                address: p.address,
                city: p.city,
@@ -498,13 +509,26 @@ export async function syncGmailMessages(
                baths: p.bathrooms,
                sqft: p.sqft,
                type: p.type,
-               image: p.images?.[0] || p.image
+               image: getImageUrl(p),
              }));
              dbMessageText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
           }
 
           // Save AI response as message in DB
-          const { error: aiMessageError } = await supabase.from('messages').insert({
+          const thoughtsData = analysis.thought_process ? {
+            thought_process: analysis.thought_process,
+            action: analysis.action,
+            intent: analysis.intent,
+            priority: analysis.priority,
+          } : null;
+
+          const bestPropertyId = matchedProperties.length > 0
+            ? matchedProperties[0].id
+            : (analysis.action === 'book_calendar' && analysis.action_params
+                ? properties?.find(p => p.address === analysis.action_params.property_address)?.id
+                : null) || null;
+
+          const coreMsg: Record<string, any> = {
             user_id: user.id,
             tenant_id: tenantId,
             sender_type: 'landlord',
@@ -514,10 +538,38 @@ export async function syncGmailMessages(
             is_ai_response: true,
             is_read: true,
             gmail_message_id: emailResult.messageId,
-          });
+          };
+
+          const optionalColumns: Record<string, any> = {};
+          if (thoughtsData) optionalColumns.thoughts = thoughtsData;
+          if (bestPropertyId) optionalColumns.property_id = bestPropertyId;
+
+          let aiMessageError: any = null;
+          let insertPayload = { ...coreMsg, ...optionalColumns };
+
+          const isColumnError = (err: any) =>
+            err?.code === '42703' || err?.code === 'PGRST204' ||
+            err?.message?.includes('does not exist') || err?.message?.includes('schema cache');
+
+          ({ error: aiMessageError } = await supabase.from('messages').insert(insertPayload));
+
+          if (isColumnError(aiMessageError)) {
+            const failedCol = aiMessageError.message?.match(/['"](\w+)['"]/)?.[1];
+            console.warn(`⚠️ Column "${failedCol}" missing, retrying without it`);
+            if (failedCol && insertPayload[failedCol] !== undefined) delete insertPayload[failedCol];
+            ({ error: aiMessageError } = await supabase.from('messages').insert(insertPayload));
+          }
+
+          if (isColumnError(aiMessageError)) {
+            const failedCol = aiMessageError.message?.match(/['"](\w+)['"]/)?.[1];
+            console.warn(`⚠️ Column "${failedCol}" also missing, retrying with core only`);
+            ({ error: aiMessageError } = await supabase.from('messages').insert(coreMsg));
+          }
 
           if (aiMessageError) {
-            console.error('Error saving AI message:', aiMessageError);
+            console.error('❌ Failed to save AI message after 3 attempts:', JSON.stringify(aiMessageError));
+          } else {
+            console.log(`✅ AI email message saved (${dbMessageText.length} chars)`);
           }
 
           // 4. LISTING EMAIL: Send property photos if AI recommended listings
@@ -547,6 +599,13 @@ export async function syncGmailMessages(
             const updateData: any = {
               last_auto_reply_at: new Date().toISOString(),
             };
+
+            // Update name from extracted personal data
+            const extractedFirst = ed.personal?.firstName;
+            const extractedLast = ed.personal?.lastName;
+            if (extractedFirst) {
+              updateData.name = extractedLast ? `${extractedFirst} ${extractedLast}` : extractedFirst;
+            }
 
             // Map structured extractedData to flat DB columns
             if (analysis.summary) {
@@ -581,8 +640,8 @@ export async function syncGmailMessages(
             
             updateData.lead_score = newScore;
             updateData.lead_quality = newQuality;
-            if (newScore >= 6) updateData.qualification_status = 'qualified';
-            else if (newScore >= 3) updateData.qualification_status = 'qualifying';
+            if (newScore >= 60) updateData.qualification_status = 'qualified';
+            else if (newScore >= 30) updateData.qualification_status = 'qualifying';
             
             let { error: updateError } = await supabase
               .from('tenants')

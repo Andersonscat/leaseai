@@ -88,25 +88,26 @@ export async function GET(request: NextRequest) {
       const tenantId = message.tenant_id;
       
       if (!conversationsMap.has(tenantId)) {
-        // First message from this tenant - create conversation
         conversationsMap.set(tenantId, {
           tenant_id: tenantId,
           tenant: message.tenant,
-          property: message.property,
+          property: message.property || null,
           last_message: message.message_text,
           last_message_time: message.created_at,
           last_sender_type: message.sender_type,
           source: message.source,
           unread_count: (!message.is_read && message.sender_type === 'tenant') ? 1 : 0,
           total_messages: 1,
-          messages: [message], // Store all messages for this conversation
+          messages: [message],
         });
       } else {
-        // Add to existing conversation
         const conversation = conversationsMap.get(tenantId);
         conversation.total_messages++;
         if (!message.is_read && message.sender_type === 'tenant') {
           conversation.unread_count++;
+        }
+        if (!conversation.property && message.property) {
+          conversation.property = message.property;
         }
         conversation.messages.push(message);
       }

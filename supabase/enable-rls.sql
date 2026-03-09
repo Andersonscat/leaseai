@@ -129,27 +129,29 @@ CREATE POLICY "Users can delete own contracts"
 -- MESSAGES TABLE POLICIES
 -- ============================================
 
--- Users can view messages related to their properties or where they are the tenant
+-- Users can view messages they own or related to their properties/tenants
 CREATE POLICY "Users can view messages"
   ON messages
   FOR SELECT
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM properties WHERE id = messages.property_id
+    auth.uid() = user_id
+    OR auth.uid() IN (
+      SELECT p.user_id FROM properties p WHERE p.id = messages.property_id
       UNION
-      SELECT user_id FROM tenants WHERE id = messages.tenant_id
+      SELECT t.user_id FROM tenants t WHERE t.id = messages.tenant_id
     )
   );
 
--- Users can insert messages for their properties or as a tenant
+-- Users can insert messages they own or for their properties/tenants
 CREATE POLICY "Users can insert messages"
   ON messages
   FOR INSERT
   WITH CHECK (
-    auth.uid() IN (
-      SELECT user_id FROM properties WHERE id = messages.property_id
+    auth.uid() = user_id
+    OR auth.uid() IN (
+      SELECT p.user_id FROM properties p WHERE p.id = messages.property_id
       UNION
-      SELECT user_id FROM tenants WHERE id = messages.tenant_id
+      SELECT t.user_id FROM tenants t WHERE t.id = messages.tenant_id
     )
   );
 
@@ -158,10 +160,11 @@ CREATE POLICY "Users can update messages"
   ON messages
   FOR UPDATE
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM properties WHERE id = messages.property_id
+    auth.uid() = user_id
+    OR auth.uid() IN (
+      SELECT p.user_id FROM properties p WHERE p.id = messages.property_id
       UNION
-      SELECT user_id FROM tenants WHERE id = messages.tenant_id
+      SELECT t.user_id FROM tenants t WHERE t.id = messages.tenant_id
     )
   );
 
@@ -170,10 +173,11 @@ CREATE POLICY "Users can delete messages"
   ON messages
   FOR DELETE
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM properties WHERE id = messages.property_id
+    auth.uid() = user_id
+    OR auth.uid() IN (
+      SELECT p.user_id FROM properties p WHERE p.id = messages.property_id
       UNION
-      SELECT user_id FROM tenants WHERE id = messages.tenant_id
+      SELECT t.user_id FROM tenants t WHERE t.id = messages.tenant_id
     )
   );
 
