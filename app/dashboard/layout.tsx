@@ -349,7 +349,7 @@ function DashboardLayoutContent({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto py-5 px-3">
+          <nav className="flex-1 min-h-0 overflow-y-auto py-5 px-3 scrollbar-hide">
 
              {/* Core Section */}
              <div className="space-y-1">
@@ -476,9 +476,7 @@ function DashboardLayoutContent({
           </nav>
 
           {/* Bottom Actions */}
-          <div className="p-3 border-t border-white/20 space-y-1">
-              {/* AI Button Removed from here */}
-
+          <div className="p-3 border-t border-gray-100 shrink-0">
              {/* User Profile (ChatGPT Style) */}
              <div className="relative">
                 <button
@@ -490,12 +488,12 @@ function DashboardLayoutContent({
                     name={user?.user_metadata?.full_name}
                     email={user?.email}
                     size="sm"
-                    className="w-10 h-10 ring-2 ring-gray-100 border-white border-2"
+                    className="w-9 h-9 shrink-0"
                   />
                   {!isSidebarCollapsed && (
                     <div className="flex-1 overflow-hidden">
                        <p className="text-base font-bold text-gray-900 truncate">{user?.user_metadata?.full_name || 'User Name'}</p>
-                       <p className="text-sm text-gray-500 truncate">Pro Plan</p>
+                       <p className="text-sm text-gray-500 truncate">Plus</p>
                     </div>
                   )}
                   {!isSidebarCollapsed && (
@@ -509,19 +507,10 @@ function DashboardLayoutContent({
                     <div className="fixed inset-0 z-[99] bg-transparent" onClick={() => setShowUserMenu(false)} />
                     <div className={`fixed ${isSidebarCollapsed ? 'left-[120px] bottom-[20px]' : 'left-[20px] bottom-[100px]'} ${isSidebarCollapsed ? 'w-64' : 'w-[220px]'} bg-white border border-gray-200 rounded-xl shadow-xl p-2 z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
                       {/* Upgrade Pro */}
-                      <Link href="/billing?upgrade=pro" onClick={() => setShowUserMenu(false)}>
+                      <Link href="/dashboard?tab=account" onClick={() => setShowUserMenu(false)}>
                         <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 text-indigo-700 cursor-pointer transition-colors border border-indigo-200/50">
                            <Sparkles className="w-4 h-4 text-indigo-500" />
                            <span className="text-base font-semibold">Upgrade Pro</span>
-                        </div>
-                      </Link>
-                      
-                      <div className="h-px bg-gray-100 my-1 mx-2" />
-                      
-                      <Link href="/billing" onClick={() => setShowUserMenu(false)}>
-                        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors">
-                           <CreditCard className="w-4 h-4 text-gray-500" />
-                           <span className="text-base font-medium">Billing</span>
                         </div>
                       </Link>
                       

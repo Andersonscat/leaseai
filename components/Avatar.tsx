@@ -57,16 +57,17 @@ export default function Avatar({ src, name, email, size = "md", className = "" }
     return COLORS[index];
   }, [name, email]);
 
-  if (src && src.trim() !== "" && !src.includes("ui-avatars.com")) {
+  const [imgError, setImgError] = React.useState(false);
+
+  const showImg = src && src.trim() !== "" && !src.includes("ui-avatars.com") && !imgError;
+
+  if (showImg) {
     return (
       <img
         src={src}
         alt={name || "Avatar"}
         className={`${SIZES[size]} rounded-full object-cover shrink-0 ${className}`}
-        onError={(e) => {
-          const target = e.target as HTMLImageElement;
-          target.style.display = "none";
-        }}
+        onError={() => setImgError(true)}
       />
     );
   }

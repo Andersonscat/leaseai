@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle, Radio, LogOut } from "lucide-react";
+import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath, Ruler, Dog, Filter, ChevronUp, ChevronDown, Mail, MailOpen, FileText, Star, Clock, CheckCircle, XCircle, MoreVertical, Search, Users, Phone, MessageSquare, DollarSign, X, CheckSquare, Square, Trash2, Edit, Archive, Megaphone, Briefcase, Sparkles, Calendar as CalendarIcon, Bot, User, Building2, Settings2, Bell, Shield, AlertTriangle, Radio, LogOut, CreditCard, Check, ExternalLink, Receipt, Zap, ArrowUpRight, Download } from "lucide-react";
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
 import Avatar from "@/components/Avatar";
@@ -189,7 +189,7 @@ function DashboardContent() {
   });
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [accountTab, setAccountTab] = useState<'profile' | 'professional' | 'channels' | 'ai' | 'notifications' | 'security'>('profile');
+  const [accountTab, setAccountTab] = useState<'profile' | 'professional' | 'channels' | 'ai' | 'notifications' | 'security' | 'billing'>('profile');
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; gmail_email: string | null; loading: boolean }>({ connected: false, gmail_email: null, loading: true });
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
@@ -2061,6 +2061,7 @@ function DashboardContent() {
                 { key: 'ai',            label: 'AI Assistant',  icon: Bot },
                 { key: 'notifications', label: 'Notifications', icon: Bell },
                 { key: 'security',      label: 'Security',      icon: Shield },
+                { key: 'billing',       label: 'Billing',       icon: CreditCard },
               ] as const).map(({ key, label, icon: Icon }) => (
                 <button key={key} onClick={() => setAccountTab(key)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
@@ -2537,6 +2538,118 @@ function DashboardContent() {
                     >
                       {savingSection === 'ai' ? 'Saving…' : 'Save Changes'}
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Billing ─── */}
+              {accountTab === 'billing' && (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+
+                  {/* ── CURRENT PLAN ── */}
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-5">Current Plan</h3>
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base font-bold text-black">Pro</span>
+                        <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
+                      </div>
+                      <p className="text-3xl font-bold text-black">$49.00 <span className="text-sm font-normal text-gray-400">per month</span></p>
+                      <p className="text-sm text-gray-400 mt-1">Next invoice for <span className="font-medium text-gray-600">$49.00</span> on Apr 4, 2026</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-black">Update plan</button>
+                      <button className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+                    </div>
+                  </div>
+
+                  {/* ── USAGE ── */}
+                  <div className="border-t border-gray-100 mt-6 pt-6">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Usage This Month</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-black">AI Conversations</span>
+                        <span className="text-sm text-black font-medium">218 <span className="text-gray-400 font-normal">(Unlimited)</span></span>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm text-black">Active Listings</span>
+                          <span className="text-sm text-black font-medium">12 of 500</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div className="bg-black rounded-full h-1.5" style={{ width: '2.4%' }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm text-black">Team Seats</span>
+                          <span className="text-sm text-black font-medium">1 of 3</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div className="bg-black rounded-full h-1.5" style={{ width: '33%' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── PAYMENT METHOD ── */}
+                  <div className="border-t border-gray-100 mt-6 pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Payment Method</h3>
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-1 text-[10px] font-bold text-gray-500 bg-gray-100 rounded border border-gray-200 uppercase tracking-wider">VISA</span>
+                          <div>
+                            <p className="text-sm font-medium text-black">Visa ending in 4242</p>
+                            <p className="text-xs text-gray-400">Expires 12/2027</p>
+                          </div>
+                        </div>
+                      </div>
+                      <button className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-black">Update card</button>
+                    </div>
+                  </div>
+
+                  {/* ── BILLING INFORMATION ── */}
+                  <div className="border-t border-gray-100 mt-6 pt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Billing Information</h3>
+                      <button className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-black">Update</button>
+                    </div>
+                    <div className="flex gap-16">
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Billing email</p>
+                        <p className="text-sm text-black">{accountForm.email || user?.email || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Billing address</p>
+                        <p className="text-sm text-gray-400 italic">Not provided</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── INVOICE HISTORY ── */}
+                  <div className="border-t border-gray-100 mt-6 pt-6">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Invoice History</h3>
+                    <div className="space-y-0">
+                      {[
+                        { date: 'Mar 4, 2026', id: 'INV-2026-003', amount: '$49.00' },
+                        { date: 'Feb 4, 2026', id: 'INV-2026-002', amount: '$49.00' },
+                        { date: 'Jan 4, 2026', id: 'INV-2026-001', amount: '$49.00' },
+                        { date: 'Dec 4, 2025', id: 'INV-2025-012', amount: '$49.00' },
+                      ].map((inv, i) => (
+                        <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-b-0">
+                          <div className="flex items-center gap-6">
+                            <span className="text-sm text-black w-28">{inv.date}</span>
+                            <span className="text-sm text-gray-400">{inv.id}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm font-medium text-black">{inv.amount}</span>
+                            <span className="text-xs font-medium text-green-600">Paid</span>
+                            <button className="text-gray-300 hover:text-gray-500"><Download className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
