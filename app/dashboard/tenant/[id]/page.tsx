@@ -131,7 +131,7 @@ export default function TenantDetailPage() {
                   {tenant.lead_score != null && (
                     <Badge color="indigo">
                       <Star className="w-3 h-3 mr-1" />
-                      Score {tenant.lead_score}/10
+                      Score {tenant.lead_score}%
                     </Badge>
                   )}
                   {tenant.qualification_status && (
@@ -246,12 +246,12 @@ export default function TenantDetailPage() {
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Lead Score</p>
                   <div className="flex items-end gap-1">
                     <span className="text-3xl font-black text-indigo-600">{tenant.lead_score}</span>
-                    <span className="text-gray-400 text-sm mb-1">/10</span>
+                    <span className="text-gray-400 text-sm mb-1">%</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
                     <div
                       className="bg-indigo-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${(tenant.lead_score / 10) * 100}%` }}
+                      style={{ width: `${tenant.lead_score}%` }}
                     />
                   </div>
                 </div>

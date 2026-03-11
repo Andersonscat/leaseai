@@ -37,11 +37,10 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('properties')
       .select('*')
-      .eq('user_id', user.id) // Only show properties owned by current user
-      .is('deleted_at', null) // Only show non-deleted properties
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     
-    // Filter by type if provided
     if (type && (type === 'rent' || type === 'sale')) {
       query = query.eq('type', type);
     }
@@ -51,8 +50,41 @@ export async function GET(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Compute inquiry counts per property from messages table
+    const propertyIds = (data || []).map((p: any) => p.id).filter(Boolean);
+    let inquiryCounts: Record<string, number> = {};
+
+    if (propertyIds.length > 0) {
+      const { data: messages } = await supabase
+        .from('messages')
+        .select('property_id, tenant_id')
+        .eq('user_id', user.id)
+        .in('property_id', propertyIds)
+        .eq('sender_type', 'tenant');
+
+      if (messages) {
+        const propertyTenants: Record<string, Set<string>> = {};
+        for (const msg of messages) {
+          if (msg.property_id && msg.tenant_id) {
+            if (!propertyTenants[msg.property_id]) {
+              propertyTenants[msg.property_id] = new Set();
+            }
+            propertyTenants[msg.property_id].add(msg.tenant_id);
+          }
+        }
+        for (const [propId, tenants] of Object.entries(propertyTenants)) {
+          inquiryCounts[propId] = tenants.size;
+        }
+      }
+    }
+
+    const properties = (data || []).map((p: any) => ({
+      ...p,
+      chatCount: inquiryCounts[p.id] || 0,
+    }));
     
-    return NextResponse.json({ properties: data });
+    return NextResponse.json({ properties });
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch properties' },

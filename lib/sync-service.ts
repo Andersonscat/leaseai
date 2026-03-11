@@ -299,6 +299,19 @@ export async function syncGmailMessages(
           const viewingHoursStart = user.user_metadata?.viewing_hours_start || '10:00';
           const viewingHoursEnd   = user.user_metadata?.viewing_hours_end   || '20:00';
 
+          // Pre-compute ranked matches using existing tenant data so AI text matches card order
+          const { getRankedPropertyMatches: getRanked, flattenExtractedData: flattenEd } = await import('@/lib/ai-qualification');
+          const syncPreRanked = properties?.length
+            ? getRanked({ ...(existingTenant || {}) }, properties).map((r: any) => ({
+                address: r.property.address,
+                score: r.score,
+                reason: r.reason,
+                price: r.property.price_monthly || r.property.price,
+                beds: r.property.beds ?? r.property.bedrooms,
+                baths: r.property.baths ?? r.property.bathrooms,
+              }))
+            : [];
+
           // 1. BRAIN: Analyze and Plan
           const analysis = await analyzeConversation({
             tenant: {
@@ -316,6 +329,7 @@ export async function syncGmailMessages(
             timezone,
             viewingHoursStart,
             viewingHoursEnd,
+            preRankedMatches: syncPreRanked.length > 0 ? syncPreRanked : undefined,
           });
 
           // 2. HAND: Execute Actions
@@ -400,7 +414,44 @@ export async function syncGmailMessages(
             }
           }
 
-          // 3. VOICE: Generate Response
+          // 2b. CODE: Resolve properties BEFORE Voice
+          const { flattenExtractedData: flattenEdVoice, getRankedPropertyMatches: getRankedVoice, scorePropertyMatch: scoreMatchVoice } = await import('@/lib/ai-qualification');
+          const { data: voiceTenantData } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
+          const voiceFlatTenant = { ...(voiceTenantData || existingTenant || {}), ...flattenEdVoice(analysis.extractedData) };
+
+          if (voiceFlatTenant.preferred_city && !voiceFlatTenant.preferred_state && properties?.length) {
+            const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+            const inferred = inferStateFromProperties(voiceFlatTenant.preferred_city, properties);
+            if (inferred) voiceFlatTenant.preferred_state = inferred.toUpperCase();
+          }
+
+          let voiceRankedMatches: any[] = [];
+          if (analysis.action === 'send_listing' && properties?.length) {
+            const aiAddrs = (analysis.listing_addresses ?? []).filter(Boolean);
+            if (aiAddrs.length > 0) {
+              const resolved = aiAddrs
+                .map((addr: string) => {
+                  const low = addr.toLowerCase().trim();
+                  return properties.find((p: any) => {
+                    const pAddr = (p.address || '').toLowerCase();
+                    return pAddr === low || pAddr.includes(low) || low.includes(pAddr);
+                  });
+                })
+                .filter(Boolean) as any[];
+              if (resolved.length > 0) {
+                const scored = resolved.map((p: any) => { const { score, reason, clusters, isNearby, disqualified } = scoreMatchVoice(voiceFlatTenant, p); return { property: p, score, reason, clusters, isNearby, disqualified }; });
+                voiceRankedMatches = scored.filter((r: any) => !r.disqualified);
+                if (voiceRankedMatches.length === 0) voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+              } else {
+                voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+              }
+            } else {
+              voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+            }
+          }
+          const voiceSelectedProps = voiceRankedMatches.map((r: any) => r.property);
+
+          // 3. VOICE: Generate Response (sees ONLY selected properties)
           let finalResponseText = await generateFinalResponse(
             {
                tenant: { name: lead.tenant_name, email: lead.tenant_email },
@@ -414,7 +465,8 @@ export async function syncGmailMessages(
                viewingHoursEnd,
             },
             analysis,
-            executionResult
+            executionResult,
+            voiceSelectedProps
           );
 
           if (!finalResponseText?.trim()) {
@@ -423,7 +475,7 @@ export async function syncGmailMessages(
 
           // 4. THE JUDGE: Anti-Hallucination Enforcement
           const { verifyResponseHallucinations } = await import('@/lib/ai-qualification');
-          const verification = await verifyResponseHallucinations(finalResponseText, properties || []);
+          const verification = await verifyResponseHallucinations(finalResponseText, voiceSelectedProps.length > 0 ? voiceSelectedProps : (properties || []));
           
           if (verification.hasHallucinations) {
              console.error('🚨 HALLUCINATION BLOCKED 🚨', verification.reason);
@@ -477,40 +529,50 @@ export async function syncGmailMessages(
 
           console.log('✅ Auto-reply email sent to:', lead.tenant_email);
 
-          // Prepare property listings if AI recommended any
-          const listingAddresses = analysis.listing_addresses || [];
-          let matchedProperties: any[] = [];
-          
-          if ((analysis.action === 'send_listing' || listingAddresses.length > 0) && properties?.length) {
-            matchedProperties = listingAddresses.length > 0
-              ? properties.filter(p => listingAddresses.some(addr => p.address.toLowerCase().includes(addr.toLowerCase())))
-              : (analysis.suggestedProperties?.length 
-                  ? properties.filter(p => analysis.suggestedProperties!.some(sp => p.address.toLowerCase().includes(sp.toLowerCase())))
-                  : properties.slice(0, 3));
-          }
+          // Reuse property matches already computed before Voice
+          const rankedMatches = voiceRankedMatches;
+          const matchedProperties = voiceSelectedProps;
 
           // Generate db message text (includes invisible JSON for the frontend to render cards)
           let dbMessageText = finalResponse;
           if (matchedProperties.length > 0) {
-             const getImageUrl = (p: any): string | null => {
-               const candidates = [p.images?.[0], p.image, p.thumbnail].filter(Boolean);
-               for (const img of candidates) {
-                 if (typeof img === 'string' && !img.startsWith('data:')) return img;
+             const resolveAllImages = (p: any): string[] => {
+               const imgs = Array.isArray(p.images) ? p.images : [];
+               const resolved: string[] = [];
+               for (let i = 0; i < imgs.length; i++) {
+                 const url = typeof imgs[i] === 'string' ? imgs[i] : imgs[i]?.url;
+                 if (url && typeof url === 'string') {
+                   if (url.startsWith('http')) resolved.push(url);
+                   else if (url.startsWith('data:') && p.id) resolved.push(`/api/property-image/${p.id}?idx=${i}`);
+                 }
                }
-               return null;
+               if (resolved.length === 0) {
+                 if (typeof p.image === 'string' && p.image.startsWith('http')) resolved.push(p.image);
+                 else if (typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http')) resolved.push(p.thumbnail);
+               }
+               return resolved;
              };
-             const cleanProps = matchedProperties.slice(0, 5).map(p => ({
-               id: p.id,
-               address: p.address,
-               city: p.city,
-               state: p.state,
-               price: p.price_monthly || p.price,
-               beds: p.bedrooms,
-               baths: p.bathrooms,
-               sqft: p.sqft,
-               type: p.type,
-               image: getImageUrl(p),
-             }));
+             const cleanProps = matchedProperties.map((p: any, i: number) => {
+               const r = rankedMatches[i];
+               const allImages = resolveAllImages(p);
+               return {
+                 id: p.id,
+                 address: p.address,
+                 city: p.city,
+                 state: p.state,
+                 price: p.price_monthly || p.price,
+                 beds: p.beds ?? p.bedrooms,
+                 baths: p.baths ?? p.bathrooms,
+                 sqft: p.sqft,
+                 type: p.type,
+                 image: allImages[0] ?? null,
+                 images: allImages.length > 0 ? allImages : undefined,
+                 matchScore: r?.score ?? null,
+                 matchReason: r?.reason ?? null,
+                 matchClusters: r?.clusters ?? null,
+                 isNearby: r?.isNearby ?? false,
+               };
+             });
              dbMessageText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
           }
 
@@ -621,7 +683,11 @@ export async function syncGmailMessages(
             if (ed.timeline?.lease_term_ideal_months) updateData.lease_duration = `${ed.timeline.lease_term_ideal_months}_months`;
             if (ed.housing?.bedrooms_min != null) updateData.bedrooms = ed.housing.bedrooms_min;
             if (ed.housing?.bathrooms_min != null) updateData.bathrooms = ed.housing.bathrooms_min;
-            if (ed.housing?.furnished) updateData.furnishing = ed.housing.furnished;
+            if (ed.housing?.furnished) {
+              updateData.furnishing = ed.housing.furnished;
+            } else if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.includes('furnished')) {
+              updateData.furnishing = 'yes';
+            }
             if (Array.isArray(ed.housing?.property_types) && ed.housing.property_types.length > 0) updateData.property_type = ed.housing.property_types[0];
             if (ed.occupants?.total_count != null) updateData.num_occupants = ed.occupants.total_count;
             if (ed.pets?.has_pets !== undefined) updateData.has_pets = ed.pets.has_pets;
@@ -632,6 +698,13 @@ export async function syncGmailMessages(
             if (Array.isArray(ed.amenities?.deal_breakers) && ed.amenities.deal_breakers.length > 0) updateData.deal_breakers = ed.amenities.deal_breakers;
             if (ed.amenities?.parking?.required === 'required') updateData.needs_parking = true;
             if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) updateData.preferred_neighborhoods = ed.location.neighborhoods_must;
+            if (ed.location?.city && typeof ed.location.city === 'string' && ed.location.city.trim()) updateData.preferred_city = ed.location.city.trim();
+            if (ed.location?.state && typeof ed.location.state === 'string' && ed.location.state.trim()) updateData.preferred_state = ed.location.state.trim();
+            if (updateData.preferred_city && !updateData.preferred_state && !(existingTenant?.preferred_state) && properties?.length) {
+              const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+              const inferred = inferStateFromProperties(updateData.preferred_city, properties);
+              if (inferred) updateData.preferred_state = inferred.toUpperCase();
+            }
 
             const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
             const updatedTenant = { ...(existingTenant || {}), ...updateData };

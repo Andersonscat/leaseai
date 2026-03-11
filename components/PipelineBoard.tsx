@@ -148,10 +148,10 @@ export default function PipelineBoard() {
                       <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-50">
                         {tenant.lead_score && (
                           <div className={`text-xs font-bold px-2 py-1 rounded bg-gray-50 text-center ${
-                             tenant.lead_score >= 8 ? 'text-green-600 bg-green-50' : 
-                             tenant.lead_score >= 5 ? 'text-amber-600 bg-amber-50' : 'text-gray-500'
+                             tenant.lead_score >= 80 ? 'text-green-600 bg-green-50' :
+                             tenant.lead_score >= 50 ? 'text-amber-600 bg-amber-50' : 'text-gray-500'
                           }`}>
-                            Score: {tenant.lead_score}
+                            Score: {tenant.lead_score}%
                           </div>
                         )}
                         <div className="text-xs text-gray-400 flex items-center justify-center gap-1">

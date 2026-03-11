@@ -181,6 +181,12 @@ export async function POST(
       if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) {
         updateData.preferred_neighborhoods = ed.location.neighborhoods_must;
       }
+      if (ed.location?.city && typeof ed.location.city === 'string' && ed.location.city.trim()) {
+        updateData.preferred_city = ed.location.city.trim();
+      }
+      if (ed.location?.state && typeof ed.location.state === 'string' && ed.location.state.trim()) {
+        updateData.preferred_state = ed.location.state.trim();
+      }
 
       // Priority stored in lead_quality (lead_priority column doesn't exist yet)
       if (analysis.priority) {
@@ -188,11 +194,14 @@ export async function POST(
       }
     }
 
-    // Recalculate scoring - trigger in DB does this too, but we do it for immediate UI update
-    const updatedTenant = { ...tenant, ...(analysis.extractedData || {}) };
+    // Recalculate scoring using flat fields (updateData has correctly mapped nested→flat)
+    const updatedTenant = { ...tenant, ...updateData };
     const newScore = calculateLeadScore(updatedTenant);
     updateData.lead_score = newScore;
-    updateData.lead_quality = getLeadQuality(newScore);
+    // Use AI priority if available; fall back to formula-based quality
+    if (!updateData.lead_quality) {
+      updateData.lead_quality = getLeadQuality(newScore);
+    }
 
     console.log('💾 AI Analysis: Updating database with', updateData);
 

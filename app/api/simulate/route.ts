@@ -3,11 +3,16 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import {
-  analyzeAndRespond,
+  analyzeBrain,
+  generateFinalResponse,
   verifyResponseHallucinations,
   calculateLeadScore,
   getLeadQuality,
   formatBookingDetails,
+  flattenExtractedData,
+  getRankedPropertyMatches,
+  scorePropertyMatch,
+  type RankedPropertyMatch,
 } from '@/lib/ai-qualification';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
 
@@ -141,6 +146,39 @@ export async function POST(req: NextRequest) {
     // OPTIMIZED PIPELINE: Single Gemini call (Brain+Voice) → Hand → Judge
     // =================================================================
 
+    // Detect if client has already seen properties (to show more on request)
+    const alreadyShownAddresses: string[] = [];
+    for (const msg of conversationHistory) {
+      if (msg.role === 'assistant' && msg.content?.includes('---PROPERTIES_JSON---')) {
+        try {
+          const jsonStr = msg.content.split('---PROPERTIES_JSON---')[1]?.split('---END_PROPERTIES_JSON---')[0]?.trim();
+          if (jsonStr) {
+            const shown = JSON.parse(jsonStr) as { address: string }[];
+            shown.forEach(p => { if (p.address) alreadyShownAddresses.push(p.address); });
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    const hasShownBefore = alreadyShownAddresses.length > 0;
+    const maxResults = hasShownBefore ? 5 : 3;
+
+    // Pre-compute ranked matches using existing tenant data so AI writes about the same properties shown as cards
+    const preFlatTenant = { ...(tenantRow || {}) };
+    const preRankedMatches = properties?.length
+      ? getRankedPropertyMatches(preFlatTenant, properties, {
+          maxResults,
+          alreadyShown: alreadyShownAddresses,
+        }).map(r => ({
+          address: r.property.address,
+          score: r.score,
+          reason: r.reason,
+          price: r.property.price_monthly || r.property.price,
+          beds: r.property.beds ?? r.property.bedrooms,
+          baths: r.property.baths ?? r.property.bathrooms,
+          sqft: r.property.sqft,
+        }))
+      : [];
+
     const context = {
       tenant: {
         id: tenantId,
@@ -157,14 +195,14 @@ export async function POST(req: NextRequest) {
       timezone,
       viewingHoursStart,
       viewingHoursEnd,
+      preRankedMatches: preRankedMatches.length > 0 ? preRankedMatches : undefined,
     };
 
-    // ─── BRAIN + VOICE: Single Gemini call ──────────────────────────────
+    // ─── PHASE 1: BRAIN (intent + data extraction, NO reply text) ──────
     t1 = Date.now();
-    const { analysis, reply } = await analyzeAndRespond(context);
+    const { analysis } = await analyzeBrain(context);
     const fallbackReply = `Hi ${(tenantRow?.name || name).split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
-    let finalResponseText = reply?.trim() || fallbackReply;
-    console.log(`🧠 AI reply length=${reply?.length ?? 'null'}, finalResponseText length=${finalResponseText.length}, action=${analysis.action}`);
+    console.log(`🧠 Brain: action=${analysis.action}, intent=${analysis.intent}, listing_addresses=${analysis.listing_addresses?.join(',') || 'none'}`);
     pipelineStages.push({ stage: 'brain', durationMs: Date.now() - t1, detail: `action=${analysis.action}` });
 
     // ─── HAND: Execute Actions ──────────────────────────────────────────
@@ -224,9 +262,84 @@ export async function POST(req: NextRequest) {
     }
     pipelineStages.push({ stage: 'hand', durationMs: Date.now() - t1, detail: analysis.action === 'book_calendar' ? 'calendar' : 'none' });
 
-    // ─── JUDGE: Deterministic Anti-Hallucination ────────────────────────
+    // ─── PHASE 2: CODE — Resolve properties ─────────────────────────────
+    const flatTenant = { ...(tenantRow || {}), ...flattenExtractedData(analysis.extractedData) };
+
+    // Infer state from landlord's property portfolio when AI didn't extract it
+    if (flatTenant.preferred_city && !flatTenant.preferred_state && properties?.length) {
+      const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+      const inferred = inferStateFromProperties(flatTenant.preferred_city, properties);
+      if (inferred) {
+        flatTenant.preferred_state = inferred.toUpperCase();
+        console.log(`🌍 State inferred from portfolio: "${flatTenant.preferred_city}" → ${flatTenant.preferred_state}`);
+      }
+    }
+
+    let rankedMatches: RankedPropertyMatch[] = [];
+    if (analysis.action === 'send_listing' && properties?.length) {
+      // Strategy: trust the AI's listing_addresses when they resolve to real properties.
+      // The AI already received preRankedMatches in context and mentions those addresses
+      // in its reply text — cards must match. Fallback to deterministic ranking only if
+      // the address lookup fails (e.g. hallucinated address).
+      const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
+
+      if (aiAddresses.length > 0) {
+        const resolvedProperties = aiAddresses
+          .map(addr => {
+            const addrLow = addr.toLowerCase().trim();
+            return properties.find(p => {
+              const pAddr = (p.address || '').toLowerCase();
+              return pAddr === addrLow || pAddr.includes(addrLow) || addrLow.includes(pAddr);
+            });
+          })
+          .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+        if (resolvedProperties.length > 0) {
+          const scored = resolvedProperties.map(p => {
+            const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p);
+            return { property: p, score, reason, clusters, isNearby, disqualified };
+          });
+
+          // SCORING GATE: never show hard-disqualified properties regardless of AI choice
+          const disqualifiedAddrs = scored.filter(r => r.disqualified).map(r => `${r.property.address} (${r.disqualified})`);
+          if (disqualifiedAddrs.length > 0) {
+            console.log(`🚫 Scoring gate rejected AI suggestions: ${disqualifiedAddrs.join(', ')}`);
+          }
+          rankedMatches = scored.filter(r => !r.disqualified);
+          console.log(`📋 AI listing_addresses after gate: ${rankedMatches.map(r => r.property.address).join(', ')} (scores: ${rankedMatches.map(r => r.score).join(', ')})`);
+
+          // If all AI suggestions were disqualified, fall back to deterministic ranking
+          if (rankedMatches.length === 0) {
+            rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
+            console.log(`🔄 All AI suggestions disqualified, fallback ranking: ${rankedMatches.map(r => `${r.property.address}=${r.score}`).join(', ')}`);
+          }
+        } else {
+          rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
+          console.log(`⚠️ listing_addresses not found in DB, falling back to ranking`);
+        }
+      } else {
+        rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
+        console.log(`🏠 No listing_addresses, deterministic ranking: ${rankedMatches.map(r => r.score).join(', ')}`);
+      }
+    }
+
+    const matchedProperties = rankedMatches.map(r => r.property);
+
+    // ─── PHASE 3: VOICE — Generate reply text (sees ONLY selected properties) ──
     t1 = Date.now();
-    const verification = await verifyResponseHallucinations(finalResponseText, properties || []);
+    let finalResponseText: string;
+    try {
+      finalResponseText = await generateFinalResponse(context, analysis, executionResult, matchedProperties as any);
+    } catch (voiceErr: any) {
+      console.error('❌ Voice failed:', voiceErr?.message);
+      finalResponseText = fallbackReply;
+    }
+    console.log(`🗣️ Voice: length=${finalResponseText.length}`);
+    pipelineStages.push({ stage: 'voice', durationMs: Date.now() - t1, detail: `len=${finalResponseText.length}` });
+
+    // ─── PHASE 4: JUDGE — Deterministic hallucination check ─────────────
+    t1 = Date.now();
+    const verification = await verifyResponseHallucinations(finalResponseText, matchedProperties.length > 0 ? matchedProperties : (properties || []));
     let hallucinationBlocked = false;
     if (verification.hasHallucinations) {
       finalResponseText = `Hi ${(tenantRow?.name || name).split(' ')[0]}, I'm currently checking our inventory to confirm the exact details of matching properties. I will get back to you very shortly with accurate information!`;
@@ -248,59 +361,51 @@ export async function POST(req: NextRequest) {
       finalResponse = `${finalResponseText}\n\n\n${bookingBlock}`;
     }
 
-    // ─── ATTACH PROPERTY CARDS IF LISTING ───────────────────────────────
-    const listingAddresses = analysis.listing_addresses || [];
-    const propertyMatches = analysis.propertyMatches || [];
-    console.log(`🏠 AI listing_addresses: ${JSON.stringify(listingAddresses)}`);
-    console.log(`🏠 AI propertyMatches: ${JSON.stringify(propertyMatches)}`);
-
-    let matchedProperties: any[] = [];
-    if ((analysis.action === 'send_listing' || listingAddresses.length > 0) && properties?.length) {
-      if (listingAddresses.length > 0) {
-        matchedProperties = properties.filter(p =>
-          listingAddresses.some((addr: string) => p.address?.toLowerCase().includes(addr.toLowerCase()))
-        );
-      } else if (analysis.suggestedProperties?.length) {
-        matchedProperties = properties.filter(p =>
-          analysis.suggestedProperties!.some((sp: string) => p.address?.toLowerCase().includes(sp.toLowerCase()))
-        );
-      } else {
-        matchedProperties = properties.slice(0, 3);
-      }
-
-      // Fallback: if AI referenced addresses but matching failed, use propertyMatches scores
-      if (matchedProperties.length === 0 && propertyMatches.length > 0) {
-        const topAddresses = propertyMatches
-          .filter((m: any) => m.score >= 55)
-          .sort((a: any, b: any) => b.score - a.score)
-          .slice(0, 5)
-          .map((m: any) => m.address);
-        matchedProperties = properties.filter(p =>
-          topAddresses.some((addr: string) => p.address?.toLowerCase().includes(addr.toLowerCase()))
-        );
-      }
-      console.log(`🏠 Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.address).join(' | ')}`);
-    }
-
     let dbMessageText = finalResponse;
     if (!dbMessageText?.trim()) {
-      console.error('🚨 EMPTY AI RESPONSE DETECTED — using fallback. reply was:', JSON.stringify(reply), 'finalResponseText was:', JSON.stringify(finalResponseText));
+      console.error('🚨 EMPTY AI RESPONSE DETECTED — using fallback');
       dbMessageText = fallbackReply;
     }
-    if (matchedProperties.length > 0) {
-      const getImageUrl = (p: any): string | null => {
+
+    // Safety net: filter out properties the Voice didn't mention in its text.
+    // This prevents orphan cards that confuse the user.
+    const textLower = finalResponseText.toLowerCase();
+    const mentionedProperties = matchedProperties.filter(p => {
+      const addr = (p.address || '').toLowerCase();
+      // Check if the address (or its street part) appears in the reply text
+      const streetPart = addr.split(',')[0]?.trim();
+      return textLower.includes(streetPart) || textLower.includes(addr);
+    });
+    // Only filter if Voice mentioned at least one property (otherwise keep all — Voice might have used different wording)
+    const cardsToAttach = mentionedProperties.length > 0 ? mentionedProperties : matchedProperties;
+    // Rebuild rankedMatches in same order for score alignment
+    const cardsRanked = cardsToAttach.map(p => rankedMatches.find(r => r.property === p)!).filter(Boolean);
+    if (cardsToAttach.length < matchedProperties.length) {
+      console.log(`🔧 Filtered cards: ${matchedProperties.length} → ${cardsToAttach.length} (Voice only mentioned ${mentionedProperties.length})`);
+    }
+
+    if (cardsToAttach.length > 0) {
+      // Resolve all images for a property (not just the first one)
+      const resolveAllImages = (p: any): string[] => {
         const imgs = Array.isArray(p.images) ? p.images : [];
-        for (const img of imgs) {
-          const url = typeof img === 'string' ? img : img?.url;
-          if (url && typeof url === 'string' && url.startsWith('http')) return url;
+        const resolved: string[] = [];
+        for (let i = 0; i < imgs.length; i++) {
+          const url = typeof imgs[i] === 'string' ? imgs[i] : imgs[i]?.url;
+          if (url && typeof url === 'string') {
+            if (url.startsWith('http')) resolved.push(url);
+            else if (url.startsWith('data:') && p.id) resolved.push(`/api/property-image/${p.id}?idx=${i}`);
+          }
         }
-        if (typeof p.image === 'string' && p.image.startsWith('http')) return p.image;
-        if (typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http')) return p.thumbnail;
-        return null;
+        if (resolved.length === 0) {
+          if (typeof p.image === 'string' && p.image.startsWith('http')) resolved.push(p.image);
+          else if (typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http')) resolved.push(p.thumbnail);
+        }
+        return resolved;
       };
-      const cleanProps = matchedProperties.slice(0, 5).map(p => {
-        const imgUrl = getImageUrl(p);
-        console.log(`  📸 ${p.address}: image=${imgUrl ? 'URL' : 'NULL'}, images type=${typeof p.images}, images[0] type=${typeof p.images?.[0]}, starts=${String(p.images?.[0]).substring(0, 40)}`);
+
+      const cleanProps = cardsToAttach.map((p, i) => {
+        const r = cardsRanked[i];
+        const allImages = resolveAllImages(p);
         return {
           id: p.id,
           address: p.address,
@@ -311,7 +416,12 @@ export async function POST(req: NextRequest) {
           baths: p.baths ?? p.bathrooms,
           sqft: p.sqft,
           type: p.type,
-          image: imgUrl,
+          image: allImages[0] ?? null,
+          images: allImages.length > 0 ? allImages : undefined,
+          matchScore: r?.score ?? null,
+          matchReason: r?.reason ?? null,
+          matchClusters: r?.clusters ?? null,
+          isNearby: r?.isNearby ?? false,
         };
       });
       dbMessageText += `\n\n---PROPERTIES_JSON---\n${JSON.stringify(cleanProps)}\n---END_PROPERTIES_JSON---`;
@@ -407,7 +517,11 @@ export async function POST(req: NextRequest) {
       if (ed.timeline?.lease_term_ideal_months) updateData.lease_duration = `${ed.timeline.lease_term_ideal_months}_months`;
       if (ed.housing?.bedrooms_min != null) updateData.bedrooms = ed.housing.bedrooms_min;
       if (ed.housing?.bathrooms_min != null) updateData.bathrooms = ed.housing.bathrooms_min;
-      if (ed.housing?.furnished) updateData.furnishing = ed.housing.furnished;
+      if (ed.housing?.furnished) {
+        updateData.furnishing = ed.housing.furnished;
+      } else if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.includes('furnished')) {
+        updateData.furnishing = 'yes';
+      }
       if (Array.isArray(ed.housing?.property_types) && ed.housing.property_types.length > 0) updateData.property_type = ed.housing.property_types[0];
       if (ed.occupants?.total_count != null) updateData.num_occupants = ed.occupants.total_count;
       if (ed.pets?.has_pets !== undefined) updateData.has_pets = ed.pets.has_pets;
@@ -416,6 +530,13 @@ export async function POST(req: NextRequest) {
       if (Array.isArray(ed.amenities?.deal_breakers) && ed.amenities.deal_breakers.length > 0) updateData.deal_breakers = ed.amenities.deal_breakers;
       if (ed.amenities?.parking?.required === 'required') updateData.needs_parking = true;
       if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) updateData.preferred_neighborhoods = ed.location.neighborhoods_must;
+      if (ed.location?.city && typeof ed.location.city === 'string' && ed.location.city.trim()) updateData.preferred_city = ed.location.city.trim();
+      if (ed.location?.state && typeof ed.location.state === 'string' && ed.location.state.trim()) updateData.preferred_state = ed.location.state.trim();
+      if (updateData.preferred_city && !updateData.preferred_state && !(tenantRow?.preferred_state) && properties?.length) {
+        const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+        const inferred = inferStateFromProperties(updateData.preferred_city, properties);
+        if (inferred) updateData.preferred_state = inferred.toUpperCase();
+      }
 
       const score = calculateLeadScore({ ...(tenantRow || {}), ...updateData });
       updateData.lead_score = score;

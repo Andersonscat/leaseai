@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Send, Edit, Car, Calendar, Wifi, Zap, Droplet, Home, CheckCircle2 } from "lucide-react";
+import { MapPin, Bed, Bath, Ruler, Dog, ChevronLeft, ChevronRight, ArrowLeft, X, Edit, Car, Calendar, Wifi, Droplet, Home, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
@@ -24,12 +24,6 @@ export default function PropertyPage() {
   const propertyId = params.id as string;
   
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [selectedChat, setSelectedChat] = useState<number | null>(null);
-  const [messageInput, setMessageInput] = useState("");
-  // Sidebar always open by default (or toggled on mobile)
-  const [showAllChats, setShowAllChats] = useState(true);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [generatingAI, setGeneratingAI] = useState(false);
   const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
   
   // State for property loaded from Supabase
@@ -115,82 +109,6 @@ export default function PropertyPage() {
     }
   };
 
-  // Mock chats data (interested tenants)
-  const chats = [
-    {
-      id: 1,
-      name: "John Smith",
-      avatar: "https://ui-avatars.com/api/?name=John+Smith&background=3B82F6&color=fff",
-      lastMessage: "Hi, I'm interested in this property. Is it still available?",
-      time: "2 hours ago",
-      unread: 2,
-      messages: [
-        { id: 1, sender: "tenant", text: "Hi, I'm interested in this property.", time: "2:30 PM" },
-        { id: 2, sender: "tenant", text: "Is it still available?", time: "2:31 PM" },
-      ]
-    },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=10B981&color=fff",
-      lastMessage: "What's the move-in date?",
-      time: "5 hours ago",
-      unread: 1,
-      messages: [
-        { id: 1, sender: "tenant", text: "What's the move-in date?", time: "11:00 AM" },
-      ]
-    },
-  ];
-
-  const selectedChatData = chats.find(c => c.id === selectedChat);
-
-  const handleSendMessage = () => {
-    if (messageInput.trim()) {
-      console.log("Sending message:", messageInput);
-      setMessageInput("");
-    }
-  };
-
-  const handleGenerateAIDraft = async () => {
-    if (!selectedChatData) return;
-    
-    setGeneratingAI(true);
-    try {
-      // Get last message from tenant
-      const lastTenantMessage = selectedChatData.messages
-        .filter(msg => msg.sender === 'tenant')
-        .slice(-1)[0];
-      
-      if (!lastTenantMessage) {
-        alert('No message to respond to');
-        setGeneratingAI(false);
-        return;
-      }
-
-      // Call AI API to generate response
-      const response = await fetch(`/api/conversations/${selectedChatData.id}/auto-reply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientMessage: lastTenantMessage.text,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Set AI response in message input
-        setMessageInput(data.aiResponse);
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error('Error generating AI draft:', error);
-      alert('Failed to generate AI draft');
-    } finally {
-      setGeneratingAI(false);
-    }
-  };
 
   return (
     <div className="p-10">
@@ -225,7 +143,7 @@ export default function PropertyPage() {
       {/* Main Content with Chat Sidebar */}
       <div className="flex gap-6">
         {/* Left Content - Property Details */}
-        <div className={`flex-1 transition-all ${selectedChat ? 'mr-0' : ''}`}>
+        <div className="flex-1">
         {/* Image Gallery */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-lg mb-8">
           <div className="relative h-[500px] bg-gray-200 group">
@@ -518,205 +436,6 @@ export default function PropertyPage() {
         </div>
         {/* End of Left Content */}
 
-        {/* Right Content - Sidebar */}
-        <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-[400px]'}`}>
-          
-          {/* List View (When no chat selected) */}
-          {!selectedChat && (
-            <div className={`bg-white rounded-3xl shadow-lg h-[calc(100vh-140px)] flex flex-col sticky top-24 border border-gray-100 transition-all duration-300 ${isSidebarCollapsed ? 'items-center' : ''}`}>
-              {/* Header */}
-              <div className={`p-6 border-b border-gray-200 flex items-center ${isSidebarCollapsed ? 'justify-center w-full' : 'justify-between'}`}>
-                {!isSidebarCollapsed && (
-                  <div>
-                    <h3 className="text-2xl font-bold text-black">Interested Tenants</h3>
-                    <p className="text-gray-500 text-sm mt-1">Manage viewings & questions</p>
-                  </div>
-                )}
-                <button
-                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className={`w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 group`}
-                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                >
-                  {isSidebarCollapsed ? (
-                    <ChevronLeft className="w-5 h-5 text-gray-600 group-hover:text-black" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-black" />
-                  )}
-                </button>
-              </div>
-
-              {/* Chats List */}
-              <div className="flex-1 overflow-y-auto w-full">
-                {chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    onClick={() => {
-                      setSelectedChat(chat.id);
-                      if (isSidebarCollapsed) setIsSidebarCollapsed(false);
-                    }}
-                    className={`flex items-center gap-4 p-4 border-b border-gray-100 hover:bg-gray-50 transition-all cursor-pointer ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                  >
-                    <div className="relative">
-                      <img 
-                        src={chat.avatar} 
-                        alt={chat.name}
-                        className="w-12 h-12 rounded-full min-w-[48px]"
-                      />
-                      {chat.unread > 0 && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                          {chat.unread}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {!isSidebarCollapsed && (
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-bold text-black">{chat.name}</h4>
-                          <span className="text-xs text-gray-400">{chat.time}</span>
-                        </div>
-                        <p className="text-sm text-gray-600 truncate">{chat.lastMessage}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Chat View (When chat selected) */}
-          {selectedChat && selectedChatData && (
-            <div className={`bg-white rounded-3xl shadow-lg h-[calc(100vh-140px)] flex flex-col sticky top-24 border border-gray-100 transition-all duration-300 ${isSidebarCollapsed ? 'items-center' : ''}`}>
-              {/* Chat Header */}
-              <div className={`p-6 border-b border-gray-200 flex items-center gap-3 ${isSidebarCollapsed ? 'flex-col justify-center w-full' : ''}`}>
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <button
-                    onClick={() => setSelectedChat(null)}
-                    className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 flex-shrink-0"
-                    title="Back to list"
-                  >
-                    <ArrowLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                  
-                  {!isSidebarCollapsed && (
-                    <div className="flex items-center gap-3 truncate">
-                      <img 
-                        src={selectedChatData.avatar} 
-                        alt={selectedChatData.name}
-                        className="w-10 h-10 rounded-full flex-shrink-0"
-                      />
-                      <div className="truncate">
-                        <h3 className="font-bold text-black truncate">{selectedChatData.name}</h3>
-                        <p className="text-xs text-green-500 font-medium">Active now</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className={`w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all bg-gray-50 group flex-shrink-0`}
-                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                >
-                  {isSidebarCollapsed ? (
-                    <ChevronLeft className="w-5 h-5 text-gray-600 group-hover:text-black" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-black" />
-                  )}
-                </button>
-              </div>
-
-              {/* Messages & Input (Hidden when collapsed for better UX, or we can show a small unread/indicator) */}
-              {!isSidebarCollapsed ? (
-                <>
-                  <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
-                    {selectedChatData.messages.map((message) => (
-                      <div 
-                        key={message.id}
-                        className={`flex ${message.sender === 'landlord' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div className={`max-w-[80%] ${
-                          message.sender === 'landlord' 
-                            ? 'bg-black text-white' 
-                            : 'bg-white border border-gray-200 text-black'
-                        } rounded-2xl px-5 py-3 shadow-sm`}>
-                          <p className="text-sm leading-relaxed">{message.text}</p>
-                          <p className={`text-[10px] mt-1.5 opacity-70 ${
-                            message.sender === 'landlord' ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            {message.time}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-4 border-t border-gray-200 bg-white rounded-b-3xl">
-                    <div className="mb-3">
-                      <button
-                        onClick={handleGenerateAIDraft}
-                        disabled={generatingAI}
-                        className="w-full py-2.5 bg-indigo-50 text-indigo-700 rounded-xl font-semibold hover:bg-indigo-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
-                      >
-                        {generatingAI ? (
-                          <>
-                            <div className="animate-spin h-4 w-4 border-2 border-indigo-700 border-t-transparent rounded-full" />
-                            <span>Writing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="w-4 h-4" />
-                            <span>Generate AI Reply</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    
-                    <div className="flex gap-2 items-end">
-                      <textarea
-                        value={messageInput}
-                        onChange={(e) => {
-                          setMessageInput(e.target.value);
-                          e.target.style.height = 'auto';
-                          e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-                        }}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey && messageInput.trim()) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                        placeholder="Type a message..."
-                        rows={1}
-                        className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-black/5 resize-none text-black text-sm max-h-[120px]"
-                      />
-                      {messageInput.trim().length > 0 && (
-                        <button
-                          onClick={handleSendMessage}
-                          className="w-11 h-11 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-all flex-shrink-0 shadow-md"
-                        >
-                          <Send className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-4 gap-4">
-                   <div className="relative">
-                      <img 
-                        src={selectedChatData.avatar} 
-                        alt={selectedChatData.name}
-                        className="w-12 h-12 rounded-full border-2 border-black p-0.5"
-                      />
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                   </div>
-                   <div className="w-1 h-24 bg-gray-100 rounded-full" />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
       {/* End of Flex Container */}
     </div>

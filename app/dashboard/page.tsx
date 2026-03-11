@@ -6,6 +6,7 @@ import { ArrowLeft, Inbox, TrendingUp, Home, BarChart3, Plus, MapPin, Bed, Bath,
 import Link from "next/link";
 import ConversationsInbox from "../../components/ConversationsInbox";
 import Avatar from "@/components/Avatar";
+import TenantsView from "@/components/TenantsView";
 import { createSupabaseClient } from "@/lib/supabase";
 
 import { Suspense } from "react";
@@ -792,8 +793,6 @@ function DashboardContent() {
   const [propertySearch, setPropertySearch] = useState("");
   const [contractSearch, setContractSearch] = useState("");
   const [contractFilter, setContractFilter] = useState<"all" | "active" | "pending" | "completed" | "draft">("all");
-  const [tenantSearch, setTenantSearch] = useState("");
-  const [tenantFilter, setTenantFilter] = useState<"all" | "current" | "pending" | "late" | "archived">("all");
   
   // Toast notification state
   const [showToast, setShowToast] = useState(false);
@@ -877,64 +876,6 @@ function DashboardContent() {
 
     fetchProperties();
   }, [propertyType]);
-
-  // State for tenants loaded from Supabase
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [loadingTenants, setLoadingTenants] = useState(true);
-
-  // Tenant selection state
-  const [tenantSelectionMode, setTenantSelectionMode] = useState(false);
-  const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set());
-  const [showTenantDeleteModal, setShowTenantDeleteModal] = useState(false);
-  const [deletingTenants, setDeletingTenants] = useState(false);
-
-  // Load tenants from Supabase when component mounts or tenantFilter changes
-  useEffect(() => {
-    const fetchTenants = async () => {
-      setLoadingTenants(true);
-      try {
-        const statusParam = tenantFilter === 'all' ? '' : `?status=${tenantFilter}`;
-        const response = await fetch(`/api/tenants${statusParam}`);
-        const data = await response.json();
-        setTenants(data.tenants || []);
-      } catch (error) {
-        console.error('Error fetching tenants:', error);
-        setTenants([]);
-      } finally {
-        setLoadingTenants(false);
-      }
-    };
-
-    fetchTenants();
-  }, [tenantFilter]);
-
-  const handleDeleteTenants = async () => {
-    setDeletingTenants(true);
-    try {
-      await Promise.all(
-        Array.from(selectedTenants).map(id =>
-          fetch(`/api/tenants/${id}`, { method: 'DELETE' })
-        )
-      );
-      setShowTenantDeleteModal(false);
-      setTenantSelectionMode(false);
-      setSelectedTenants(new Set());
-      setToastMessage(`${selectedTenants.size} tenant${selectedTenants.size > 1 ? 's' : ''} deleted`);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 4000);
-      // Refresh tenants list
-      const statusParam = tenantFilter === 'all' ? '' : `?status=${tenantFilter}`;
-      const res = await fetch(`/api/tenants${statusParam}`);
-      const data = await res.json();
-      setTenants(data.tenants || []);
-    } catch (error) {
-      console.error('Error deleting tenants:', error);
-      alert('Failed to delete some tenants.');
-    } finally {
-      setDeletingTenants(false);
-    }
-  };
-
 
   // State for contracts loaded from Supabase
   const [contracts, setContracts] = useState<any[]>([]);
@@ -1161,7 +1102,7 @@ function DashboardContent() {
         property.baths.toString().includes(searchLower) ||
         (property.sqft && property.sqft.toString().includes(searchLower)) ||
         (property.pet_policy && JSON.stringify(property.pet_policy).toLowerCase().includes(searchLower)) ||
-        property.status.toLowerCase().includes(searchLower) ||
+        (property.status && property.status.toLowerCase().includes(searchLower)) ||
         property.description?.toLowerCase().includes(searchLower) ||
         property.amenities?.some((a: string) => a.toLowerCase().includes(searchLower)) ||
         property.features?.some((f: string) => f.toLowerCase().includes(searchLower))
@@ -1209,18 +1150,6 @@ function DashboardContent() {
   };
 
   const sortedProperties = getSortedProperties();
-
-  // Filter tenants by search
-  const filteredTenants = tenants.filter(tenant => {
-    if (!tenantSearch.trim()) return true;
-    const searchLower = tenantSearch.toLowerCase();
-    return (
-      tenant.name?.toLowerCase().includes(searchLower) ||
-      tenant.email?.toLowerCase().includes(searchLower) ||
-      tenant.phone?.toLowerCase().includes(searchLower) ||
-      tenant.property_address?.toLowerCase().includes(searchLower)
-    );
-  });
 
   // Filter contracts by search
   const filteredContracts = contracts.filter(contract => {
@@ -1318,119 +1247,82 @@ function DashboardContent() {
       {/* Properties Tab */}
       {activeTab === "properties" && (
         <>
-          {/* Linear/Stripe-style Toolbar */}
           <div className="mb-6">
-            {/* Main Toolbar Row */}
-            <div className="flex items-center justify-between gap-4 mb-4">
-              {/* Left: Title + Toggle */}
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-bold text-black">Properties</h2>
-                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Properties</h2>
+                <div className="flex items-center border border-gray-200 rounded-lg p-0.5 bg-gray-50/80">
                   <button
                     onClick={() => setPropertyType("rent")}
-                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                    className={`px-3.5 py-1 rounded-md text-sm font-medium transition-colors ${
                       propertyType === "rent"
-                        ? "bg-black text-white shadow-sm"
-                        : "text-gray-600 hover:bg-gray-200"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
                     Rent
                   </button>
                   <button
                     onClick={() => setPropertyType("sale")}
-                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
+                    className={`px-3.5 py-1 rounded-md text-sm font-medium transition-colors ${
                       propertyType === "sale"
-                        ? "bg-black text-white shadow-sm"
-                        : "text-gray-600 hover:bg-gray-200"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
                     Sale
                   </button>
                 </div>
               </div>
-              
-              {/* Add Button */}
-              <Link href="/dashboard/property/new">
-                <button
-                  className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </Link>
-            </div>
 
-            {/* Sub-toolbar Row (Search + Filters - Transparent) */}
-            <div className="flex items-center justify-between gap-3 mb-6">
-              {/* Search Bar (Matching Inbox Style) */}
-              <div 
-                className="flex-1 glass-matte rounded-full p-2 flex items-center border border-white/40 focus-within:border-white focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-sm hover:shadow-xl group cursor-text"
-                onClick={() => document.getElementById('property-search')?.focus()}
-              >
-                <div className="pl-4 pr-3 text-gray-400 group-focus-within:text-black transition-colors">
-                  <Search className="w-5 h-5" />
-                </div>
-                <input
-                  id="property-search"
-                  type="text"
-                  placeholder="Suburb, address, or tenant..."
-                  value={propertySearch}
-                  onChange={(e) => setPropertySearch(e.target.value)}
-                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-base font-semibold placeholder:text-gray-400 text-black h-full py-1.5"
-                />
-                <div className="pr-1 hidden sm:block">
-                  <div className="h-7 px-2.5 bg-white/50 rounded-xl border border-white/20 flex items-center justify-center text-gray-400 group-focus-within:bg-white group-focus-within:shadow-sm group-focus-within:text-black group-focus-within:border-white transition-all">
-                    <span className="text-[10px] font-bold flex items-center gap-1">
-                      <span className="opacity-50">⌘</span>
-                      K
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons Group (Filter/Sort/Select only) */}
-              <div className="flex items-center gap-2 px-1">
-                {/* Sort Direction */}
-                <button
-                  onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
-                  className="p-2.5 glass-matte text-gray-700 border border-white/40 rounded-2xl hover:bg-white transition-all font-medium shadow-sm"
-                  title={sortDirection === "asc" ? "Ascending" : "Descending"}
-                >
-                  {sortDirection === "asc" ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </button>
-
-                {/* Filter Dropdown */}
+              <div className="flex items-center gap-2">
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
-                    className="flex items-center gap-1.5 px-3 py-2.5 glass-matte text-gray-700 border border-white/40 rounded-2xl hover:bg-white transition-all text-sm font-semibold shadow-sm"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg transition-colors text-sm font-medium ${
+                      selectedSort !== 'none'
+                        ? 'border-gray-900 text-gray-900 bg-gray-50'
+                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
                   >
-                    <Filter className="w-4 h-4" />
-                    {getFilterDisplayName()}
+                    <Filter className="w-3.5 h-3.5" />
+                    Sort{selectedSort !== 'none' ? `: ${getFilterDisplayName()}` : ''}
+                    <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
                   </button>
 
                   {showFilterMenu && (
                     <>
-                      <div 
+                      <div
                         className="fixed inset-0 z-40"
                         onClick={() => setShowFilterMenu(false)}
                       />
-                      <div className="absolute right-0 top-full mt-2 w-[140px] bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50">
+                      <div className="absolute right-0 top-full mt-1 w-[180px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                         {["none", "price", "date", "messages", "beds", "duration"].map((option) => (
-                          <button 
+                          <button
                             key={option}
                             onClick={() => handleSortSelect(option as any)}
-                            className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                              selectedSort === option 
-                                ? "bg-gray-100 text-black font-medium" 
+                            className={`w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center justify-between ${
+                              selectedSort === option
+                                ? "bg-gray-50 text-gray-900 font-medium"
                                 : "text-gray-600 hover:bg-gray-50"
                             }`}
                           >
-                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                            <span>{option === 'none' ? 'Default' : option.charAt(0).toUpperCase() + option.slice(1)}</span>
+                            {selectedSort === option && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+                                }}
+                                className="p-0.5 hover:bg-gray-200 rounded"
+                              >
+                                {sortDirection === "asc" ? (
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -1438,123 +1330,130 @@ function DashboardContent() {
                   )}
                 </div>
 
-                {/* Selection Toggle */}
-                <button
-                  onClick={() => {
-                    setSelectionMode(!selectionMode);
-                    if (selectionMode) setSelectedProperties(new Set());
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg transition-all text-sm font-medium border ${
-                    selectionMode 
-                      ? "bg-black text-white border-black" 
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  <CheckSquare className="w-4 h-4" />
-                  {selectionMode ? "Cancel" : "Select"}
-                </button>
+                <Link href="/dashboard/property/new">
+                  <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </Link>
               </div>
             </div>
-            
-            {/* Summary Row */}
-            <p className="text-sm text-gray-500">
-              {sortedProperties.length} {propertyType === "rent" ? "rental" : "sale"} {sortedProperties.length === 1 ? "property" : "properties"}
-            </p>
 
-              {/* Bulk Actions Bar */}
-              {selectionMode && selectedProperties.size > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
-                  <div className="bg-black text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <CheckSquare className="w-5 h-5 text-blue-400" />
-                      <span className="font-semibold text-lg">{selectedProperties.size} selected</span>
-                    </div>
-                    
-                    <div className="h-6 w-px bg-gray-600"></div>
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={selectAllProperties}
-                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-all"
-                      >
-                        {selectedProperties.size === sortedProperties.length ? 'Deselect All' : 'Select All'}
-                      </button>
-                      
-                      <button
-                        onClick={() => setShowBulkDeleteModal(true)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+            <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="property-search"
+                  type="text"
+                  placeholder="Search by address, city..."
+                  value={propertySearch}
+                  onChange={(e) => setPropertySearch(e.target.value)}
+                  className="w-full max-w-sm pl-9 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm placeholder:text-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 transition-colors"
+                />
+              </div>
+
+              <span className="text-sm text-gray-400">
+                {sortedProperties.length} {sortedProperties.length === 1 ? "listing" : "listings"}
+              </span>
+            </div>
+
+            {selectionMode && (
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                <div className="bg-gray-900 text-white rounded-xl shadow-xl px-5 py-3 flex items-center gap-4 text-sm">
+                  <span className="font-medium">{selectedProperties.size} selected</span>
+                  <div className="h-4 w-px bg-gray-600" />
+                  <button
+                    onClick={selectAllProperties}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md font-medium transition-colors"
+                  >
+                    {selectedProperties.size === sortedProperties.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                  {selectedProperties.size > 0 && (
+                    <button
+                      onClick={() => setShowBulkDeleteModal(true)}
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-md font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectionMode(false);
+                      setSelectedProperties(new Set());
+                    }}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
           </div>
 
-          {/* Properties Grid */}
           {loadingProperties ? (
-            <div className="bg-white rounded-2xl p-16 text-center">
-              <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-xl font-bold text-black mb-2">Loading properties...</h3>
-              <p className="text-gray-600">Please wait while we fetch your properties.</p>
+            <div className="py-20 text-center">
+              <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-900 rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-sm text-gray-500">Loading properties...</p>
             </div>
           ) : sortedProperties.length === 0 ? (
-            <div className="bg-white rounded-2xl p-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <Search className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-bold text-black mb-2">No properties found</h3>
-              <p className="text-gray-600 mb-4">
-                {propertySearch.trim() 
-                  ? "Try adjusting your search terms or clear the search to see all properties." 
-                  : `No ${propertyType === "rent" ? "rental" : "sale"} properties available at the moment.`
+            <div className="py-20 text-center">
+              <p className="text-sm text-gray-900 font-medium mb-1">No properties found</p>
+              <p className="text-sm text-gray-500 mb-4">
+                {propertySearch.trim()
+                  ? "Try adjusting your search."
+                  : `No ${propertyType === "rent" ? "rental" : "sale"} properties yet.`
                 }
               </p>
               {propertySearch.trim() && (
                 <button
                   onClick={() => setPropertySearch("")}
-                  className="px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
                 >
                   Clear Search
                 </button>
               )}
             </div>
           ) : (
-            <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-              {sortedProperties.map((property) => (
-              <div 
-                key={property.id} 
-                className="glass-panel overflow-hidden shadow-sm border border-white/40 hover:shadow-2xl hover:-translate-y-2 hover:border-white transition-all duration-500 block group w-full relative"
-              >
-                {/* Selection Checkbox */}
-                {selectionMode && (
-                  <div className="absolute top-3 left-3 z-10">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        togglePropertySelection(property.id);
-                      }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-lg ${
-                        selectedProperties.has(property.id)
-                          ? "bg-blue-600 text-white"
-                          : "bg-white/90 text-gray-600 hover:bg-white"
-                      }`}
-                    >
-                      {selectedProperties.has(property.id) ? (
-                        <CheckSquare className="w-5 h-5" />
-                      ) : (
-                        <Square className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {sortedProperties.map((property) => {
+                const daysOnMarket = property.created_at
+                  ? Math.floor((Date.now() - new Date(property.created_at).getTime()) / (1000 * 60 * 60 * 24))
+                  : null;
 
-                <Link 
+                return (
+              <div
+                key={property.id}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200 group relative"
+              >
+                {/* Checkbox on hover or in selection mode */}
+                <div className={`absolute top-2.5 left-2.5 z-10 transition-opacity ${
+                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!selectionMode) setSelectionMode(true);
+                      togglePropertySelection(property.id);
+                    }}
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors shadow-sm ${
+                      selectedProperties.has(property.id)
+                        ? "bg-gray-900 text-white"
+                        : "bg-white text-gray-400 hover:text-gray-600 border border-gray-200"
+                    }`}
+                  >
+                    {selectedProperties.has(property.id) ? (
+                      <CheckSquare className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
+                <Link
                   href={`/dashboard/property/${property.id}`}
-                  className="cursor-pointer block"
+                  className="block"
                   onClick={(e) => {
                     if (selectionMode) {
                       e.preventDefault();
@@ -1562,178 +1461,140 @@ function DashboardContent() {
                     }
                   }}
                 >
-                  {/* Property Image */}
-                  <div className="relative h-48 bg-gray-200 overflow-hidden">
-                  <img 
-                    src={
-                      property.images?.[0] 
-                        ? property.images[0].startsWith('data:image') 
-                          ? property.images[0]  // base64 image
-                          : property.images[0].includes('?') 
-                            ? property.images[0] 
-                            : `${property.images[0]}?w=800`
-                        : property.image 
-                          ? property.image.startsWith('data:image')
-                            ? property.image  // base64 image
-                            : property.image.includes('?')
+                  <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                    <img
+                      src={
+                        property.images?.[0]
+                          ? property.images[0].startsWith('data:image')
+                            ? property.images[0]
+                            : property.images[0].includes('?')
+                              ? property.images[0]
+                              : `${property.images[0]}?w=800`
+                          : property.image
+                            ? property.image.startsWith('data:image')
                               ? property.image
-                              : `${property.image}?w=800`
-                          : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'
-                    }
-                    alt={property.address}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://via.placeholder.com/800x600/e5e7eb/6b7280?text=Property+Image';
-                    }}
-                  />
-                  {/* Info Badge (Optional) */}
-                  <div className="absolute top-3 right-3 flex items-center gap-2">
-                    {property.ai_assisted !== false && (
-                      <span className="px-2 py-1 rounded-full text-xs font-bold bg-indigo-500/80 text-white backdrop-blur-sm flex items-center gap-1">
-                        <Bot className="w-3 h-3" />
-                        AI
+                              : property.image.includes('?')
+                                ? property.image
+                                : `${property.image}?w=800`
+                            : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'
+                      }
+                      alt={property.address}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = 'https://via.placeholder.com/800x600/f3f4f6/9ca3af?text=No+Image';
+                      }}
+                    />
+                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                      {property.ai_assisted !== false && (
+                        <span className="px-1.5 py-0.5 rounded-md text-xs font-medium bg-white/90 text-gray-600 backdrop-blur-sm flex items-center gap-1">
+                          <Bot className="w-3 h-3" />
+                          AI
+                        </span>
+                      )}
+                    </div>
+                    <div className="absolute bottom-2.5 left-2.5">
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-medium backdrop-blur-sm ${
+                        (property.status || '').toLowerCase() === 'available'
+                          ? 'bg-emerald-500/90 text-white'
+                          : (property.status || '').toLowerCase() === 'rented'
+                            ? 'bg-blue-500/90 text-white'
+                            : 'bg-gray-900/70 text-white'
+                      }`}>
+                        {property.status
+                          ? property.status.charAt(0).toUpperCase() + property.status.slice(1).toLowerCase()
+                          : 'Available'}
                       </span>
-                    )}
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/50 text-white backdrop-blur-sm">
-                      {property.type === 'rent' ? 'For Rent' : 'For Sale'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Property Info */}
-                <div className="p-4 flex flex-col gap-1">
-                  {/* Price */}
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-[28px] font-bold text-gray-900 tracking-tight">
-                      {formatCurrency(property.price_monthly)}
-                      {property.type === 'rent' && <span className="text-[15px] font-normal text-gray-600 ml-1 tracking-normal">/ per month</span>}
-                    </h3>
-
-                    {/* Interested Tenants Badges */}
-                    {property.chatCount > 0 && (
-                      <div className="flex items-center gap-1 flex-shrink-0 mt-1" onClick={(e) => e.preventDefault()}>
-                        <Link 
-                          href={`/dashboard/property/${property.id}?openChats=true`}
-                          className="flex -space-x-2 hover:opacity-80 transition-opacity"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {property.interestedTenants?.slice(0, 3).map((tenant: any, idx: number) => (
-                            <Avatar
-                              key={idx}
-                              src={tenant.avatar}
-                              name={tenant.name}
-                              size="sm"
-                              className="border-2 border-white"
-                            />
-                          ))}
-                          {property.chatCount > 3 && (
-                            <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-white flex items-center justify-center tracking-tight">
-                              <span className="text-white text-xs font-bold">+{property.chatCount - 3}</span>
-                            </div>
-                          )}
-                        </Link>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Subtitle */}
-                  <div className="text-gray-600 text-[15px] mb-1">
-                    Fees may apply
-                  </div>
+                  <div className="p-4">
+                    <div className="flex items-baseline gap-1 mb-1.5">
+                      <span className="text-xl font-semibold text-gray-900">
+                        {formatCurrency(property.price_monthly)}
+                      </span>
+                      {property.type === 'rent' && (
+                        <span className="text-sm text-gray-400">/mo</span>
+                      )}
+                    </div>
 
-                  {/* Details Row */}
-                  <div className="flex items-center gap-2 text-gray-900 text-[17px] mb-1">
-                    <span className="font-bold">{property.beds}</span> <span className="font-normal">bd</span>
-                    <span className="text-gray-400">|</span>
-                    <span className="font-bold">{property.baths}</span> <span className="font-normal">ba</span>
-                    {property.sqft && (
-                      <>
-                        <span className="text-gray-400">|</span>
-                        <span className="font-bold">{property.sqft}</span> <span className="font-normal">sqft</span>
-                      </>
-                    )}
-                  </div>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                      <span>{property.beds} bd</span>
+                      <span className="text-gray-300">&middot;</span>
+                      <span>{property.baths} ba</span>
+                      {property.sqft && (
+                        <>
+                          <span className="text-gray-300">&middot;</span>
+                          <span>{property.sqft} sqft</span>
+                        </>
+                      )}
+                    </div>
 
-                  {/* Address */}
-                  <div className="text-gray-800 text-[17px] truncate font-normal">
-                    {property.address}
-                    {property.city && `, ${property.city}`}
-                    {property.state && ` ${property.state}`}
-                  </div>
+                    <p className="text-sm text-gray-700 truncate mb-3">
+                      {property.address}
+                      {property.city && `, ${property.city}`}
+                      {property.state && ` ${property.state}`}
+                    </p>
 
-                  {/* Status */}
-                  <div className="text-gray-600 text-[15px]">
-                    {property.type === 'rent' ? 'For rent' : 'For sale'}
+                    <div className="flex items-center gap-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                      {property.chatCount > 0 && (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          <span className="text-gray-600 font-medium">{property.chatCount}</span> {property.chatCount === 1 ? 'inquiry' : 'inquiries'}
+                        </span>
+                      )}
+                      {daysOnMarket !== null && (
+                        <span>{daysOnMarket === 0 ? 'Listed today' : `${daysOnMarket}d on market`}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
                 </Link>
               </div>
-            ))}
+                );
+              })}
           </div>
           )}
 
-          {/* Add Property Button */}
-          <div className="mt-8 text-center">
-            <Link href="/dashboard/property/new">
-              <button className="px-8 py-4 glass-matte text-black border border-white/40 rounded-2xl font-bold hover:bg-white hover:scale-105 transition-all cursor-pointer shadow-lg shadow-black/5">
-                + Add New Property
-              </button>
-            </Link>
-          </div>
-
-          {/* Bulk Delete Confirmation Modal */}
           {showBulkDeleteModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
-                {/* Close button */}
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 relative">
                 <button
                   onClick={() => !bulkDeleting && setShowBulkDeleteModal(false)}
                   disabled={bulkDeleting}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5" />
                 </button>
 
-                {/* Icon */}
-                <div className="flex justify-center mb-6">
-                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                    <Trash2 className="w-8 h-8 text-red-600" />
-                  </div>
-                </div>
-
-                {/* Title and Message */}
-                <h3 className="text-2xl font-bold text-black text-center mb-3">
-                  Delete {selectedProperties.size} Properties?
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Delete {selectedProperties.size} {selectedProperties.size === 1 ? 'property' : 'properties'}?
                 </h3>
-                <p className="text-gray-600 text-center mb-6">
-                  Are you sure you want to delete <strong>{selectedProperties.size} properties</strong>? This action will mark them as inactive and they won't appear in your listings.
+                <p className="text-sm text-gray-500 mb-6">
+                  This will mark them as inactive. They won&apos;t appear in your listings.
                 </p>
 
-                {/* Buttons */}
-                <div className="flex gap-4">
+                <div className="flex gap-3">
                   <button
                     onClick={() => setShowBulkDeleteModal(false)}
                     disabled={bulkDeleting}
-                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleBulkDelete}
                     disabled={bulkDeleting}
-                    className="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     {bulkDeleting ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         Deleting...
                       </>
                     ) : (
-                      <>
-                        <Trash2 className="w-5 h-5" />
-                        Delete All
-                      </>
+                      'Delete'
                     )}
                   </button>
                 </div>
@@ -1826,379 +1687,14 @@ function DashboardContent() {
 
       {/* Tenants Tab */}
       {activeTab === "tenants" && (
-        <>
-          {/* Linear/Stripe-style Toolbar */}
-          <div className="mb-6">
-            {/* Main Header Row */}
-            <div className="flex items-center justify-between gap-4 mb-4">
-              {/* Left: Title + Filter Tabs */}
-              <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-bold text-black">Tenants</h2>
-                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-                  {[
-                    { key: "all", label: "All" },
-                    { key: "current", label: "Current" },
-                    { key: "pending", label: "Pending" },
-                    { key: "late", label: "Late" },
-                    { key: "archived", label: "Archived" }
-                  ].map((filter) => (
-                    <button
-                      key={filter.key}
-                      onClick={() => setTenantFilter(filter.key as any)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${
-                        tenantFilter === filter.key
-                          ? "bg-black text-white shadow-sm"
-                          : "text-gray-600 hover:bg-gray-200"
-                      }`}
-                    >
-                      {filter.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Add + Select Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setTenantSelectionMode(!tenantSelectionMode);
-                    setSelectedTenants(new Set());
-                  }}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg transition-all text-sm font-medium border ${
-                    tenantSelectionMode
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <CheckSquare className="w-4 h-4" />
-                  {tenantSelectionMode ? 'Cancel' : 'Select'}
-                </button>
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium">
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </div>
-            </div>
-
-            {/* Sub-toolbar Row (Search + Filters - Transparent) */}
-            <div className="flex items-center justify-between gap-3 mb-6">
-              {/* Search Bar (Matching Inbox Style) */}
-              <div 
-                className="flex-1 glass-matte rounded-full p-2 flex items-center border border-white/40 focus-within:border-white focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-sm hover:shadow-xl group cursor-text"
-                onClick={() => document.getElementById('tenant-search')?.focus()}
-              >
-                <div className="pl-4 pr-3 text-gray-400 group-focus-within:text-black transition-colors">
-                  <Search className="w-5 h-5" />
-                </div>
-                <input
-                  id="tenant-search"
-                  type="text"
-                  placeholder="Name, email, or property..."
-                  value={tenantSearch}
-                  onChange={(e) => setTenantSearch(e.target.value)}
-                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-base font-medium placeholder:text-gray-400 text-black h-full py-1.5"
-                />
-                <div className="pr-1 hidden sm:block">
-                  <div className="h-7 px-2.5 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center text-gray-400 group-focus-within:bg-white group-focus-within:shadow-sm group-focus-within:text-blue-500 group-focus-within:border-blue-100 transition-all">
-                    <span className="text-[10px] font-bold flex items-center gap-1">
-                      <span className="opacity-50">⌘</span>
-                      K
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Summary Row */}
-            <p className="text-sm text-gray-500">
-              {tenants.filter((t: any) => {
-                if (tenantFilter === "all") return true;
-                if (tenantFilter === "current") return t.status === "Current";
-                if (tenantFilter === "pending") return t.status === "Pending";
-                if (tenantFilter === "late") return t.status === "Late";
-                if (tenantFilter === "archived") return t.status === "Archived";
-                return true;
-              }).length} tenants
-            </p>
-          </div>
-
-            {/* Loading State */}
-            {loadingTenants ? (
-              <div className="bg-white rounded-2xl p-16 text-center">
-                <div className="w-16 h-16 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4"></div>
-                <h3 className="text-xl font-bold text-black mb-2">Loading tenants...</h3>
-                <p className="text-gray-600">Please wait while we fetch your tenants.</p>
-              </div>
-            ) : (
-              <>
-            {/* Tenants Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tenants
-                .filter((tenant) => {
-                  // Filter by search
-                  const searchLower = tenantSearch.toLowerCase();
-                  const matchesSearch = (
-                    tenant.name.toLowerCase().includes(searchLower) ||
-                    tenant.email.toLowerCase().includes(searchLower) ||
-                    tenant.property.toLowerCase().includes(searchLower)
-                  );
-
-                  // Filter by status
-                  if (tenantFilter === "all") return matchesSearch;
-                  if (tenantFilter === "current") return matchesSearch && tenant.status === "Current";
-                  if (tenantFilter === "pending") return matchesSearch && tenant.status === "Pending";
-                  if (tenantFilter === "late") return matchesSearch && tenant.status === "Late Payment";
-                  if (tenantFilter === "archived") return matchesSearch && tenant.status === "Archived";
-                  
-                  return matchesSearch;
-                })
-                .map((tenant) => (
-                  <div
-                    key={tenant.id}
-                    onClick={() => {
-                      if (tenantSelectionMode) {
-                        const next = new Set(selectedTenants);
-                        next.has(tenant.id) ? next.delete(tenant.id) : next.add(tenant.id);
-                        setSelectedTenants(next);
-                      }
-                    }}
-                    className={`glass-panel p-6 shadow-sm border border-white/40 hover:shadow-2xl hover:-translate-y-2 hover:border-white transition-all duration-500 relative ${
-                      tenantSelectionMode ? 'cursor-pointer' : ''
-                    } ${
-                      selectedTenants.has(tenant.id) ? 'ring-2 ring-black ring-offset-2' : ''
-                    }`}
-                  >
-                    {/* Selection checkbox */}
-                    {tenantSelectionMode && (
-                      <div className="absolute top-3 left-3 z-10">
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shadow-sm transition-all ${
-                          selectedTenants.has(tenant.id) ? 'bg-black text-white' : 'bg-white border-2 border-gray-300'
-                        }`}>
-                          {selectedTenants.has(tenant.id) && <CheckSquare className="w-4 h-4" />}
-                        </div>
-                      </div>
-                    )}
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          src={tenant.avatar}
-                          name={tenant.name}
-                          size="lg"
-                        />
-                        <div>
-                          <h3 className="font-bold text-black text-lg">{tenant.name}</h3>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {tenant.lead_priority && (
-                          <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${
-                            tenant.lead_priority === 'hot' ? 'bg-red-50 text-red-600 border border-red-100' :
-                            tenant.lead_priority === 'warm' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                            'bg-blue-50 text-blue-600 border border-blue-100'
-                          }`}>
-                            <TrendingUp className="w-2.5 h-2.5" />
-                            {tenant.lead_priority}
-                          </div>
-                        )}
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          tenant.status === "Current" 
-                            ? "bg-green-100 text-green-700"
-                            : tenant.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : tenant.status === "Late Payment"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}>
-                          {tenant.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Contact Info */}
-                    <div className="space-y-2 mb-4 pb-4 border-b border-white/20">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Mail className="w-4 h-4" />
-                        <span className="truncate">{tenant.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="w-4 h-4" />
-                        <span>{tenant.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{tenant.property}</span>
-                      </div>
-                    </div>
-
-                    {/* AI Insight (Lead Mode) or Lease Info */}
-                    {tenant.status === "Pending" ? (
-                      <div className="space-y-3 mb-4">
-                        <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <Sparkles className="w-3 h-3 text-indigo-500" />
-                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">AI Summary</span>
-                          </div>
-                          <p className="text-[11px] text-indigo-900/70 font-medium line-clamp-3 leading-relaxed">
-                            {tenant.ai_summary || "Gathering insights from conversation..."}
-                          </p>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                           {tenant.budget_max && (
-                             <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gray-50 border border-gray-100">
-                               <DollarSign className="w-3 h-3 text-gray-500" />
-                               <span className="text-[10px] font-bold text-gray-700">${tenant.budget_max}</span>
-                             </div>
-                           )}
-                           {tenant.move_in_date && (
-                             <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gray-50 border border-gray-100">
-                               <CalendarIcon className="w-3 h-3 text-gray-500" />
-                               <span className="text-[10px] font-bold text-gray-700">{tenant.move_in_date}</span>
-                             </div>
-                           )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Standard Lease Info */
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Rent:</span>
-                          <span className="font-semibold text-black">{tenant.rentAmount}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Lease:</span>
-                          <span className="text-gray-900">{tenant.leaseStart} - {tenant.leaseEnd}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Payment:</span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            tenant.paymentStatus === "Paid"
-                              ? "bg-green-100 text-green-700"
-                              : tenant.paymentStatus === "Pending"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {tenant.paymentStatus === "Paid" && <CheckCircle className="w-3 h-3" />}
-                            {tenant.paymentStatus === "Pending" && <Clock className="w-3 h-3" />}
-                            {tenant.paymentStatus}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <button className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm font-medium">
-                        <MessageSquare className="w-4 h-4" />
-                        Message
-                      </button>
-                      <Link href={`/dashboard/tenant/${tenant.id}`} className="flex-1">
-                        <button className="w-full px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm font-medium cursor-pointer">
-                          <FileText className="w-4 h-4" />
-                          Details
-                        </button>
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            {/* Tenant Bulk Delete Floating Bar */}
-            {tenantSelectionMode && selectedTenants.size > 0 && (
-              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
-                <div className="bg-black text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-blue-400" />
-                    <span className="font-semibold text-lg">{selectedTenants.size} selected</span>
-                  </div>
-                  <div className="h-6 w-px bg-gray-600" />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (selectedTenants.size === tenants.length) {
-                          setSelectedTenants(new Set());
-                        } else {
-                          setSelectedTenants(new Set(tenants.map(t => t.id)));
-                        }
-                      }}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-all"
-                    >
-                      {selectedTenants.size === tenants.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                    <button
-                      onClick={() => setShowTenantDeleteModal(true)}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Empty state */}
-            {tenants.filter((tenant) => {
-              const searchLower = tenantSearch.toLowerCase();
-              const matchesSearch = (
-                tenant.name.toLowerCase().includes(searchLower) ||
-                tenant.email.toLowerCase().includes(searchLower) ||
-                tenant.property.toLowerCase().includes(searchLower)
-              );
-
-              if (tenantFilter === "all") return matchesSearch;
-              if (tenantFilter === "current") return matchesSearch && tenant.status === "Current";
-              if (tenantFilter === "pending") return matchesSearch && tenant.status === "Pending";
-              if (tenantFilter === "late") return matchesSearch && tenant.status === "Late Payment";
-              if (tenantFilter === "archived") return matchesSearch && tenant.status === "Archived";
-              
-              return matchesSearch;
-            }).length === 0 && (
-              <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-200 text-center">
-                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                  <Users className="w-10 h-10 text-gray-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-black mb-2">No tenants found</h3>
-                <p className="text-gray-600">
-                  {tenantSearch ? "Try adjusting your search terms." : "Add your first tenant to get started."}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Tenant Delete Confirmation Modal */}
-        {showTenantDeleteModal && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border border-gray-100">
-              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Trash2 className="w-8 h-8 text-red-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2 tracking-tight">Delete Tenants?</h3>
-              <p className="text-gray-400 text-center mb-8 text-xs font-medium leading-relaxed">
-                Are you sure? This will permanently delete {selectedTenants.size} tenant{selectedTenants.size > 1 ? 's' : ''} and all their messages. This action cannot be undone.
-              </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setShowTenantDeleteModal(false)}
-                  className="flex-1 py-4 px-6 rounded-xl font-bold uppercase tracking-wider text-[10px] text-gray-500 bg-gray-50 hover:bg-gray-100 transition-all active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteTenants}
-                  disabled={deletingTenants}
-                  className="flex-1 py-4 px-6 bg-red-600 text-white rounded-xl font-bold uppercase tracking-wider text-[10px] hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {deletingTenants ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-    )}
+        <TenantsView
+          onToast={(msg) => {
+            setToastMessage(msg);
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 4000);
+          }}
+        />
+      )}
 
       {/* Calendar Tab */}
       {activeTab === "calendar" && (

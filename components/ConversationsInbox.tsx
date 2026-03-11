@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Mail, X, Send, Clock, MessageSquare, Trash2, CheckSquare, 
   Bot, Sparkles, RefreshCw, Search, Home, Phone, 
   MessageCircle, FileText, Globe, User, Filter, AlertCircle,
-  MoreVertical, ChevronRight, Hash, Inbox, Flag, Layout, ChevronDown,
+  MoreVertical, ChevronRight, ChevronLeft, Hash, Inbox, Flag, Layout, ChevronDown,
   PanelLeftClose, PanelLeftOpen, ChevronsLeft, ChevronsRight,
   DollarSign, Calendar, ChevronUp, MapPin, ExternalLink,
-  Star, CornerUpLeft, ArrowUpRight, Zap
+  Star, CornerUpLeft, ArrowUpRight, Zap, Maximize2
 } from 'lucide-react';
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -283,8 +284,15 @@ function PropertyCardImage({ propId, inlineImage, alt }: { propId?: string; inli
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
-        const img = data?.images?.[0] || data?.image || '';
-        if (img) setSrc(img);
+        const prop = data?.property || data;
+        const imgs = Array.isArray(prop?.images) ? prop.images : [];
+        let resolved = '';
+        for (let i = 0; i < imgs.length; i++) {
+          if (typeof imgs[i] === 'string' && imgs[i].startsWith('http')) { resolved = imgs[i]; break; }
+          if (typeof imgs[i] === 'string' && imgs[i].startsWith('data:')) { resolved = `/api/property-image/${propId}?idx=${i}`; break; }
+        }
+        if (!resolved) resolved = prop?.image || '';
+        if (resolved) setSrc(resolved);
         setLoaded(true);
       })
       .catch(() => { if (!cancelled) setLoaded(true); });
@@ -299,6 +307,143 @@ function PropertyCardImage({ propId, inlineImage, alt }: { propId?: string; inli
       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
       onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
     />
+  );
+}
+
+function PhotoLightbox({ images, initialIndex, onClose, address }: {
+  images: string[];
+  initialIndex: number;
+  onClose: () => void;
+  address: string;
+}) {
+  const [idx, setIdx] = useState(initialIndex);
+  const [mounted, setMounted] = useState(false);
+  const total = images.length;
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') setIdx(i => (i + 1) % total);
+      if (e.key === 'ArrowLeft') setIdx(i => (i - 1 + total) % total);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [total, onClose]);
+
+  const content = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black" onClick={onClose}>
+      <div className="absolute top-5 right-5 flex items-center gap-3 z-10">
+        <span className="text-white/60 text-sm font-medium">{idx + 1} / {total}</span>
+        <button onClick={onClose} className="text-white/60 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="absolute top-5 left-5 z-10">
+        <span className="text-white/70 text-sm font-medium">{address}</span>
+      </div>
+      {total > 1 && (
+        <>
+          <button
+            onClick={e => { e.stopPropagation(); setIdx(i => (i - 1 + total) % total); }}
+            className="absolute left-5 top-1/2 -translate-y-1/2 z-10 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); setIdx(i => (i + 1) % total); }}
+            className="absolute right-5 top-1/2 -translate-y-1/2 z-10 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </>
+      )}
+      <img
+        src={images[idx]}
+        alt={`${address} — photo ${idx + 1}`}
+        className="max-h-[90vh] max-w-[92vw] object-contain select-none"
+        onClick={e => e.stopPropagation()}
+        onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'; }}
+      />
+      {total > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={e => { e.stopPropagation(); setIdx(i); }}
+              className={`w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!mounted) return null;
+  return createPortal(content, document.body);
+}
+
+function PropertyCardCarousel({ images, address }: { images: string[]; address: string }) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const total = images.length;
+
+  if (total === 0) return null;
+
+  return (
+    <>
+      <div className="relative h-40 bg-gray-100 group/carousel">
+        <img
+          src={images[currentIdx]}
+          alt={`${address} — photo ${currentIdx + 1}`}
+          className="w-full h-full object-cover cursor-pointer"
+          onClick={() => setLightboxOpen(true)}
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800'; }}
+        />
+        {total > 1 && (
+          <>
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setCurrentIdx(i => (i - 1 + total) % total); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm text-gray-700 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setCurrentIdx(i => (i + 1) % total); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm text-gray-700 opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {images.map((_, i) => (
+                <span key={i} className={`block w-1.5 h-1.5 rounded-full transition-all ${i === currentIdx ? 'bg-white shadow-sm' : 'bg-white/50'}`} />
+              ))}
+            </div>
+          </>
+        )}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+          {total > 1 && (
+            <span className="bg-black/50 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
+              {currentIdx + 1}/{total}
+            </span>
+          )}
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); setLightboxOpen(true); }}
+            className="bg-black/50 hover:bg-black/70 text-white p-1 rounded-full backdrop-blur-sm opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      {lightboxOpen && (
+        <PhotoLightbox images={images} initialIndex={currentIdx} onClose={() => setLightboxOpen(false)} address={address} />
+      )}
+    </>
   );
 }
 
@@ -320,6 +465,8 @@ export default function ConversationsInbox() {
   const [syncing, setSyncing] = useState(false);
   const [isSyncingManual, setIsSyncingManual] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [awaitingAI, setAwaitingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([
     { id: '1', label: 'Context Analysis', status: 'pending', iconType: 'analyze', description: "Analyzing the client's intent and previous conversation history to understand the exact requirements..." },
     { id: '2', label: 'Knowledge Retrieval', status: 'pending', iconType: 'search', description: "Accessing the property database to find available listings that match the client's criteria and price range..." },
@@ -352,7 +499,7 @@ export default function ConversationsInbox() {
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [showAIOverview, setShowAIOverview] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'attention' | 'hot' | 'viewings'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all'>('all');
 
   // Activity Events State (Mock for now)
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([
@@ -398,12 +545,12 @@ export default function ConversationsInbox() {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or when AI starts thinking
   useEffect(() => {
-    if (conversationMessages.length > 0) {
+    if (conversationMessages.length > 0 || awaitingAI) {
       scrollToBottom('smooth');
     }
-  }, [conversationMessages]);
+  }, [conversationMessages, awaitingAI]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -641,6 +788,10 @@ export default function ConversationsInbox() {
           const newMsg = payload.new;
           const openTenantId = selectedConversationRef.current?.tenant_id;
           if (newMsg && openTenantId && newMsg.tenant_id === openTenantId) {
+            if (newMsg.sender_type === 'landlord') {
+              setAwaitingAI(false);
+            }
+
             // If Realtime payload is missing message_text (too large), fetch from API
             if (!newMsg.message_text && newMsg.is_ai_response) {
               console.log('📨 Realtime: AI message missing text (payload too large), fetching from API...');
@@ -819,6 +970,8 @@ export default function ConversationsInbox() {
       };
       setConversationMessages(prev => [...prev, optimisticMsg]);
       setReplyText('');
+      setAwaitingAI(true);
+      setAiError(null);
 
       fetch('/api/simulate', {
         method: 'POST',
@@ -830,10 +983,18 @@ export default function ConversationsInbox() {
           message: messageText,
           tenantId: selectedConversation.tenant_id,
         }),
-      }).then(() => {
+      }).then((res) => {
+        if (!res.ok) {
+          setAiError(`AI response failed (${res.status}). Try again.`);
+          setAwaitingAI(false);
+        }
         fetchConversations(false);
       }).catch(err => {
         console.error('Simulate error:', err);
+        setAiError('Failed to reach AI. Check your connection and try again.');
+        setAwaitingAI(false);
+      }).finally(() => {
+        setAwaitingAI(false);
       });
       return;
     }
@@ -1020,9 +1181,6 @@ export default function ConversationsInbox() {
   // Filter conversations by search query
   const filteredConversations = conversations.filter((conversation: Conversation) => {
     // 1. Smart Filter
-    if (activeFilter === 'attention' && conversation.unread_count === 0) return false;
-    if (activeFilter === 'hot' && conversation.tenant?.lead_priority !== 'hot' && (conversation.tenant?.lead_score || 0) < 80) return false;
-    if (activeFilter === 'viewings' && conversation.tenant?.qualification_status !== 'Tour Scheduled') return false;
 
     // 2. Source Filter
     if (selectedSource !== 'all' && conversation.source !== selectedSource) return false;
@@ -1243,31 +1401,24 @@ export default function ConversationsInbox() {
             </div>
           </div>
 
-          {/* Filters Bar - Enhanced with Counters */}
-          <div className="px-4 py-3 border-b border-gray-100 overflow-x-auto scrollbar-hide">
+          {/* Filters Bar */}
+          <div className="px-4 py-3 border-b border-gray-100">
             <nav className="flex items-center gap-2">
-              {[
-                { id: 'all', label: 'All', icon: null, count: totalUnread, activeClass: 'bg-black text-white shadow-sm' },
-                { id: 'attention', label: 'Urgent', icon: AlertCircle, count: conversations.filter(c => c.unread_count > 0).length, color: 'text-orange-500', activeClass: 'bg-orange-500 text-white shadow-sm' },
-                { id: 'hot', label: 'Hot', icon: Sparkles, count: conversations.filter(c => c.tenant?.lead_priority === 'hot' || (c.tenant?.lead_score || 0) >= 80).length, color: 'text-indigo-500', activeClass: 'bg-indigo-600 text-white shadow-sm' },
-                { id: 'viewings', label: 'Tours', icon: Calendar, count: conversations.filter(c => c.tenant?.qualification_status === 'Tour Scheduled').length, color: 'text-emerald-500', activeClass: 'bg-emerald-600 text-white shadow-sm' }
-              ].map(f => (
-                <button 
-                  key={f.id}
-                  onClick={() => setActiveFilter(f.id as any)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all shrink-0 ${activeFilter === f.id ? f.activeClass : 'text-gray-500 hover:text-black hover:bg-gray-50'}`}
-                >
-                  {f.icon && <f.icon className={`w-3.5 h-3.5 ${activeFilter === f.id ? 'text-white' : f.color}`} />}
-                  <span>{f.label}</span>
-                  {f.count > 0 && (
-                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                      activeFilter === f.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {f.count}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {(() => {
+                const unreadChats = conversations.filter(c => c.unread_count > 0).length;
+                return (
+                  <button
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-black text-white shadow-sm"
+                  >
+                    <span>All</span>
+                    {unreadChats > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center bg-white/20 text-white">
+                        {unreadChats}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
             </nav>
           </div>
 
@@ -1420,44 +1571,52 @@ export default function ConversationsInbox() {
                                     
                                     {/* Render Properties if inserted by AI */}
                                     {propertiesData && propertiesData.length > 0 && (
-                                       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-[720px]">
-                                         {propertiesData.map((prop, pIdx) => (
-                                            <Link 
-                                              href={`/dashboard/property/${prop.id}`} 
-                                              key={pIdx}
-                                              className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden bg-white hover:border-gray-300 hover:shadow-md transition-all group"
-                                            >
-                                              <div className="relative h-40 bg-gray-100">
-                                                <PropertyCardImage propId={prop.id} inlineImage={prop.image} alt={prop.address} />
-                                              </div>
-                                              <div className="p-4 flex flex-col gap-1">
-                                                <div className="flex items-start justify-between">
-                                                  <h3 className="text-xl font-bold text-gray-900 tracking-tight">
-                                                    ${Number(prop.price).toLocaleString()}
-                                                    {prop.type === 'rent' && <span className="text-sm font-normal text-gray-500 ml-1 tracking-normal">/ mo</span>}
-                                                  </h3>
-                                                </div>
-                                                <div className="text-gray-500 text-xs mb-1">Fees may apply</div>
-                                                <div className="flex items-center gap-1.5 text-gray-900 text-sm mb-1">
-                                                  <span className="font-bold">{prop.beds}</span> <span className="font-normal text-gray-500">bd</span>
-                                                  <span className="text-gray-300">|</span>
-                                                  <span className="font-bold">{prop.baths}</span> <span className="font-normal text-gray-500">ba</span>
-                                                  {prop.sqft && (
-                                                    <>
-                                                      <span className="text-gray-300">|</span>
-                                                      <span className="font-bold">{prop.sqft}</span> <span className="font-normal text-gray-500">sqft</span>
-                                                    </>
-                                                  )}
-                                                </div>
-                                                <div className="text-gray-700 text-sm truncate font-normal">
-                                                  {prop.address}{prop.city ? `, ${prop.city}` : ''}
-                                                </div>
-                                                <div className="text-gray-500 text-xs">
-                                                  {prop.type === 'rent' ? 'For rent' : 'For sale'}
-                                                </div>
-                                              </div>
-                                            </Link>
-                                         ))}
+                                       <div className="mt-6 space-y-4 max-w-[720px] flex flex-wrap gap-4">
+                                         {propertiesData.map((prop, pIdx) => {
+                                           const allImages: string[] = Array.isArray(prop.images) && prop.images.length > 0
+                                             ? prop.images
+                                             : (prop.image ? [prop.image] : []);
+                                           return (
+                                             <div
+                                               key={pIdx}
+                                               className="flex flex-col rounded-2xl border border-gray-200 overflow-hidden bg-white hover:border-gray-300 hover:shadow-md transition-all group w-full sm:w-[calc(50%-8px)]"
+                                             >
+                                               {allImages.length > 0 ? (
+                                                 <PropertyCardCarousel images={allImages} address={prop.address} />
+                                               ) : (
+                                                 <Link href={`/dashboard/property/${prop.id}`} className="relative h-40 bg-gray-100 block">
+                                                   <PropertyCardImage propId={prop.id} inlineImage={prop.image} alt={prop.address} />
+                                                 </Link>
+                                               )}
+                                               <Link href={`/dashboard/property/${prop.id}`} className="p-4 flex flex-col gap-1">
+                                                 <div className="flex items-start justify-between">
+                                                   <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                                                     ${Number(prop.price).toLocaleString()}
+                                                     {prop.type === 'rent' && <span className="text-sm font-normal text-gray-500 ml-1 tracking-normal">/ mo</span>}
+                                                   </h3>
+                                                 </div>
+                                                 <div className="text-gray-500 text-xs mb-1">Fees may apply</div>
+                                                 <div className="flex items-center gap-1.5 text-gray-900 text-sm mb-1">
+                                                   <span className="font-bold">{prop.beds}</span> <span className="font-normal text-gray-500">bd</span>
+                                                   <span className="text-gray-300">|</span>
+                                                   <span className="font-bold">{prop.baths}</span> <span className="font-normal text-gray-500">ba</span>
+                                                   {prop.sqft && (
+                                                     <>
+                                                       <span className="text-gray-300">|</span>
+                                                       <span className="font-bold">{prop.sqft}</span> <span className="font-normal text-gray-500">sqft</span>
+                                                     </>
+                                                   )}
+                                                 </div>
+                                                 <div className="text-gray-700 text-sm truncate font-normal">
+                                                   {prop.address}{prop.city ? `, ${prop.city}` : ''}
+                                                 </div>
+                                                 <div className="text-gray-500 text-xs">
+                                                   {prop.type === 'rent' ? 'For rent' : 'For sale'}
+                                                 </div>
+                                               </Link>
+                                             </div>
+                                           );
+                                         })}
                                        </div>
                                     )}
                                  </div>
@@ -1466,6 +1625,40 @@ export default function ConversationsInbox() {
                           </div>
                       );
                     })
+                  )}
+                  {awaitingAI && (
+                     <div className="px-8 py-5 border-b border-black/[0.03]">
+                        <div className="flex items-start gap-3">
+                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shrink-0">
+                              <Bot className="w-4 h-4 text-white" />
+                           </div>
+                           <div>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                 <span className="text-[13px] font-bold text-gray-900">AI Agent</span>
+                                 <span className="text-[11px] text-gray-400">is thinking...</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 py-2 px-3 bg-gray-50 rounded-xl w-fit">
+                                 <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1.2s' }} />
+                                 <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '200ms', animationDuration: '1.2s' }} />
+                                 <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '400ms', animationDuration: '1.2s' }} />
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  )}
+                  {aiError && !awaitingAI && (
+                     <div className="px-8 py-4 border-b border-black/[0.03]">
+                        <div className="flex items-center gap-3 py-2.5 px-4 bg-red-50 border border-red-100 rounded-xl">
+                           <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                           <span className="text-[13px] text-red-700">{aiError}</span>
+                           <button
+                              onClick={() => setAiError(null)}
+                              className="ml-auto text-red-400 hover:text-red-600 transition-colors"
+                           >
+                              <X className="w-3.5 h-3.5" />
+                           </button>
+                        </div>
+                     </div>
                   )}
                   {generatingAI && (
                      <div className="px-8 py-6 border-b border-black/[0.03]">
@@ -1528,15 +1721,15 @@ export default function ConversationsInbox() {
                      <div className="pb-1 pr-1">
                         <button 
                           onClick={handleReply}
-                          disabled={!replyText.trim() || sending}
+                          disabled={!replyText.trim() || sending || awaitingAI}
                           className={`h-10 px-5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 ${
                             replyMode === 'client'
                               ? 'bg-white text-gray-900 hover:bg-gray-100'
                               : 'bg-gray-900 text-white hover:bg-gray-800'
                           }`}
                         >
-                          {sending && <Sparkles className="w-3 h-3 animate-spin" style={{ animationDuration: '1.5s' }} />}
-                          {replyMode === 'client' ? 'Send as Client' : 'Send'}
+                          {(sending || awaitingAI) && <Sparkles className="w-3 h-3 animate-spin" style={{ animationDuration: '1.5s' }} />}
+                          {awaitingAI ? 'AI Thinking...' : replyMode === 'client' ? 'Send as Client' : 'Send'}
                         </button>
                      </div>
                   </div>

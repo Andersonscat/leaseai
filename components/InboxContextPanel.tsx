@@ -36,6 +36,8 @@ interface ConversationProp {
     deal_breakers?: string[];
     required_amenities?: string[];
     preferred_neighborhoods?: string[];
+    preferred_city?: string;
+    preferred_state?: string;
     needs_parking?: boolean;
   };
   property?: {
@@ -113,16 +115,30 @@ export default function InboxContextPanel({ selectedConversation, messages = [] 
   }, [messages]);
 
   const matchedProperties = useMemo(() => {
-    const aiMsgs = [...messages]
-      .filter(m => m.is_ai_response && m.message_text?.includes('---PROPERTIES_JSON---'))
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    // Aggregate properties from ALL AI messages, not just the latest one.
+    // Best Matches should reflect every property the AI has ever recommended in this conversation.
+    const aiMsgs = messages.filter(m => m.is_ai_response && m.message_text?.includes('---PROPERTIES_JSON---'));
     if (!aiMsgs.length) return [];
-    try {
-      const text = aiMsgs[0].message_text;
-      const jsonStr = text.split('---PROPERTIES_JSON---')[1]?.split('---END_PROPERTIES_JSON---')[0]?.trim();
-      if (!jsonStr) return [];
-      return JSON.parse(jsonStr) as { id: string; address: string; city?: string; state?: string; price: any; beds?: number; baths?: number; sqft?: number; image?: string }[];
-    } catch { return []; }
+    type ClusterBreakdown = { budget: number; layout: number; location: number; timeline: number; amenities: number; lifestyle: number };
+    type PropEntry = { id: string; address: string; city?: string; state?: string; price: any; beds?: number; baths?: number; sqft?: number; image?: string; images?: string[]; matchScore?: number | null; matchReason?: string | null; matchClusters?: ClusterBreakdown | null; isNearby?: boolean };
+    const byId = new Map<string, PropEntry>();
+    for (const msg of aiMsgs) {
+      try {
+        const jsonStr = msg.message_text.split('---PROPERTIES_JSON---')[1]?.split('---END_PROPERTIES_JSON---')[0]?.trim();
+        if (!jsonStr) continue;
+        const props = JSON.parse(jsonStr) as PropEntry[];
+        for (const p of props) {
+          const key = p.id || p.address;
+          const existing = byId.get(key);
+          // Keep the entry with the higher matchScore, or the newer one if scores are equal
+          if (!existing || (p.matchScore ?? 0) >= (existing.matchScore ?? 0)) {
+            byId.set(key, p);
+          }
+        }
+      } catch { /* skip malformed */ }
+    }
+    // Sort by matchScore descending
+    return [...byId.values()].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
   }, [messages]);
 
   useEffect(() => {
@@ -374,7 +390,9 @@ export default function InboxContextPanel({ selectedConversation, messages = [] 
                 const priceNum = typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/[^0-9]/g, ''));
                 const budgetMax = tenant?.budget_max;
                 let matchScore = 0;
-                if (budgetMax && !isNaN(priceNum)) {
+                if (p.matchScore != null && p.matchScore > 0) {
+                  matchScore = p.matchScore;
+                } else if (budgetMax && !isNaN(priceNum)) {
                   const ratio = priceNum / budgetMax;
                   if (ratio <= 1) matchScore = 90 + Math.round((1 - ratio) * 10);
                   else if (ratio <= 1.1) matchScore = 75;
@@ -402,11 +420,19 @@ export default function InboxContextPanel({ selectedConversation, messages = [] 
                         <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black text-white backdrop-blur-sm ${scoreColor}`}>
                           {matchScore}%
                         </div>
+                        {p.isNearby && (
+                          <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold text-blue-700 bg-blue-100/90 backdrop-blur-sm">
+                            Nearby
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className="p-2.5">
                       <div className="flex items-center gap-1.5 mb-1">
                         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                        {p.isNearby && !p.image && (
+                          <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded shrink-0">Nearby</span>
+                        )}
                         <p className="text-[10px] font-bold text-gray-800 truncate">{p.address}</p>
                         {!p.image && (
                           <span className={`ml-auto text-[10px] font-black shrink-0 ${matchScore >= 80 ? 'text-green-600' : matchScore >= 50 ? 'text-orange-500' : 'text-red-500'}`}>
@@ -437,14 +463,41 @@ export default function InboxContextPanel({ selectedConversation, messages = [] 
                           </>
                         )}
                       </div>
-                      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${matchScore}%` }}
-                          transition={{ duration: 0.8, ease: 'easeOut' }}
-                          className={`h-full rounded-full ${barColor}`}
-                        />
-                      </div>
+                      {p.matchClusters ? (
+                        <div className="space-y-0.5">
+                          {([
+                            { key: 'budget', label: 'Budget', icon: '💰' },
+                            { key: 'layout', label: 'Layout', icon: '🏠' },
+                            { key: 'location', label: 'Location', icon: '📍' },
+                          ] as const).map(({ key, label }) => {
+                            const val = p.matchClusters![key];
+                            const clColor = val >= 80 ? 'bg-green-500' : val >= 50 ? 'bg-orange-400' : 'bg-red-400';
+                            return (
+                              <div key={key} className="flex items-center gap-1.5">
+                                <span className="text-[8px] text-gray-400 w-10 text-right shrink-0">{label}</span>
+                                <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${val}%` }}
+                                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                                    className={`h-full rounded-full ${clColor}`}
+                                  />
+                                </div>
+                                <span className="text-[8px] text-gray-400 w-5 shrink-0">{val}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${matchScore}%` }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
+                            className={`h-full rounded-full ${barColor}`}
+                          />
+                        </div>
+                      )}
                     </div>
                   </motion.a>
                 );
@@ -611,6 +664,8 @@ export default function InboxContextPanel({ selectedConversation, messages = [] 
             <FieldRow label="Furnishing" value={tenant?.furnishing} icon={<Home className="w-2.5 h-2.5" />} />
             <FieldRow label="Property Type" value={tenant?.property_type} icon={<Home className="w-2.5 h-2.5" />} />
             <FieldRow label="Parking" value={tenant?.needs_parking ? 'Required' : tenant?.needs_parking === false ? 'Not needed' : undefined} icon={<MapPin className="w-2.5 h-2.5" />} />
+            <FieldRow label="City" value={tenant?.preferred_city} icon={<MapPin className="w-2.5 h-2.5" />} />
+            <FieldRow label="State" value={tenant?.preferred_state} icon={<MapPin className="w-2.5 h-2.5" />} />
           </motion.div>
         </div>
 

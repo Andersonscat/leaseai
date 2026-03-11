@@ -189,7 +189,8 @@ SCHEDULING RULES:
 - Default viewing duration: 30 minutes.
 
 PROPERTY RECOMMENDATIONS:
-- When recommending properties, present up to 3-5 matches with brief highlights for each.
+- When recommending properties for the **first time**, present the **top 2–3 best matches** only. Do NOT dump all available options — this overwhelms the client. Quality over quantity.
+- If the client has **already seen properties** and asks for more options ("what else?", "any other?", "show more"), you may then present 2–3 additional ones.
 - For each property, mention: address, price, bedrooms, and one unique selling point from the description.
 - If you decide to recommend properties, set action to "send_listing" with property addresses in "listing_addresses". The system will AUTOMATICALLY display property cards with photos directly in the chat — you do NOT need to send photos manually.
 - Always explain WHY each property is a good fit for this specific client.
@@ -229,67 +230,17 @@ CRITICAL LOGIC RULES:
 4. **MATCH HONESTY RULES (CRITICAL)**:
    - A property can only be called an "excellent" or "perfect" match if ALL TIER 1 fields are known AND confirmed to match.
    - If Lease Duration is unknown: You MUST NOT use words like "perfectly", "excellent match", "ideal" or "aligns perfectly". Instead say "This looks like a **preliminary match** based on what we know so far."
-   - **PROPERTY SCORES in extractedData**: If Lease Duration is still unknown, the max score for any property should be **70**. Do NOT score any property 80+ until ALL Tier 1 fields are confirmed.
+   - If Lease Duration is still unknown, use "preliminary match" language — the system handles scoring.
    - Always state explicitly WHAT you are matching on (e.g., "This matches your $2,500 budget and 2-bedroom requirement") — never make blanket claims like "aligns with all your requirements" if there are still unknowns.
 
-5. **SCORING FORMULA (MANDATORY — apply this exact algorithm for every propertyMatches score)**:
+5. **PROPERTY MATCHING (SYSTEM-HANDLED)**:
+   - Property scoring and ranking is done automatically by the system. You do NOT compute propertyMatches scores.
+   - When you want to recommend properties, set action to "send_listing". The system will display the best matches (3-5) based on budget, bedrooms, pets, availability, and features.
+   - In your reply text: mention properties from the database that fit the client's criteria. Present them in order of fit (best first). Include nearby metro areas (e.g. Bothell for Seattle) when they match budget/bedrooms.
+   - If a property is over budget, acknowledge it: "I know this is above your $X target, but..."
+   - propertyMatches in your JSON can be empty or placeholder — the system overwrites with deterministic scores.
 
-   Start at 100. Deduct points for each mismatch:
-
-   BUDGET (highest weight — non-negotiable):
-   - Price within 85%–100% of budget (sweet spot): 0 deduction — IDEAL RANGE
-   - Price 70%–84% of budget (too cheap, likely fewer features): -15 points
-   - Price below 70% of budget (far too cheap): -30 points — likely wrong tier
-   - Price 101%–110% over budget: -25 points (max score = 75)
-   - Price 111%–120% over budget: -40 points (max score = 60)
-   - Price 121%–135% over budget: -55 points (max score = 45)
-   - Price >135% over budget: -70 points (max score = 30)
-   - NEVER give a property 80+ score if its price exceeds the client's stated budget_usd. This is absolute.
-   - SWEET SPOT RULE: A property priced at 90%–100% of budget scores higher than one at 70% of budget, because clients generally want the most value they can get within their budget.
-
-   BEDROOMS:
-   - Exact match or more bedrooms than needed: 0 deduction
-   - 1 bedroom short: -40 points (serious mismatch — client stated a minimum requirement)
-   - 2+ bedrooms short: -60 points (critical mismatch — do NOT recommend unless nothing else available)
-
-   PETS:
-   - Client has no pets OR policy allows pets: 0 deduction
-   - Client has pets AND policy is no_pets: -30 points
-
-   AVAILABILITY:
-   - Available on or before client's move-in date: 0 deduction
-   - Available 1-14 days after move-in date: -10 points
-   - Available 15+ days after move-in date: -20 points
-
-   FEATURE MATCH (differentiates properties within the same budget tier):
-   - Each desired feature/amenity present in the property: +2 points (cap bonus at +10)
-   - Each deal-breaker feature present in the property: -15 points
-   - Property has more bathrooms than minimum required: +3 points (bonus quality signal)
-
-   OTHER:
-   - Incomplete Tier 1 data (any field still unknown): cap score at 70
-
-   TIEBREAKER RULE (when two properties have equal scores):
-   - Prefer the property that offers MORE value relative to budget:
-     * More matching amenities → ranks higher
-     * More bathrooms → ranks higher
-     * Higher price within budget → ranks higher (means more features for similar cost)
-   - NEVER rank a cheaper property above a better-featured same-budget property just because it's cheaper.
-   - The goal is to find the best VALUE, not the cheapest option.
-
-   LISTING ORDER (MANDATORY):
-   - ALWAYS present properties in your reply text sorted by score DESC (highest first).
-   - NEVER put an over-budget property above an in-budget property, regardless of other features.
-   - NEVER put a bedroom-mismatched property above a correctly-sized property.
-   - The order in your reply text MUST match the order in listing_addresses array MUST match score order.
-   - Example: score 100 → score 92 → score 60. Always in this order, no exceptions.
-
-   RECOMMENDATION FILTER: When sending listings, only include properties that score 55+. Do not send a property that fails the bedroom requirement (1+ bedrooms short) unless the client explicitly asks for cheaper/smaller options. If all available properties score below 55, send the top 3 with clear disclaimers about the mismatch.
-
-   EXAMPLE: Client budget $2,500. Property A = $2,350/mo, 2bd/1ba. Property B = $2,500/mo, 2bd/2ba. Both within budget, both match bedrooms → Property B ranks higher because it has more bathrooms and more value for the budget.
-   EXAMPLE: Client budget $2,500, property price $3,000 (20% over) → start 100, -40 = max 60. Even if bedrooms/pets/date all match, score cannot exceed 60.
-
-5. CLARIFICATION & ROBUSTNESS (GIBBERISH DETECTION)
+6. CLARIFICATION & ROBUSTNESS (GIBBERISH DETECTION)
    - **Ambiguous Input**: If a client's message is unclear, nonsensical, or looks like a keyboard layout error (e.g., Russian characters instead of English), DO NOT guess the meaning.
    - **Layout Errors**: Be alert for messages like "2 иувкщщщы" (which is "2 bedrooms" in Russian layout). If you suspect this, ask for clarification (max 3 times, each time slightly differently).
    - **No Blind Extraction**: NEVER record data into 'extractedData' unless you are 95% certain of its meaning. If you are unsure, leave the field null and ask for clarification.
@@ -422,10 +373,19 @@ export interface Property {
   description?: string;
   amenities?: string[];
   images?: string[];
-  // New Zillow-aligned fields
-  available_from?: string; // YYYY-MM-DD
-  pet_policy?: string; // 'allowed', 'cats_only', 'small_dogs', 'no_pets'
-  price_amount?: number; // Numeric price for easier comparison
+  // DB row fields (may differ from interface names)
+  price_monthly?: number;
+  beds?: number;
+  baths?: number;
+  bathrooms?: number;
+  sqft?: number;
+  city?: string;
+  state?: string;
+  type?: string;
+  // Zillow-aligned fields
+  available_from?: string;
+  pet_policy?: string;
+  price_amount?: number;
   parking_type?: string; 
   parking_fee?: number;
   application_fee?: number;
@@ -446,6 +406,8 @@ export interface ConversationContext {
   viewingHoursStart?: string;
   viewingHoursEnd?: string;
   defaultLanguage?: string;
+  /** Pre-computed ranked property matches (deterministic). When provided, AI must write about these properties in this order. */
+  preRankedMatches?: Array<{ address: string; score: number; reason: string; price?: any; beds?: number; baths?: number; sqft?: number }>;
 }
 
 // Function Calling Tool Definition
@@ -598,6 +560,10 @@ export async function analyzeConversation(context: ConversationContext): Promise
   const now = new Date();
   const currentDateContext = `${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
 
+  const preRankedSection = context.preRankedMatches && context.preRankedMatches.length > 0
+    ? `\nPRE-RANKED MATCHES (use EXACTLY these when recommending, in this order):\n${context.preRankedMatches.map((m, i) => `Option ${i + 1}: ${m.address} — score ${m.score}/100 — $${m.price}/mo, ${m.beds ?? '?'}bd/${m.baths ?? '?'}ba (${m.reason})`).join('\n')}\nRULE: Your reply text MUST only mention properties from this list, in order. Do NOT recommend properties not listed here.\nPHOTO REQUESTS: "option 1"/"first option" → Option 1 address; "option 2"/"second option" → Option 2 address. Set photo_mode=true and listing_addresses=[address] for photo requests.\n`
+    : '';
+
   const analysisPrompt = `
 CONTEXT:
 REALTOR_NAME: ${realtorName}${realtorCompany ? ` (${realtorCompany})` : ''}
@@ -605,7 +571,7 @@ Client: ${tenant.name} (${tenant.email})
 CURRENT DATE/TIME: ${currentDateContext}
 TIMEZONE: ${timezone}
 VIEWING HOURS: ${viewingStart}–${viewingEnd} (${timezone})
-Properties:
+${preRankedSection}Properties:
 ${propertiesText}
 
 HISTORY:
@@ -616,7 +582,7 @@ TASK:
 2. Decide on the immediate NEXT ACTION.
 3. If the client CONFIRMED a specific time for a viewing (e.g. "3pm works", "tomorrow at 4pm"), your action MUST be 'book_calendar'.
    - IMPORTANT: Use the CURRENT DATE/TIME above to resolve relative dates ("tomorrow", "next Monday", etc.) into precise ISO 8601 start_time values.
-4. If you want to recommend properties, set action to 'send_listing' and include 'listing_addresses' with property addresses. ONLY suggest properties from the PROPERTIES database provided. NEVER invent an address. If no properties are listed, or none match, do NOT invent them.
+4. If you want to recommend properties, set action to 'send_listing'. Use ONLY the properties from PRE-RANKED MATCHES above (in the given order). NEVER recommend properties not in that list.
 5. If escalation criteria are met (legal threats, discrimination complaints, emergencies, etc.), set action to 'escalate'.
 6. Return ONLY valid JSON matching this structure.
    IMPORTANT: Output fields in THIS EXACT ORDER — critical fields first so partial responses are still useful:
@@ -672,6 +638,8 @@ TASK:
       "has_guarantor": false
     },
     "location": {
+      "city": "Seattle", // ALWAYS extract if mentioned. Even from context like "Capitol Hill" → city="Seattle".
+      "state": "WA", // ALWAYS infer the US state abbreviation from the city. "Seattle" → "WA", "Austin" → "TX", "Miami" → "FL". NEVER leave blank if city is known.
       "neighborhoods_must": ["Capitol Hill", "Downtown"],
       "neighborhoods_exclude": ["SODO"],
       "text_pref": "any area",
@@ -836,15 +804,20 @@ export function maskPII(text: string): string {
 }
 
 /**
- * PHASE 3: THE VOICE (Phase 2 is execution in sync-service)
- * Generate the final email text based on what happened.
+ * PHASE 3: THE VOICE
+ * Generate the final message text. Sees ONLY selectedProperties (not the full DB).
+ * @param selectedProperties - The 1-5 properties chosen by code. Pass empty array for non-property responses.
  */
 export async function generateFinalResponse(
   context: ConversationContext, 
   analysis: AiAnalysis,
-  executionResult?: { success: boolean; data?: any; error?: string }
+  executionResult?: { success: boolean; data?: any; error?: string },
+  selectedProperties?: Property[]
 ): Promise<string> {
   console.log('🗣️ AI Voice: Generating response...');
+
+  // Use selectedProperties if provided, otherwise fall back to context.properties (backward compat)
+  const visibleProperties = selectedProperties ?? context.properties;
   
   let instructions = '';
   
@@ -867,13 +840,15 @@ export async function generateFinalResponse(
     }
   } else if (analysis.action === 'send_listing') {
     instructions = `
-    TASK: Present the recommended properties directly in your message. Give a brief summary (address, price, beds, and why it fits) for each. Mention that you are ALSO sending a detailed listing with photos in a follow-up email.
-    Properties to present: ${analysis.listing_addresses?.join(', ') || analysis.suggestedProperties?.join(', ') || 'matching properties'}
+    TASK: Present ALL ${visibleProperties.length} properties listed in the PROPERTIES section below. You MUST mention EVERY property — do NOT skip any.
+    For each property: mention its address, price, bedrooms, and one unique selling point from its description.
+    The system will automatically attach property cards with photos — do NOT mention photos or say you are sending them.
+    CRITICAL: You received ${visibleProperties.length} properties. Your reply MUST reference all ${visibleProperties.length}. If you skip any, the client will see a card with no matching description, which is confusing.
     Focus on: ${analysis.thought_process}
     `;
   } else if (analysis.action === 'escalate') {
     instructions = `
-    TASK: The situation requires human attention. Write a professional message letting the client know you are connecting them with a team member who can better assist. Do NOT attempt to resolve the issue yourself.
+    TASK: The situation requires human attention. Write a professional message letting the client know you are connecting them with a team member who can better assist.
     Reason for escalation: ${analysis.thought_process}
     `;
   } else {
@@ -885,14 +860,31 @@ export async function generateFinalResponse(
  
   const realtorName = context.realtorName || 'Agent';
   const realtorCompany2 = context.realtorCompany || '';
-  const realtorPhone = context.realtorPhone || 'Contact office for details';
   const timezone2 = context.timezone || 'America/Los_Angeles';
   const viewingStart2 = context.viewingHoursStart || '10:00';
   const viewingEnd2 = context.viewingHoursEnd || '20:00';
 
-  const propertiesText = context.properties.map(p => 
-    `- ${p.address}: $${p.price_monthly || p.price || '?'}/mo, ${p.beds ?? p.bedrooms ?? '?'} beds/${p.baths ?? p.bathrooms ?? '?'} baths. Available: ${p.available_from || 'Now'}`
-  ).join('\n');
+  // Build detailed text ONLY for selected properties (not the entire DB)
+  let propertiesText: string;
+  if (visibleProperties.length > 0) {
+    propertiesText = visibleProperties.map((p, i) => {
+      const price = p.price_monthly || p.price;
+      const beds = p.beds ?? p.bedrooms;
+      const baths = p.baths ?? p.bathrooms;
+      const amenitiesList = Array.isArray(p.amenities) && p.amenities.length > 0
+        ? `Amenities: [${p.amenities.join(', ')}].` : '';
+      const parking = p.parking_type ? `Parking: ${p.parking_type}${p.parking_fee ? ` (+$${p.parking_fee}/mo)` : ''}.` : '';
+      const desc = (p.description || '').slice(0, 400);
+      return `Option ${i + 1}:
+  Address: ${p.address}
+  Price: $${price || 'Unknown'}/month | Bedrooms: ${beds ?? 'Unknown'} | Bathrooms: ${baths ?? 'Unknown'} | Sqft: ${p.sqft || 'Unknown'}
+  Available: ${p.available_from || 'now'} | Pets: ${p.pet_policy || 'unknown'}
+  ${amenitiesList} ${parking}
+  Description: ${desc}`;
+    }).join('\n\n');
+  } else {
+    propertiesText = 'No properties selected for this response.';
+  }
 
   const historyText = context.conversationHistory.map(m => 
     `${m.role === 'user' ? 'Client' : 'You'}: ${m.content}`
@@ -904,17 +896,15 @@ export async function generateFinalResponse(
   const prompt = `
 ${QUALIFICATION_SYSTEM_PROMPT}
 
-STRICT ANTI-HALLUCINATION RULES (ABSOLUTE — CRITICAL ARBITER):
-1. DATABASE-ONLY OUTPUT: Every property fact (address, price, bedrooms, description, pet policy, fees, availability, amenities) MUST exist verbatim in the PROPERTIES DATABASE below. Zero tolerance.
-2. NO INVENTION: Do NOT invent, estimate, or paraphrase property data. Copy facts directly from the database.
-3. NO MATCH = HONEST: If no properties fit, say so clearly. Do NOT create a hypothetical listing.
-4. NO EXTERNAL DATA: Do not reference any URLs, images, listings, or services not in the database.
-5. FEATURE LOOKUP (CRITICAL): When asked about any feature, scan EVERY property's description AND amenities array first. Give a clear YES/NO answer per property. Only defer to "viewing" for subjective/conditional details — NEVER for factual presence/absence of a feature.
-6. PRICE PRECISION: State prices exactly as they appear in the database. Do not round or modify.
-7. NO MEDIA: NEVER include image URLs or photo references in your reply text.
+ANTI-HALLUCINATION (ABSOLUTE):
+You may ONLY reference property data from the PROPERTIES section below. These are the ONLY properties you know about.
+- FORBIDDEN: Inventing, guessing, or inferring ANY property attribute not listed below.
+- FORBIDDEN: Including image URLs or photo references in your text.
+- If asked about a feature: check Description and Amenities below. Answer YES/NO factually. If not listed, offer to check with the landlord.
+- PRICE PRECISION: State prices exactly as shown. Do not round.
 
-PROPERTIES DATABASE:
-${propertiesText || 'No properties available at the moment.'}
+PROPERTIES (these are the ONLY properties you may reference):
+${propertiesText}
 
 CONVERSATION CONTEXT:
 REALTOR_NAME: ${realtorName}${realtorCompany2 ? ` (${realtorCompany2})` : ''}
@@ -928,9 +918,9 @@ ${historyText}
 INSTRUCTIONS:
 ${instructions}
 
- 
- Style: Professional, concise, and helpful. 
- (CRITICAL: Just write the conversational message body. Do NOT try to format links or contact info yourself — another system will append the details automatically).
+Style: Professional, concise, and helpful. Match the client's language (Russian → Russian, English → English).
+(CRITICAL: Just write the conversational message body. Do NOT format links or contact info — another system appends those automatically.)
+NEVER append "Equal Housing Opportunity" or any legal disclaimer to your message.
 
 Generate ONLY the message body text. No JSON, no extra formatting.
 `;
@@ -939,7 +929,7 @@ Generate ONLY the message body text. No JSON, no extra formatting.
     const result = await generateContentWithRetry(geminiModel, prompt);
     return result.response.text();
   } catch (error) {
-    console.error('❌ Phase 2 Generation failed:', error);
+    console.error('❌ AI Voice failed:', error);
     const firstName = (context.tenant.name || 'there').split(' ')[0];
     return `Hi ${firstName}, thanks for your message! I'm just a moment away — let me pull up the details for you.`;
   }
@@ -992,8 +982,7 @@ export async function verifyResponseHallucinations(
 }
 
 /**
- * Calculate lead score based on tenant data
- * Simple scoring system (0-10)
+ * Calculate lead score based on tenant data completeness (0-100).
  */
 export function calculateLeadScore(tenant: Partial<TenantData> & Record<string, any>): number {
   let points = 0;
@@ -1038,64 +1027,576 @@ export function calculateLeadScore(tenant: Partial<TenantData> & Record<string, 
  * Get lead quality label from score
  */
 export function getLeadQuality(score: number): 'hot' | 'warm' | 'cold' {
-  if (score >= 70) return 'hot';
-  if (score >= 40) return 'warm';
+  if (score >= 80) return 'hot';
+  if (score >= 50) return 'warm';
   return 'cold';
 }
 
 /**
- * Simple property matching logic
- * Matches based on price (budget) and bedrooms
+ * Flatten nested extractedData (from AI) to flat tenant fields for scoring
  */
-export function matchProperties(tenant: Partial<TenantData>, properties: Property[]): Property[] {
-  if (!properties || properties.length === 0) return [];
-  
-  // If no requirements, return random top 3
-  if (!tenant.budget && !tenant.requirements) {
-    return properties.slice(0, 3);
+export function flattenExtractedData(ed: Record<string, any> | null | undefined): Record<string, any> {
+  if (!ed || typeof ed !== 'object') return {};
+  const flat: Record<string, any> = {};
+  const budgetVal = ed.budget?.budget_usd ?? ed.budget?.max_monthly_rent ?? ed.budget_max;
+  if (budgetVal != null) flat.budget_max = budgetVal;
+  const moveIn = ed.timeline?.move_in_date ?? ed.move_in_date;
+  if (moveIn) flat.move_in_date = moveIn;
+  if (ed.timeline?.lease_term_ideal_months) flat.lease_duration = `${ed.timeline.lease_term_ideal_months}_months`;
+  const bedrooms = ed.housing?.bedrooms_min;
+  if (bedrooms != null) flat.bedrooms = bedrooms;
+  const bathrooms = ed.housing?.bathrooms_min;
+  if (bathrooms != null) flat.bathrooms = bathrooms;
+  // Furnished: check housing.furnished first, then fall back to desired_features containing "furnished"
+  if (ed.housing?.furnished) {
+    flat.furnishing = ed.housing.furnished;
+  } else if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.includes('furnished')) {
+    flat.furnishing = 'yes';
   }
-  
-  return properties.filter(p => {
-    // 1. Budget check
-    if (tenant.budget) {
-      // Prefer price_amount if available, else parse string
-      const priceNum = p.price_amount ?? parseInt(p.price.replace(/[^0-9]/g, ''));
-      const budgetNum = parseInt(tenant.budget.replace(/[^0-9]/g, ''));
-      
-      if (!isNaN(budgetNum) && !isNaN(priceNum)) {
-        // Allow properties up to 10% over budget
-        if (priceNum > budgetNum * 1.1) return false;
-      }
-    }
+  if (Array.isArray(ed.housing?.property_types) && ed.housing.property_types.length > 0) {
+    flat.property_type = ed.housing.property_types[0];
+  }
+  const occupants = ed.occupants?.total_count;
+  if (occupants != null) flat.num_occupants = occupants;
+  if (ed.pets?.has_pets !== undefined) flat.has_pets = ed.pets.has_pets;
+  else if (ed.has_pets !== undefined) flat.has_pets = ed.has_pets;
+  if (Array.isArray(ed.amenities?.desired_features) && ed.amenities.desired_features.length > 0) {
+    flat.must_haves = ed.amenities.desired_features;
+  }
+  if (Array.isArray(ed.amenities?.deal_breakers) && ed.amenities.deal_breakers.length > 0) {
+    flat.deal_breakers = ed.amenities.deal_breakers;
+  }
+  // Parking: check parking.required or desired_features containing a parking key
+  if (ed.amenities?.parking?.required === 'required') {
+    flat.needs_parking = true;
+  } else if (Array.isArray(ed.amenities?.desired_features) &&
+    ed.amenities.desired_features.some((f: string) => f.includes('parking'))) {
+    flat.needs_parking = true;
+  }
+  if (Array.isArray(ed.location?.neighborhoods_must) && ed.location.neighborhoods_must.length > 0) {
+    flat.preferred_neighborhoods = ed.location.neighborhoods_must;
+  }
+  if (ed.location?.city && typeof ed.location.city === 'string' && ed.location.city.trim()) {
+    flat.preferred_city = ed.location.city.trim();
+  }
+  if (ed.location?.state && typeof ed.location.state === 'string' && ed.location.state.trim()) {
+    flat.preferred_state = ed.location.state.trim();
+  }
+  return flat;
+}
 
-    // 2. Availability Date Check (New Zillow Data)
-    if (tenant.move_in_date && p.available_from) {
-      const moveIn = new Date(tenant.move_in_date);
-      const available = new Date(p.available_from);
-      
-      // If property available AFTER move-in date, it's a mismatch
-      // (Allow 7 day buffer for flexibility)
-      const buffer = 7 * 24 * 60 * 60 * 1000;
-      if (available.getTime() > moveIn.getTime() + buffer) {
-        return false;
-      }
+/** Tenant + property types for scoring (accept DB shape) */
+type TenantLike = Partial<TenantData> & Record<string, any>;
+type PropertyLike = Record<string, any>;
+
+// ─── CLUSTER WEIGHTS ────────────────────────────────────────────────────────
+// Location is the heaviest because you can negotiate price, move-in date,
+// even room count — but you cannot move a building to another place.
+const CLUSTER_WEIGHTS = {
+  budget:    0.20,
+  layout:    0.15,
+  location:  0.35,
+  timeline:  0.10,
+  amenities: 0.10,
+  lifestyle: 0.10,
+} as const;
+
+export interface ClusterBreakdown {
+  budget:    number;
+  layout:    number;
+  location:  number;
+  timeline:  number;
+  amenities: number;
+  lifestyle: number;
+}
+
+export interface ScoringResult {
+  score: number;
+  reason: string;
+  clusters: ClusterBreakdown;
+  disqualified?: string;
+  isNearby?: boolean;
+}
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function parsePetPolicy(raw: string): boolean {
+  const p = raw.toLowerCase();
+  return p.includes('no_pet') || p === 'no_pets' || p === 'no pets' || p.includes('no pets allowed');
+}
+
+function collectAllFeatures(property: PropertyLike): string[] {
+  const desc = (property.description || '').toLowerCase();
+  const amenities = Array.isArray(property.amenities)
+    ? property.amenities.map((a: any) => String(a).toLowerCase()) : [];
+  const features = property.features
+    ? (Array.isArray(property.features) ? property.features : Object.values(property.features))
+        .map((f: any) => String(f).toLowerCase())
+    : [];
+  return [...amenities, ...features, desc];
+}
+
+function isPropFurnished(property: PropertyLike, allFeatures: string[]): boolean {
+  return allFeatures.some(f => f.includes('furnished')) ||
+    property.furnished === true || String(property.furnished || '').toLowerCase() === 'yes';
+}
+
+// ─── STATE INFERENCE FROM PROPERTY PORTFOLIO ────────────────────────────────
+// Hardcoded city→state tables are unsafe because many US cities share names
+// across states (Portland OR/ME, Springfield IL/MA/MO, Arlington TX/VA, etc.).
+// Instead we infer the state from the landlord's own property portfolio —
+// if they have a property in "Seattle, WA" and the client says "Seattle",
+// we know the client means WA.
+
+/**
+ * Infer the US state from a city name by cross-referencing the landlord's
+ * property portfolio. Returns the state abbreviation (lowercase) if exactly
+ * one state matches, or null if ambiguous / no match.
+ */
+export function inferStateFromProperties(city: string, properties: PropertyLike[]): string | null {
+  if (!city || !properties?.length) return null;
+  const cityLow = city.toLowerCase().trim();
+
+  const matchingStates = new Set<string>();
+  for (const p of properties) {
+    const propCity = (p.city || '').toString().toLowerCase().trim();
+    const propState = (p.state || '').toString().toLowerCase().trim();
+    if (propCity && propState && propCity === cityLow) {
+      matchingStates.add(propState);
     }
-    
-    // 3. Pet Policy Check
-    if (tenant.has_pets && p.pet_policy === 'no_pets') {
-      return false;
+  }
+
+  // Unambiguous: exactly one state has a property in that city
+  if (matchingStates.size === 1) {
+    return Array.from(matchingStates)[0];
+  }
+
+  // Fallback: if no property directly matches the city, check if ALL
+  // properties are in one state — the client likely means that state.
+  if (matchingStates.size === 0) {
+    const allStates = new Set<string>();
+    for (const p of properties) {
+      const s = (p.state || '').toString().toLowerCase().trim();
+      if (s) allStates.add(s);
     }
-    
-    // 4. Bedroom check
-    if (tenant.requirements) {
-      const reqLower = tenant.requirements.toLowerCase();
-      if (reqLower.includes('studio') && p.bedrooms !== 0) return false;
-      if (reqLower.includes('1 bed') && p.bedrooms < 1) return false;
-      if (reqLower.includes('2 bed') && p.bedrooms < 2) return false;
+    if (allStates.size === 1) return Array.from(allStates)[0];
+  }
+
+  return null; // ambiguous — don't guess
+}
+
+// ─── HARD DISQUALIFIERS (pre-filter) ────────────────────────────────────────
+
+function checkHardDisqualifiers(
+  tenant: TenantLike,
+  property: PropertyLike,
+  allFeatures: string[]
+): string | null {
+  const tenantState = (tenant.preferred_state || '').toString().toLowerCase().trim();
+  const propState = (property.state || '').toString().toLowerCase().trim();
+
+  // Note: if preferred_state is empty, state disqualification is skipped.
+  // State inference happens at the API route level via inferStateFromProperties()
+  // before scoring begins, so preferred_state should already be set by then.
+  if (tenantState && propState && tenantState !== propState) {
+    return `wrong state (want ${tenant.preferred_state}, property in ${property.state || 'unknown'})`;
+  }
+
+  const hasPets = tenant.has_pets === true;
+  const petPolicy = (property.pet_policy || property.pets || '').toString();
+  if (hasPets && parsePetPolicy(petPolicy)) {
+    return 'no pets allowed (hard disqualify)';
+  }
+
+  const dealBreakers = Array.isArray(tenant.deal_breakers) ? tenant.deal_breakers : [];
+  for (const db of dealBreakers) {
+    const term = String(db).toLowerCase();
+    if (allFeatures.some(ff => ff.includes(term))) {
+      return `deal-breaker present: ${term}`;
     }
-    
-    return true;
-  }).slice(0, 5); // Return top 5 matches
+  }
+
+  return null;
+}
+
+function matchesCity(tenantCity: string, propCity: string, propAddr: string): boolean {
+  if (!tenantCity) return false;
+  return propCity === tenantCity
+    || propCity.includes(tenantCity)
+    || tenantCity.includes(propCity)
+    || propAddr.includes(tenantCity);
+}
+
+// ─── CLUSTER SCORING FUNCTIONS ──────────────────────────────────────────────
+// Each returns 0.0–1.0 and a reason string
+
+function scoreBudgetCluster(tenant: TenantLike, property: PropertyLike): { value: number; reason: string } {
+  const budgetMax = tenant.budget_max != null
+    ? Number(tenant.budget_max)
+    : (tenant.budget ? parseInt(String(tenant.budget).replace(/[^0-9]/g, ''), 10) : null);
+  const priceNum = property.price_monthly ?? property.price_amount
+    ?? parseInt(String(property.price || '0').replace(/[^0-9]/g, ''));
+
+  if (budgetMax == null || isNaN(priceNum) || budgetMax <= 0) {
+    return { value: 0.5, reason: 'budget unknown' };
+  }
+
+  const ratio = priceNum / budgetMax;
+
+  if (ratio <= 0.60) return { value: 0.55, reason: 'far below budget' };
+  if (ratio <= 0.70) return { value: 0.70, reason: 'below budget' };
+  if (ratio <= 0.85) return { value: 0.85, reason: 'under budget' };
+  if (ratio <= 1.00) return { value: 1.00, reason: 'within budget' };
+  if (ratio <= 1.05) return { value: 0.80, reason: 'slightly over budget' };
+  if (ratio <= 1.10) return { value: 0.60, reason: '5-10% over budget' };
+  if (ratio <= 1.20) return { value: 0.30, reason: '10-20% over budget' };
+  return { value: 0.0, reason: 'far over budget (>20%)' };
+}
+
+function scoreLayoutCluster(tenant: TenantLike, property: PropertyLike): { value: number; reason: string } {
+  const bedsNeeded = tenant.bedrooms ?? null;
+  const propBeds = property.beds ?? property.bedrooms ?? 0;
+  const bathsNeeded = tenant.bathrooms ?? null;
+  const propBaths = property.baths ?? property.bathrooms ?? 0;
+  const sqftMin = tenant.sqft_min ?? null;
+  const propSqft = property.sqft ?? null;
+
+  let bedScore = 1.0;
+  let bedReason = '';
+  if (bedsNeeded != null) {
+    const diff = propBeds - bedsNeeded;
+    if (diff >= 1) { bedScore = 0.95; bedReason = 'extra bedroom'; }
+    else if (diff === 0) { bedScore = 1.0; bedReason = 'bedrooms match'; }
+    else if (diff === -1) { bedScore = 0.3; bedReason = '1 bedroom short'; }
+    else { bedScore = 0.0; bedReason = `${Math.abs(diff)} bedrooms short`; }
+  }
+
+  let bathScore = 1.0;
+  let bathReason = '';
+  if (bathsNeeded != null) {
+    if (propBaths > bathsNeeded) { bathScore = 1.0; bathReason = 'extra bathroom'; }
+    else if (propBaths === bathsNeeded) { bathScore = 1.0; bathReason = 'bathrooms match'; }
+    else { bathScore = 0.5; bathReason = 'fewer bathrooms'; }
+  }
+
+  let sqftScore = 1.0;
+  let sqftReason = '';
+  if (sqftMin != null && propSqft != null) {
+    const ratio = propSqft / sqftMin;
+    if (ratio >= 1.0) { sqftScore = 1.0; sqftReason = 'meets sqft'; }
+    else if (ratio >= 0.85) { sqftScore = 0.7; sqftReason = 'slightly small'; }
+    else if (ratio >= 0.70) { sqftScore = 0.4; sqftReason = 'undersized'; }
+    else { sqftScore = 0.1; sqftReason = 'much too small'; }
+  }
+
+  const value = bedScore * 0.60 + bathScore * 0.15 + sqftScore * 0.25;
+  const reasons = [bedReason, bathReason, sqftReason].filter(Boolean);
+  return { value: Math.min(1, value), reason: reasons.join('; ') || 'layout OK' };
+}
+
+function scoreLocationCluster(tenant: TenantLike, property: PropertyLike): { value: number; reason: string; isNearby: boolean } {
+  const tenantCity = (tenant.preferred_city || '').toString().toLowerCase().trim();
+  const propCity = (property.city || '').toString().toLowerCase().trim();
+  const propAddr = (property.address || '').toString().toLowerCase();
+  const propNeighborhood = (property.neighborhood || '').toLowerCase();
+  const reasons: string[] = [];
+  let isNearby = false;
+
+  // ── Tier 1: City matching (dominant factor) ──
+  // Exact city = 1.0 | Same state different city = 0.40 | No pref = 0.5
+  let cityScore = 0.5;
+  if (tenantCity) {
+    if (matchesCity(tenantCity, propCity, propAddr)) {
+      cityScore = 1.0;
+      reasons.push(`in ${property.city || tenantCity}`);
+    } else {
+      // Same state (hard filter already passed) but different city → "nearby"
+      cityScore = 0.40;
+      isNearby = true;
+      reasons.push(`nearby city (${property.city || 'unknown'})`);
+    }
+  }
+
+  // ── Tier 2: Neighborhood matching ──
+  const prefNeighborhoods = Array.isArray(tenant.preferred_neighborhoods)
+    ? tenant.preferred_neighborhoods.map((n: any) => String(n).toLowerCase())
+    : (typeof tenant.preferred_neighborhoods === 'string' && tenant.preferred_neighborhoods
+        ? [tenant.preferred_neighborhoods.toLowerCase()] : []);
+
+  let neighborhoodScore = 0.5;
+  if (prefNeighborhoods.length > 0) {
+    const matched = prefNeighborhoods.some((n: string) =>
+      propAddr.includes(n) || propNeighborhood.includes(n) || n.includes(propNeighborhood)
+      || propCity.includes(n) || n.includes(propCity)
+    );
+    if (matched) {
+      neighborhoodScore = 1.0;
+      reasons.push('preferred neighborhood');
+    } else {
+      neighborhoodScore = 0.15;
+      reasons.push('outside preferred area');
+    }
+  }
+
+  // ── Tier 3: Walkability/transit/bike scores ──
+  const walkScore = property.walk_score ?? null;
+  const transitScore = property.transit_score ?? null;
+  const bikeScore = property.bike_score ?? null;
+  const hasWalkabilityData = walkScore != null || transitScore != null || bikeScore != null;
+
+  let walkabilityScore = 0.5;
+  if (hasWalkabilityData) {
+    const scores = [walkScore, transitScore, bikeScore].filter((s): s is number => s != null);
+    walkabilityScore = scores.reduce((sum, s) => sum + s, 0) / (scores.length * 100);
+    reasons.push(`walkability ${Math.round(walkabilityScore * 100)}%`);
+  }
+
+  // ── Combine: city dominates (50%), neighborhood (25%), walkability (25%) ──
+  const hasCityPref = !!tenantCity;
+  const hasNeighborhoodPref = prefNeighborhoods.length > 0;
+
+  let value: number;
+  if (hasCityPref && hasNeighborhoodPref && hasWalkabilityData) {
+    value = cityScore * 0.50 + neighborhoodScore * 0.25 + walkabilityScore * 0.25;
+  } else if (hasCityPref && hasNeighborhoodPref) {
+    value = cityScore * 0.60 + neighborhoodScore * 0.40;
+  } else if (hasCityPref && hasWalkabilityData) {
+    value = cityScore * 0.65 + walkabilityScore * 0.35;
+  } else if (hasCityPref) {
+    value = cityScore;
+  } else if (hasNeighborhoodPref && hasWalkabilityData) {
+    value = neighborhoodScore * 0.65 + walkabilityScore * 0.35;
+  } else if (hasNeighborhoodPref) {
+    value = neighborhoodScore;
+  } else if (hasWalkabilityData) {
+    value = walkabilityScore;
+  } else {
+    value = 0.5;
+    reasons.push('location data limited');
+  }
+
+  return { value: Math.min(1, value), reason: reasons.join('; ') || 'location OK', isNearby };
+}
+
+function scoreTimelineCluster(tenant: TenantLike, property: PropertyLike): { value: number; reason: string } {
+  const moveIn = tenant.move_in_date ? new Date(tenant.move_in_date) : null;
+  const availableFrom = property.available_from ? new Date(property.available_from) : null;
+
+  if (!moveIn || !availableFrom || isNaN(availableFrom.getTime())) {
+    return { value: 0.5, reason: 'timeline unknown' };
+  }
+
+  const daysAfter = Math.round((availableFrom.getTime() - moveIn.getTime()) / (24 * 60 * 60 * 1000));
+
+  if (daysAfter <= 0) return { value: 1.0, reason: 'available on time' };
+  if (daysAfter <= 7) return { value: 0.8, reason: 'available within a week' };
+  if (daysAfter <= 14) return { value: 0.5, reason: 'available in 1-2 weeks' };
+  if (daysAfter <= 30) return { value: 0.2, reason: 'available in 2-4 weeks' };
+  return { value: 0.0, reason: 'available much later' };
+}
+
+function scoreAmenitiesCluster(
+  tenant: TenantLike,
+  property: PropertyLike,
+  allFeatures: string[]
+): { value: number; reason: string } {
+  const mustHaves = Array.isArray(tenant.must_haves) ? tenant.must_haves : [];
+  const tenantFurnishing = tenant.furnishing ? String(tenant.furnishing).toLowerCase() : null;
+  const wantsFurnished = tenantFurnishing === 'yes' || tenantFurnishing === 'fully_furnished' || tenantFurnishing === 'furnished'
+    || mustHaves.some((m: any) => String(m).toLowerCase() === 'furnished');
+  const propFurnished = isPropFurnished(property, allFeatures);
+
+  const reasons: string[] = [];
+  let totalChecks = 0;
+  let matchedChecks = 0;
+
+  if (wantsFurnished) {
+    totalChecks++;
+    if (propFurnished) { matchedChecks++; reasons.push('furnished'); }
+    else { reasons.push('not furnished'); }
+  }
+
+  const nonFurnishedMustHaves = mustHaves
+    .map((m: any) => String(m).toLowerCase())
+    .filter((m: string) => m !== 'furnished');
+
+  for (const term of nonFurnishedMustHaves) {
+    totalChecks++;
+    if (allFeatures.some(ff => ff.includes(term))) {
+      matchedChecks++;
+    } else {
+      reasons.push(`missing: ${term}`);
+    }
+  }
+
+  if (totalChecks === 0) return { value: 1.0, reason: 'no specific amenity requirements' };
+
+  const value = matchedChecks / totalChecks;
+  const matched = totalChecks - (totalChecks - matchedChecks);
+  reasons.unshift(`${matched}/${totalChecks} amenities matched`);
+  return { value, reason: reasons.join('; ') };
+}
+
+function scoreLifestyleCluster(
+  tenant: TenantLike,
+  property: PropertyLike,
+  allFeatures: string[]
+): { value: number; reason: string } {
+  const reasons: string[] = [];
+  let totalFactors = 0;
+  let score = 0;
+
+  const hasPets = tenant.has_pets === true;
+  if (hasPets) {
+    totalFactors++;
+    const petPolicy = (property.pet_policy || property.pets || '').toString();
+    if (!parsePetPolicy(petPolicy)) {
+      score += 1;
+      reasons.push('pets allowed');
+    }
+  }
+
+  const needsParking = tenant.needs_parking === true || tenant.parking_needed === true;
+  if (needsParking) {
+    totalFactors++;
+    const hasParking = !!property.parking_type || allFeatures.some(f => f.includes('parking') || f.includes('garage'));
+    if (hasParking) { score += 1; reasons.push('parking available'); }
+    else { reasons.push('no parking'); }
+  }
+
+  if (totalFactors === 0) return { value: 1.0, reason: 'no lifestyle constraints' };
+
+  const value = score / totalFactors;
+  return { value, reason: reasons.join('; ') || 'lifestyle OK' };
+}
+
+// ─── MAIN SCORING FUNCTION ──────────────────────────────────────────────────
+
+/**
+ * Weighted cluster-based property match score (0-100).
+ * Deterministic — no LLM involvement.
+ *
+ * Clusters (weights): Budget (0.20), Layout (0.15), Location (0.35),
+ * Timeline (0.10), Amenities (0.10), Lifestyle (0.10).
+ *
+ * Hard disqualifiers (score=0): wrong state, pets when not allowed,
+ * deal-breaker present.
+ * City mismatch is NOT a disqualifier — handled via tiered scoring in Location.
+ */
+export function scorePropertyMatch(tenant: TenantLike, property: PropertyLike): ScoringResult {
+  const allFeatures = collectAllFeatures(property);
+
+  const disqualifyReason = checkHardDisqualifiers(tenant, property, allFeatures);
+  if (disqualifyReason) {
+    return {
+      score: 0,
+      reason: disqualifyReason,
+      disqualified: disqualifyReason,
+      clusters: { budget: 0, layout: 0, location: 0, timeline: 0, amenities: 0, lifestyle: 0 },
+    };
+  }
+
+  const budget = scoreBudgetCluster(tenant, property);
+  const layout = scoreLayoutCluster(tenant, property);
+  const location = scoreLocationCluster(tenant, property);
+  const timeline = scoreTimelineCluster(tenant, property);
+  const amenities = scoreAmenitiesCluster(tenant, property, allFeatures);
+  const lifestyle = scoreLifestyleCluster(tenant, property, allFeatures);
+
+  const clusters: ClusterBreakdown = {
+    budget: Math.round(budget.value * 100),
+    layout: Math.round(layout.value * 100),
+    location: Math.round(location.value * 100),
+    timeline: Math.round(timeline.value * 100),
+    amenities: Math.round(amenities.value * 100),
+    lifestyle: Math.round(lifestyle.value * 100),
+  };
+
+  const rawScore =
+    budget.value   * CLUSTER_WEIGHTS.budget +
+    layout.value   * CLUSTER_WEIGHTS.layout +
+    location.value * CLUSTER_WEIGHTS.location +
+    timeline.value * CLUSTER_WEIGHTS.timeline +
+    amenities.value * CLUSTER_WEIGHTS.amenities +
+    lifestyle.value * CLUSTER_WEIGHTS.lifestyle;
+
+  const tier1Complete = (tenant.budget_max != null || tenant.budget != null)
+    && tenant.bedrooms != null
+    && (tenant.move_in_date != null);
+
+  let finalScore = Math.round(rawScore * 100);
+  const reasons: string[] = [];
+
+  if (!tier1Complete) {
+    finalScore = Math.min(finalScore, 70);
+    reasons.push('incomplete Tier 1 data');
+  }
+
+  const clusterReasons = [budget, layout, location, timeline, amenities, lifestyle]
+    .map(c => c.reason).filter(Boolean);
+  reasons.push(...clusterReasons);
+
+  finalScore = Math.max(0, Math.min(100, finalScore));
+
+  return {
+    score: finalScore,
+    reason: reasons.join('; ') || 'good match',
+    clusters,
+    isNearby: location.isNearby,
+  };
+}
+
+export interface RankedPropertyMatch {
+  property: PropertyLike;
+  score: number;
+  reason: string;
+  clusters?: ClusterBreakdown;
+  isNearby?: boolean;
+}
+
+const MIN_SCORE = 45;
+const INITIAL_RECOMMEND = 3;
+const MAX_RECOMMEND = 5;
+
+/**
+ * Deterministic ranked property matches. Use this instead of AI propertyMatches.
+ * @param maxResults - 3 for initial recommendation, 5 when client asks for more
+ * @param alreadyShown - addresses already shown to client (skip them unless maxResults=5)
+ */
+export function getRankedPropertyMatches(
+  tenant: TenantLike,
+  properties: PropertyLike[],
+  { maxResults = INITIAL_RECOMMEND, alreadyShown = [] }: { maxResults?: number; alreadyShown?: string[] } = {}
+): RankedPropertyMatch[] {
+  if (!properties?.length) return [];
+  const tenantBeds = tenant.bedrooms ?? null;
+  const results: RankedPropertyMatch[] = properties.map(p => {
+    const { score, reason, clusters, isNearby } = scorePropertyMatch(tenant, p);
+    return { property: p, score, reason, clusters, isNearby };
+  });
+  const sorted = [...results].sort((a, b) => b.score - a.score);
+  const eligible = sorted.filter(r => r.score > 0);
+  const qualified = eligible.filter(r => r.score >= MIN_SCORE);
+  const pool = qualified.length > 0 ? qualified : (
+    eligible.length > 0
+      ? eligible.slice(0, 3).map(r => ({ ...r, reason: r.reason + '; best available (low match)' }))
+      : []
+  );
+  let candidates: RankedPropertyMatch[];
+  if (alreadyShown.length > 0) {
+    const seen = new Set(alreadyShown.map(a => a.toLowerCase()));
+    const newOnes = pool.filter(r => !seen.has(r.property.address?.toLowerCase()));
+    candidates = newOnes.length > 0 ? newOnes.slice(0, maxResults) : pool.slice(0, maxResults);
+  } else {
+    candidates = pool.slice(0, maxResults);
+  }
+  if (tenantBeds != null) {
+    const hasMismatch = (r: RankedPropertyMatch) => (r.property.beds ?? r.property.bedrooms ?? 0) < tenantBeds;
+    const good = candidates.filter(r => !hasMismatch(r));
+    const mismatch = candidates.filter(r => hasMismatch(r));
+    return [...good, ...mismatch].slice(0, maxResults);
+  }
+  return candidates;
 }
 
 /**
@@ -1136,51 +1637,32 @@ export function formatBookingDetails(params: {
 `.trim();
 }
 
-export interface CombinedResult {
+export interface BrainResult {
   analysis: AiAnalysis;
-  reply: string;
 }
 
 /**
- * OPTIMIZED: Single-call analyze + respond using gemini-2.0-flash.
- * Replaces the two sequential gemini-2.5-pro calls (analyzeConversation + generateFinalResponse).
- * ~3-5x faster.
+ * PHASE 1: THE BRAIN (lightweight)
+ * Determines intent, extracts data, decides action.
+ * Gets only property addresses + basic stats — NOT full descriptions.
+ * Returns structured JSON only (no reply text).
  */
-export async function analyzeAndRespond(
+export async function analyzeBrain(
   context: ConversationContext,
   executionResult?: { success: boolean; data?: any; error?: string }
-): Promise<CombinedResult> {
+): Promise<BrainResult> {
   const { tenant, properties, conversationHistory } = context;
   const realtorName = context.realtorName || 'Agent';
-  const realtorPhone = context.realtorPhone || '';
-  const realtorCompany3 = context.realtorCompany || '';
-  const timezone3 = context.timezone || 'America/Los_Angeles';
-  const viewingStart3 = context.viewingHoursStart || '10:00';
-  const viewingEnd3 = context.viewingHoursEnd || '20:00';
+  const timezone = context.timezone || 'America/Los_Angeles';
+  const viewingStart = context.viewingHoursStart || '10:00';
+  const viewingEnd = context.viewingHoursEnd || '20:00';
 
-  const buildPropertiesText = (compact = false) => properties.map(p => {
+  // Minimal property list: address + price + beds + availability only
+  const minimalPropertiesText = properties.map(p => {
     const price = p.price_monthly || p.price;
     const beds = p.beds ?? p.bedrooms;
-    const baths = p.baths ?? p.bathrooms;
-    if (compact) {
-      return `- ${p.address}: $${price || '?'}/mo, ${beds ?? '?'}bd/${baths ?? '?'}ba, ${p.sqft || '?'}sqft, pets=${p.pet_policy || 'unknown'}, available=${p.available_from || 'now'}`;
-    }
-    const amenitiesList = Array.isArray(p.amenities) && p.amenities.length > 0
-      ? `Amenities: [${p.amenities.join(', ')}].`
-      : 'Amenities: none listed.';
-    const parking = p.parking_type ? `Parking: ${p.parking_type}${p.parking_fee ? ` (+$${p.parking_fee}/mo)` : ''}.` : '';
-    const deposit = p.security_deposit ? `Deposit: $${p.security_deposit}.` : '';
-    const appFee = p.application_fee ? `App fee: $${p.application_fee}.` : '';
-    const desc = (p.description || 'No description.').slice(0, 400);
-    return `PROPERTY:
-  Address: ${p.address}
-  Price: $${price || 'Unknown'}/month | Bedrooms: ${beds ?? 'Unknown'} | Bathrooms: ${baths ?? 'Unknown'} | Sqft: ${p.sqft || 'Unknown'} | Status: ${p.status} | Available: ${p.available_from || 'now'} | Pets: ${p.pet_policy || 'unknown'}
-  ${amenitiesList}
-  ${parking} ${deposit} ${appFee}
-  Description: ${desc}`;
-  }).join('\n\n');
-
-  const propertiesText = buildPropertiesText(false);
+    return `- ${p.address}: $${price || '?'}/mo, ${beds ?? '?'}bd, pets=${p.pet_policy || 'unknown'}, available=${p.available_from || 'now'}`;
+  }).join('\n');
 
   const historyText = conversationHistory.map(m =>
     `${m.role === 'user' ? 'Client' : 'Agent'}: ${m.content}`
@@ -1198,151 +1680,157 @@ export async function analyzeAndRespond(
       ? `\nCALENDAR BOOKING FAILED: ${executionResult.error}`
       : '';
 
-  const prompt = `${QUALIFICATION_SYSTEM_PROMPT}
+  const preRankedSection = context.preRankedMatches && context.preRankedMatches.length > 0
+    ? `\nPRE-RANKED MATCHES (properties the system selected for this client, in order):
+${context.preRankedMatches.map((m, i) => `Option ${i + 1}: ${m.address} — score ${m.score}/100 — $${m.price}/mo, ${m.beds ?? '?'}bd/${m.baths ?? '?'}ba (${m.reason})`).join('\n')}
 
-ANTI-HALLUCINATION (ABSOLUTE — READ-ONLY MODE):
-You are a READ-ONLY agent. Every property fact you mention MUST come directly from the PROPERTIES DATABASE below.
-- FORBIDDEN: Inventing, guessing, estimating, or inferring ANY property attribute.
-- FORBIDDEN: Describing features not explicitly in the Description or Amenities fields.
-- FORBIDDEN: Including image URLs or any media references in your output.
-- If no matching properties exist: say so honestly. Never invent a fallback listing.
+RULES FOR PHOTO REQUESTS:
+- "the option"/"that option" with only ONE previously shown → assume that property.
+- "option 1"/"first option"/"the first one" → Option 1 address above.
+- "option 2"/"second option"/"the second one" → Option 2 address above.
+- "option 3"/"third option"/"the third one" → Option 3 address above.
+- For photo requests: set action="send_listing", listing_addresses=[address], photo_mode=true.
+- Only ask for clarification if 2+ properties shown AND genuinely ambiguous.
+RULE: When recommending, use ONLY properties from the PRE-RANKED MATCHES list above, in order.
+`
+    : '';
 
-FEATURE LOOKUP RULE (CRITICAL — follow this every time a client asks about a specific feature):
-1. Scan the specific property's "Description" AND "Amenities" fields for the requested feature (and synonyms).
-2. Answer in this structure:
-   - If found → "Yes, it has [feature] — [quote from data]."
-   - If NOT found → "(a) What IS listed: [describe what's in the data]. (b) [Feature] isn't specifically mentioned. (c) I'll check with the landlord and get back to you with a confirmed answer."
-   - If a similar feature exists → mention it: "No X listed, but it does have Y."
-3. BANNED PHRASES (never use for factual questions):
-   - "we can confirm during a viewing"
-   - "you can check at the viewing"
-   - "this is something to confirm when you visit"
-   These phrases are ONLY allowed for truly physical/subjective details: room dimensions, noise levels, natural light, finish quality, neighbourhood feel.
-4. For appliances, electronics, furniture items (TV, dishwasher, washer/dryer, sofa, desk) — always offer to contact the landlord for confirmation, never send client to find out themselves.
+  const prompt = `You are a real estate leasing AI assistant's BRAIN module.
+Your job is to ANALYZE the client's message and decide WHAT ACTION to take.
+You do NOT write the reply text — another module handles that.
+You output ONLY structured JSON.
 
-PROPERTIES DATABASE:
-${propertiesText || 'No properties available.'}
+QUALIFICATION RULES:
+- TIER 1 (must collect before action="send_listing" or "book_calendar"):
+  lease_duration, rent/buy, move_in_date, budget, occupants, pets, bedrooms
+- If ANY Tier 1 field is missing → action="reply" (ask max 2 related questions).
+- PASSIVE EXTRACTION: if the client already stated a value, extract it silently.
+- Once all 7 are known → action="send_listing".
+- Use amenity keys from: ${ALL_AMENITY_KEYS.join(', ')}
 
+ESCALATION TRIGGERS:
+- Opt-out/unsubscribe, legal/ADA issues, repeated failures, abusive language.
+
+AVAILABLE PROPERTIES (addresses only — details are handled by the system):
+${minimalPropertiesText || 'No properties available.'}
+${preRankedSection}
 CONTEXT:
-REALTOR_NAME: ${realtorName}${realtorCompany3 ? ` (${realtorCompany3})` : ''}
-REALTOR_PHONE: ${realtorPhone}
-Client: ${tenant.name} (${tenant.email || 'sandbox@test.com'})
+REALTOR_NAME: ${realtorName}
+Client: ${tenant.name} (${tenant.email || 'unknown'})
 CURRENT DATE/TIME: ${currentDateContext}
-TIMEZONE: ${timezone3}
-VIEWING HOURS: ${viewingStart3}–${viewingEnd3} (${timezone3})
+TIMEZONE: ${timezone}
+VIEWING HOURS: ${viewingStart}–${viewingEnd} (${timezone})
 IS_FIRST_MESSAGE: ${isFirstMessage}
 ${executionNote}
 
 CONVERSATION:
 ${historyText}
 
-TASK: Analyze the client's latest message and generate a response. Return ONLY valid JSON:
+TASK: Analyze the client's latest message. Return ONLY valid JSON (NO reply text):
 {
-  "thought_process": "Internal reasoning",
-  "intent": "general",
-  "action": "reply",
+  "thought_process": "Your internal reasoning",
+  "intent": "general|inquiry|booking_confirmed",
+  "action": "reply|send_listing|book_calendar|escalate",
   "action_params": { "start_time": "", "property_address": "", "client_name": "", "duration_minutes": 30 },
   "listing_addresses": [],
+  "photo_mode": false,
   "extractedData": {
     "personal": { "firstName": "", "lastName": "" },
     "timeline": { "move_in_date": "", "lease_term_ideal_months": null },
     "budget": { "max_monthly_rent": null, "budget_stated": null, "budget_currency": "USD", "budget_usd": null },
-    "housing": { "property_types": [], "bedrooms_min": null },
+    "housing": { "property_types": [], "bedrooms_min": null, "furnished": "" },
     "occupants": { "total_count": null },
     "pets": { "has_pets": null },
-    "amenities": {}
+    "amenities": { "desired_features": [], "deal_breakers": [] },
+    "location": { "city": "", "state": "", "neighborhoods_must": [] }
   },
-  "summary": { "client": "...", "interests": "...", "concerns": "...", "next_step": "..." },
+  "summary": { "client": "", "interests": "", "concerns": "", "next_step": "" },
   "escalation_reason": null,
   "priority": "warm",
-  "suggestedProperties": [],
-  "propertyMatches": ${JSON.stringify(
-    properties.map(p => ({ address: p.address, score: 0, reason: 'Awaiting context' }))
-  )},
-  "reply": "The actual message text to send to the client (follow all CORE PRINCIPLES for tone and language)"
+  "pending_checks": []
 }
 
 IMPORTANT:
-- Only include extractedData fields actually found in this conversation. Leave others out.
-- The "reply" field is the final message body sent to the client. Follow all system prompt rules.
-- Match client language (Russian → Russian, English → English).
-- NEVER append "Equal Housing Opportunity" or any legal disclaimer text to the reply. It is shown permanently in the UI footer. Adding it to messages makes the AI look robotic.
-- Hard gate: if any of [timeline.lease_duration, housing.property_types, timeline.move_in_date, financial.budget_usd, occupants.total_count, pets.has_pets, housing.bedrooms_min] is missing → action="reply". Apply SMART BUNDLING (ask max 2 related questions per message). PASSIVE EXTRACTION: if the client already stated an answer (e.g. "need to rent" → property_types=["rent"], "no pets" → has_pets=false), extract it silently and do NOT ask again.
-- MANDATORY: "propertyMatches" MUST always contain ALL properties listed in the PROPERTIES DATABASE above, each with a score 0-100 and a brief reason. Never omit any property from this array.
-- MANDATORY SCORING: Apply the SCORING FORMULA from the system prompt exactly. Budget is the #1 factor. A property priced above the client's budget CANNOT score above: 75 (if <=10% over), 60 (if <=20% over), 45 (if <=35% over), 30 (if >35% over). Never give 80+ to an over-budget property. Properties with FEWER bedrooms than the client's minimum CANNOT score above 60 (1 short) or 40 (2+ short). SWEET SPOT: properties priced at 85-100% of budget and matching bedrooms should score highest.`;
+- Only include extractedData fields actually found in this conversation.
+- Do NOT include a "reply" field — the system generates the reply separately.
+- listing_addresses must contain real addresses from the AVAILABLE PROPERTIES list above.
+- Hard gate: if any of [lease_duration, property_types, move_in_date, budget_usd, total_count, has_pets, bedrooms_min] is missing → action="reply".`;
 
-  const parseResponse = (text: string) => {
+  const parseBrainResponse = (text: string): BrainResult => {
     let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) cleanText = jsonMatch[0];
     const parsed = JSON.parse(cleanText);
-    const { reply, ...analysisFields } = parsed;
-    const fallback = `Hi ${(tenant.name || 'there').split(' ')[0]}, thanks for your message. I'll get back to you shortly.`;
-    const finalReply = (typeof reply === 'string' && reply.trim()) ? reply : fallback;
-    console.log(`📝 parseResponse: reply type=${typeof reply}, length=${reply?.length ?? 'null'}, empty=${!reply?.trim()}, using=${finalReply === fallback ? 'FALLBACK' : 'AI_REPLY'}`);
-    return {
-      analysis: analysisFields as AiAnalysis,
-      reply: finalReply,
-    };
+    // Strip reply if AI included one anyway
+    const { reply: _discard, ...analysisFields } = parsed;
+    return { analysis: analysisFields as AiAnalysis };
   };
 
-  // Attempt 1 — full prompt
+  // Attempt 1
   try {
     const result = await generateContentWithRetry(geminiFlashModel, prompt);
-    const candidate = result.response.candidates?.[0];
-    const finishReason = candidate?.finishReason;
     const text = result.response.text();
-    console.log(`🔍 analyzeAndRespond attempt 1: finishReason=${finishReason}, textLen=${text.length}, first 300:`, text.substring(0, 300));
-    if (finishReason === 'MAX_TOKENS') {
-      console.warn('⚠️ Response truncated by MAX_TOKENS — reply field may be missing');
-    }
-    return parseResponse(text);
+    console.log(`🧠 analyzeBrain attempt 1: textLen=${text.length}, first 200:`, text.substring(0, 200));
+    return parseBrainResponse(text);
   } catch (err1: any) {
-    console.warn('⚠️ analyzeAndRespond attempt 1 failed:', err1?.message);
+    console.warn('⚠️ analyzeBrain attempt 1 failed:', err1?.message);
   }
 
-  // Attempt 2 — compact prompt (shorter properties, recent history only)
+  // Attempt 2 — shorter prompt with recent history only
   try {
-    console.log('🔄 Retrying with compact prompt...');
-    const compactPropertiesText = buildPropertiesText(true);
-    const recentHistory = conversationHistory.slice(-6); // last 3 exchanges
+    console.log('🔄 analyzeBrain: retrying with compact prompt...');
+    const recentHistory = conversationHistory.slice(-6);
     const compactHistoryText = recentHistory.map(m =>
       `${m.role === 'user' ? 'Client' : 'Agent'}: ${m.content}`
     ).join('\n');
 
-    const compactPrompt = `${QUALIFICATION_SYSTEM_PROMPT}
+    const compactPrompt = `You are a real estate AI brain. Analyze the client message and return structured JSON (no reply text).
 
-PROPERTIES DATABASE:
-${compactPropertiesText || 'No properties available.'}
-
-CONTEXT:
+PROPERTIES: ${minimalPropertiesText || 'None'}
+${preRankedSection}
 Client: ${tenant.name} | Date: ${new Date().toLocaleDateString('en-US')}
 IS_FIRST_MESSAGE: ${isFirstMessage}
 ${executionNote}
 
-RECENT CONVERSATION:
+CONVERSATION:
 ${compactHistoryText}
 
-TASK: Analyze the client's latest message and respond. Return ONLY valid JSON matching this schema (fields in this order — action and reply FIRST):
-{"action":"reply","intent":"general","escalation_reason":null,"listing_addresses":[],"photo_mode":false,"reply":"","priority":"warm","pending_checks":[],"suggestedProperties":[],"propertyMatches":${JSON.stringify(properties.map(p => ({ address: p.address, score: 0, reason: '' })))},"summary":{"client":"","interests":"","concerns":"","next_step":""},"extractedData":{},"thought_process":"..."}`;
+Return JSON: {"action":"reply","intent":"general","listing_addresses":[],"photo_mode":false,"extractedData":{},"summary":{"client":"","interests":"","concerns":"","next_step":""},"priority":"warm","pending_checks":[],"thought_process":"..."}`;
 
     const result2 = await generateContentWithRetry(geminiFlashModel, compactPrompt);
     const text2 = result2.response.text();
-    console.log('🔍 analyzeAndRespond attempt 2 (first 300):', text2.substring(0, 300));
-    return parseResponse(text2);
+    console.log('🧠 analyzeBrain attempt 2 (first 200):', text2.substring(0, 200));
+    return parseBrainResponse(text2);
   } catch (err2: any) {
-    console.error('❌ analyzeAndRespond both attempts failed:', err2?.message);
+    console.error('❌ analyzeBrain both attempts failed:', err2?.message);
   }
 
-  // Both attempts failed — escalate to human
-  const firstName = (tenant.name || 'there').split(' ')[0];
+  // Fallback — escalate
   return {
     analysis: {
-      thought_process: 'AI processing error after 2 attempts — escalating to human',
+      thought_process: 'AI brain processing error after 2 attempts — escalating',
       intent: 'general',
       action: 'escalate',
-      escalation_reason: 'AI failed to process the message after multiple attempts',
+      escalation_reason: 'AI failed to analyze the message after multiple attempts',
     } as AiAnalysis,
-    reply: `Hi ${firstName}, I want to make sure you get the best assistance. Let me connect you with one of our agents right away.`,
   };
+}
+
+export interface CombinedResult {
+  analysis: AiAnalysis;
+  reply: string;
+}
+
+/**
+ * @deprecated Use analyzeBrain() + generateFinalResponse() instead.
+ * Thin wrapper kept for backward compatibility — delegates to the two-phase pipeline.
+ */
+export async function analyzeAndRespond(
+  context: ConversationContext,
+  executionResult?: { success: boolean; data?: any; error?: string }
+): Promise<CombinedResult> {
+  console.warn('⚠️ analyzeAndRespond is deprecated — use analyzeBrain() + generateFinalResponse() instead');
+  const { analysis } = await analyzeBrain(context, executionResult);
+  const reply = await generateFinalResponse(context, analysis, executionResult);
+  return { analysis, reply };
 }

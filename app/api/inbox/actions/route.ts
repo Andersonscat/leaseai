@@ -83,7 +83,7 @@ export async function GET() {
       actions.push({
         id: `lead-${lead.id}`,
         type: 'new_lead',
-        priority: lead.lead_score && lead.lead_score >= 7 ? 'high' : 'medium',
+        priority: lead.lead_score && lead.lead_score >= 70 ? 'high' : 'medium',
         title: 'New Lead',
         subtitle: lead.name,
         meta: lead.lead_quality ? `${lead.lead_quality} Match` : 'Email Inquiry',

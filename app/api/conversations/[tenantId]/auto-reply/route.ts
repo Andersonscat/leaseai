@@ -4,7 +4,9 @@ import { cookies } from 'next/headers';
 import { 
   calculateLeadScore,
   getLeadQuality,
-  matchProperties,
+  flattenExtractedData,
+  getRankedPropertyMatches,
+  scorePropertyMatch,
   analyzeConversation,
   generateFinalResponse,
   verifyResponseHallucinations,
@@ -216,11 +218,47 @@ export async function POST(
     }
 
 
-    // 7. Find matches
-    let matchedProperties: any[] = [];
-    if (tenant.lead_quality === 'hot' || tenant.lead_quality === 'warm') {
-      matchedProperties = matchProperties(tenant as any, properties || []);
+    // 7. Deterministic property matching — address-first, ranking as fallback
+    const flatTenant = { ...tenant, ...flattenExtractedData(analysis.extractedData) };
+
+    if (flatTenant.preferred_city && !flatTenant.preferred_state && properties?.length) {
+      const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+      const inferred = inferStateFromProperties(flatTenant.preferred_city, properties);
+      if (inferred) flatTenant.preferred_state = inferred.toUpperCase();
     }
+
+    let rankedMatches: ReturnType<typeof getRankedPropertyMatches> = [];
+    if (analysis.action === 'send_listing' && properties?.length) {
+      const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
+
+      if (aiAddresses.length > 0) {
+        const resolvedProperties = aiAddresses
+          .map((addr: string) => {
+            const addrLow = addr.toLowerCase().trim();
+            return properties.find((p: any) => {
+              const pAddr = (p.address || '').toLowerCase();
+              return pAddr === addrLow || pAddr.includes(addrLow) || addrLow.includes(pAddr);
+            });
+          })
+          .filter(Boolean) as any[];
+
+        if (resolvedProperties.length > 0) {
+          const scored = resolvedProperties.map((p: any) => {
+            const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p);
+            return { property: p, score, reason, clusters, isNearby, disqualified };
+          });
+          rankedMatches = scored.filter(r => !r.disqualified);
+          if (rankedMatches.length === 0) {
+            rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+          }
+        } else {
+          rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+        }
+      } else {
+        rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+      }
+    }
+    const matchedProperties = rankedMatches.map(r => r.property);
 
     // 8. Generate Final Response with Verification Loop
     let finalResponse = '';
@@ -243,11 +281,12 @@ export async function POST(
           viewingHoursEnd,
         },
         analysis,
-        executionResult
+        executionResult,
+        matchedProperties as any
       );
 
-      // Verify for hallucinations
-      const verification = await verifyResponseHallucinations(finalResponse, properties || []);
+      // Verify for hallucinations (check only against selected properties if available)
+      const verification = await verifyResponseHallucinations(finalResponse, matchedProperties.length > 0 ? (matchedProperties as any) : (properties || []));
       
       if (!verification.hasHallucinations) {
         break; // Success!

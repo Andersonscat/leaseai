@@ -34,6 +34,8 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS preferred_amenities JSONB DEFAULT '
 
 -- Add location preferences
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS preferred_neighborhoods JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS preferred_city TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS preferred_state TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS max_commute_minutes INTEGER;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS work_address TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS floor_preference VARCHAR(20); -- 'ground', 'high', 'middle', 'no_preference'
@@ -78,7 +80,7 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS best_time_to_contact VARCHAR(50); -
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS language_preference VARCHAR(20) DEFAULT 'en'; -- 'en', 'ru', 'es', etc.
 
 -- Add lead scoring and qualification
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0; -- 0-15 scoring system
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0; -- 0-100 scoring system
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lead_quality VARCHAR(20) DEFAULT 'unqualified'; -- 'hot', 'warm', 'cold', 'unqualified'
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS qualification_status VARCHAR(30) DEFAULT 'new'; 
 -- 'new', 'qualifying', 'qualified', 'viewing_scheduled', 'viewing_done', 'application_in_progress', 'approved', 'rejected'
@@ -217,10 +219,10 @@ BEGIN
   -- Update the lead_score
   UPDATE tenants SET lead_score = score WHERE id = tenant_id;
   
-  -- Determine quality
-  IF score >= 11 THEN
+  -- Determine quality (0-100 scale, aligned with JS calculateLeadScore)
+  IF score >= 80 THEN
     quality := 'hot';
-  ELSIF score >= 6 THEN
+  ELSIF score >= 50 THEN
     quality := 'warm';
   ELSIF score >= 1 THEN
     quality := 'cold';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { analyzeAndRespond, verifyResponseHallucinations, ConversationContext, TenantData, Property } from '@/lib/ai-qualification';
+import { analyzeBrain, generateFinalResponse, verifyResponseHallucinations, ConversationContext, TenantData, Property, flattenExtractedData, getRankedPropertyMatches, scorePropertyMatch } from '@/lib/ai-qualification';
 import { normalizeAmenities, AMENITY_BY_KEY } from '@/lib/amenities-catalog';
 
 // Service-role client — bypasses RLS, safe for server-only sandbox use
@@ -224,17 +224,18 @@ export async function POST(req: NextRequest) {
       realtorPhone: '+1 (555) 000-0000',
     };
 
+    // PHASE 1: BRAIN (intent + data extraction, no reply)
     const t1 = Date.now();
-    const { analysis, reply: rawReply } = await analyzeAndRespond(context);
-    const aiMs = Date.now() - t1;
-    console.log(`⚡ analyzeAndRespond: ${aiMs}ms`);
+    const { analysis } = await analyzeBrain(context);
+    const brainMs = Date.now() - t1;
+    console.log(`🧠 Brain: ${brainMs}ms, action=${analysis.action}`);
 
-    // If AI couldn't process the message — skip all further steps, go straight to handoff
+    // If AI couldn't process the message — escalate immediately
     if (analysis.action === 'escalate' && analysis.thought_process?.includes('AI processing error')) {
-      const firstName = resolvedName.split(' ')[0];
+      const escalateReply = `Hi ${resolvedName.split(' ')[0]}, I want to make sure you get the best assistance. Let me connect you with one of our agents right away.`;
       const now = new Date().toISOString();
       return NextResponse.json({
-        reply: rawReply,
+        reply: escalateReply,
         handoff: {
           triggered: true,
           reason: analysis.escalation_reason || 'AI failed to process the message',
@@ -247,73 +248,85 @@ export async function POST(req: NextRequest) {
             preview: `AI failed to process a message from "${resolvedName}". Reason: ${analysis.escalation_reason}. Please follow up manually.`,
           },
         },
-        conversationHistory: [...updatedHistory, { role: 'assistant', content: rawReply }],
-        timing: { aiMs: Date.now() - t1, totalMs: Date.now() - t0 },
+        conversationHistory: [...updatedHistory, { role: 'assistant', content: escalateReply }],
+        timing: { aiMs: brainMs, totalMs: Date.now() - t0 },
       });
     }
 
-    // If booking — re-run with simulated calendar result
-    let aiResponseText = rawReply;
+    // PHASE 2: CODE — Resolve properties
+    const flatTenant = { ...(tenantData || {}), ...flattenExtractedData(analysis.extractedData) };
+
+    if (flatTenant.preferred_city && !flatTenant.preferred_state && properties.length > 0) {
+      const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+      const inferred = inferStateFromProperties(flatTenant.preferred_city, properties as any);
+      if (inferred) flatTenant.preferred_state = inferred.toUpperCase();
+    }
+
+    let rankedMatches: any[] = [];
+    if (analysis.action === 'send_listing' && properties.length > 0) {
+      const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
+      if (aiAddresses.length > 0) {
+        const resolvedProperties = aiAddresses
+          .map((addr: string) => {
+            const addrLow = addr.toLowerCase().trim();
+            return properties.find(p => {
+              const pAddr = (p.address || '').toLowerCase();
+              return pAddr === addrLow || pAddr.includes(addrLow) || addrLow.includes(pAddr);
+            });
+          })
+          .filter(Boolean) as Property[];
+        if (resolvedProperties.length > 0) {
+          const scored = resolvedProperties.map(p => { const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p as any); return { property: p, score, reason, clusters, isNearby, disqualified }; });
+          rankedMatches = scored.filter(r => !r.disqualified);
+          if (rankedMatches.length === 0) rankedMatches = getRankedPropertyMatches(flatTenant, properties as any);
+        } else {
+          rankedMatches = getRankedPropertyMatches(flatTenant, properties as any);
+        }
+      } else {
+        rankedMatches = getRankedPropertyMatches(flatTenant, properties as any);
+      }
+    }
+    let matchedProperties = rankedMatches.map((r: any) => r.property);
+
+    // PHASE 3: VOICE — generate reply text (sees ONLY selected properties)
+    let executionResult: { success: boolean; data?: any; error?: string } | undefined;
     if (analysis.action === 'book_calendar') {
       const bookingTime = analysis.action_params?.start_time || new Date().toISOString();
-      const t2 = Date.now();
-      const { reply: bookingReply } = await analyzeAndRespond(context, {
+      executionResult = {
         success: true,
         data: {
           htmlLink: 'https://calendar.google.com/sandbox-preview-link',
           start: { dateTime: bookingTime }
         }
-      });
-      console.log(`⚡ booking reply: ${Date.now() - t2}ms`);
-      aiResponseText = bookingReply;
+      };
+    }
+    const t2 = Date.now();
+    let aiResponseText = await generateFinalResponse(context, analysis, executionResult, matchedProperties as any);
+    const aiMs = brainMs + (Date.now() - t2);
+    console.log(`🗣️ Voice: ${Date.now() - t2}ms`);
+
+    if (!aiResponseText?.trim()) {
+      aiResponseText = `Hi ${(tenant.name || 'there').split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
     }
 
-    // Hallucination check — only run when response mentions property data (addresses/prices)
-    // Skipping for pure conversational replies avoids false positives and saves latency
+    // PHASE 4: JUDGE — Hallucination check
     const mentionsPropertyData = /\b\d+\s+\w+\s+(St|Ave|Rd|Ln|Blvd|Dr|Way|Pl|Ct)\b/i.test(aiResponseText)
-      || aiResponseText.includes('$') && /\d{3,}/.test(aiResponseText);
+      || (aiResponseText.includes('$') && /\d{3,}/.test(aiResponseText));
 
     if (mentionsPropertyData) {
-      const verification = await verifyResponseHallucinations(aiResponseText, properties);
+      const propsToVerify = matchedProperties.length > 0 ? matchedProperties : properties;
+      const verification = await verifyResponseHallucinations(aiResponseText, propsToVerify as any);
       if (verification.hasHallucinations) {
         console.warn('🚨 SANDBOX HALLUCINATION BLOCKED:', verification.reason);
-        // Keep the conversational part, just strip any property-specific claims
         const firstName = (tenant.name || 'there').split(' ')[0];
         aiResponseText = `Hi ${firstName}, I want to make sure I share accurate details with you. Let me double-check the property specifics and get back to you right away.`;
         analysis.action = 'reply';
       }
     }
 
-    // Attach property cards for send_listing
-    const listingAddresses = analysis.listing_addresses || [];
-    let matchedProperties: any[] = [];
-    if (analysis.action === 'send_listing' || listingAddresses.length > 0) {
-      matchedProperties = listingAddresses.length > 0
-        ? properties.filter(p => listingAddresses.some(addr => p.address.toLowerCase().includes(addr.toLowerCase())))
-        : (analysis.suggestedProperties?.length
-            ? properties.filter(p => analysis.suggestedProperties!.some(sp => p.address.toLowerCase().includes(sp.toLowerCase())))
-            : properties.slice(0, 3));
-
-      // Hard-sort by score DESC so cards always appear in score order
-      // regardless of what order the AI listed them in its text reply
-      if (analysis.propertyMatches?.length) {
-        const scoreMap = new Map(
-          analysis.propertyMatches.map((pm: any) => [
-            pm.address?.split(',')[0]?.toLowerCase().trim(),
-            pm.score ?? 0,
-          ])
-        );
-        matchedProperties.sort((a, b) => {
-          const aKey = a.address.split(',')[0].toLowerCase().trim();
-          const bKey = b.address.split(',')[0].toLowerCase().trim();
-          return (scoreMap.get(bKey) ?? 0) - (scoreMap.get(aKey) ?? 0);
-        });
-      }
-    }
-
     if (matchedProperties.length > 0) {
-      // Find raw DB row to get city/state/sqft/baths/image
-      const cleanProps = matchedProperties.map(p => {
+      const cleanProps = matchedProperties.map((p, i) => {
+        const r = rankedMatches[i];
         const dbRow = raw.find((r: any) =>
           [r.address, r.city, r.state].filter(Boolean).join(', ') === p.address
         );
@@ -328,6 +341,10 @@ export async function POST(req: NextRequest) {
           sqft: dbRow?.sqft ?? null,
           type: dbRow?.type ?? null,
           images: dbRow ? resolveImages(dbRow.images ?? [], dbRow.id) : [],
+          matchScore: r?.score ?? null,
+          matchReason: r?.reason ?? null,
+          matchClusters: r?.clusters ?? null,
+          isNearby: r?.isNearby ?? false,
         };
       });
       // Detect photo request either from AI flag or from the user's message keywords

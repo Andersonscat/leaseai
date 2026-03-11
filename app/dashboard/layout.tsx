@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
-import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose, Crown, Bot, Beaker } from "lucide-react";
+import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose, Crown, Bot } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BADGE_REFRESH_EVENT } from "@/lib/inbox-badge";
@@ -405,12 +405,10 @@ function DashboardLayoutContent({
                )}
                {[
                  { tab: 'contracts', icon: FileText, label: 'Contracts' },
-                 { tab: 'sandbox', icon: Beaker, label: 'AI Sandbox', href: '/dashboard/sandbox' },
                  { tab: 'management', icon: Briefcase, label: 'Management' },
                  { tab: 'promote', icon: Megaphone, label: 'Promote' },
                ].map((item) => {
-                 const isSandbox = item.tab === 'sandbox';
-                 const isActive = isSandbox ? pathname === '/dashboard/sandbox' : activeTab === item.tab;
+                 const isActive = activeTab === item.tab;
                  return (
                    <Link key={item.tab} href={item.href || `/dashboard?tab=${item.tab}`}>
                      <div 
