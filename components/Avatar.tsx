@@ -47,7 +47,7 @@ export default function Avatar({ src, name, email, size = "md", className = "" }
   }, [name, email]);
 
   const bgColor = React.useMemo(() => {
-    const identifier = name || email || "fallback";
+    const identifier = email || name || "fallback";
     let hash = 0;
     for (let i = 0; i < identifier.length; i++) {
       hash = (hash << 5) - hash + identifier.charCodeAt(i);

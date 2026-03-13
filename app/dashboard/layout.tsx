@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase";
+import { UserProvider, useUser } from "@/lib/user-context";
 import { Inbox, Home, BarChart3, CreditCard, Sparkles, FileText, Users, Settings, LogOut, User as UserIcon, Calendar, MessageSquare, Briefcase, Palette, HelpCircle, ChevronRight, PanelLeftClose, PanelLeftOpen, MoreVertical, Megaphone, PanelRightOpen, PanelRightClose, Crown, Bot } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -26,7 +27,7 @@ function DashboardLayoutContent({
   const [isHoveringAI, setIsHoveringAI] = useState(false);
   const router = useRouter();
   const supabase = createSupabaseClient();
-  const [user, setUser] = useState<any>(null);
+  const { user } = useUser();
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Fallback redirect — in case user lands on /dashboard without completing onboarding
@@ -39,15 +40,6 @@ function DashboardLayoutContent({
     }
     router.replace("/onboarding");
   }, [user, router]);
-
-  // Load user on mount
-  useEffect(() => {
-    const loadUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    loadUser();
-  }, [supabase]);
 
   // Load unread messages count
   useEffect(() => {
@@ -644,8 +636,10 @@ function DashboardLayoutContent({
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="flex h-screen"><div className="w-64 bg-white border-r border-gray-200" /></div>}>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </Suspense>
+    <UserProvider>
+      <Suspense fallback={<div className="flex h-screen"><div className="w-64 bg-white border-r border-gray-200" /></div>}>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      </Suspense>
+    </UserProvider>
   );
 }

@@ -8,6 +8,7 @@ import ConversationsInbox from "../../components/ConversationsInbox";
 import Avatar from "@/components/Avatar";
 import TenantsView from "@/components/TenantsView";
 import { createSupabaseClient } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
 
 import { Suspense } from "react";
 
@@ -799,7 +800,7 @@ function DashboardContent() {
   const [toastMessage, setToastMessage] = useState('');
 
   // Account page state
-  const [user, setUser] = useState<any>(null);
+  const { user, refreshUser } = useUser();
   const [accountForm, setAccountForm] = useState({
     // Basic
     full_name: '', email: '', phone: '', company: '', job_title: '', website: '',
@@ -985,43 +986,36 @@ function DashboardContent() {
     }
   }, [activeTab]);
 
-  // Load user for Account tab
+  // Populate account form when user is available and Account tab is active
   useEffect(() => {
-    if (activeTab !== 'account') return;
-    const loadUser = async () => {
-      const { data: { user: u } } = await supabase.auth.getUser();
-      setUser(u);
-      if (u) {
-        const m = u.user_metadata || {};
-        setAccountForm({
-          full_name:            m.full_name || '',
-          email:                u.email || '',
-          phone:                m.phone || u.phone || '',
-          company:              m.company || '',
-          job_title:            m.job_title || '',
-          website:              m.website || '',
-          license_number:       m.license_number || '',
-          license_state:        m.license_state || '',
-          license_expiration:   m.license_expiration || '',
-          brokerage_name:       m.brokerage_name || '',
-          mls_id:               m.mls_id || '',
-          nar_id:               m.nar_id || '',
-          service_areas:        m.service_areas || '',
-          ai_signature_name:    m.ai_signature_name || m.full_name || '',
-          ai_phone:             m.ai_phone || m.phone || u.phone || '',
-          timezone:             m.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
-          default_language:     m.default_language || 'en',
-          viewing_hours_start:  m.viewing_hours_start || '10:00',
-          viewing_hours_end:    m.viewing_hours_end || '20:00',
-          email_signature:      m.email_signature || '',
-          notif_email:          m.notif_email !== false,
-          notif_sms:            m.notif_sms === true,
-          notif_weekly:         m.notif_weekly !== false,
-        });
-      }
-    };
-    loadUser();
-  }, [activeTab]);
+    if (activeTab !== 'account' || !user) return;
+    const m = user.user_metadata || {};
+    setAccountForm({
+      full_name:            m.full_name || '',
+      email:                user.email || '',
+      phone:                m.phone || user.phone || '',
+      company:              m.company || '',
+      job_title:            m.job_title || '',
+      website:              m.website || '',
+      license_number:       m.license_number || '',
+      license_state:        m.license_state || '',
+      license_expiration:   m.license_expiration || '',
+      brokerage_name:       m.brokerage_name || '',
+      mls_id:               m.mls_id || '',
+      nar_id:               m.nar_id || '',
+      service_areas:        m.service_areas || '',
+      ai_signature_name:    m.ai_signature_name || m.full_name || '',
+      ai_phone:             m.ai_phone || m.phone || user.phone || '',
+      timezone:             m.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
+      default_language:     m.default_language || 'en',
+      viewing_hours_start:  m.viewing_hours_start || '10:00',
+      viewing_hours_end:    m.viewing_hours_end || '20:00',
+      email_signature:      m.email_signature || '',
+      notif_email:          m.notif_email !== false,
+      notif_sms:            m.notif_sms === true,
+      notif_weekly:         m.notif_weekly !== false,
+    });
+  }, [activeTab, user]);
 
   // Handle Gmail OAuth callback redirect
   useEffect(() => {
@@ -1076,6 +1070,7 @@ function DashboardContent() {
         data[k] = (fields as any)[k];
       });
       await supabase.auth.updateUser({ data });
+      await refreshUser();
       setToastMessage('Saved successfully');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
@@ -2229,8 +2224,7 @@ function DashboardContent() {
                             const res = await fetch('/api/profile/avatar', { method: 'POST', body: fd });
                             const data = await res.json();
                             if (!res.ok) throw new Error(data.error || 'Upload failed');
-                            const { data: { user: u } } = await supabase.auth.getUser();
-                            setUser(u);
+                            await refreshUser();
                             setToastMessage('Photo updated');
                             setShowToast(true);
                             setTimeout(() => setShowToast(false), 4000);
@@ -2246,7 +2240,7 @@ function DashboardContent() {
                       <div className="relative">
                         <Avatar
                           src={user?.user_metadata?.avatar_url}
-                          name={accountForm.full_name || user?.email}
+                          name={user?.user_metadata?.full_name}
                           email={user?.email}
                           size="lg"
                           className="w-16 h-16 ring-2 ring-gray-100"

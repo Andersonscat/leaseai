@@ -21,6 +21,7 @@ import ActiveLeadsTable from './ActiveLeadsTable';
 import AIActivityTimeline, { ActivityEvent } from './AIActivityTimeline';
 import InboxContextPanel from './InboxContextPanel';
 import { createSupabaseClient } from '@/lib/supabase';
+import { useUser } from '@/lib/user-context';
 import Avatar from './Avatar';
 
 interface Conversation {
@@ -449,6 +450,7 @@ function PropertyCardCarousel({ images, address }: { images: string[]; address: 
 
 export default function ConversationsInbox() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const { user: currentUser } = useUser();
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showActions, setShowActions] = useState(true); // Action Required Collapsible State
@@ -1506,7 +1508,7 @@ export default function ConversationsInbox() {
                     conversationMessages.map((message, idx) => {
                       const isReasoning = message.sender_type === 'ai_reasoning';
                       const isMine = message.sender_type === 'landlord';
-                      const senderName = isMine ? 'You' : (selectedConversation.tenant?.name || 'Lead');
+                      const senderName = isMine ? (currentUser?.user_metadata?.full_name || 'You') : (selectedConversation.tenant?.name || 'Lead');
                       const timestamp = message.created_at ? formatDistanceToNow(new Date(message.created_at), { addSuffix: true }) : '';
                       let cleanText = message.message_text || '';
                       let propertiesData: any[] | null = null;
@@ -1533,7 +1535,8 @@ export default function ConversationsInbox() {
                                     <div className="flex items-center gap-3">
                                        <Avatar 
                                           name={senderName} 
-                                          src={isMine ? undefined : selectedConversation.tenant?.avatar} 
+                                          email={isMine ? currentUser?.email : undefined}
+                                          src={isMine ? currentUser?.user_metadata?.avatar_url : selectedConversation.tenant?.avatar} 
                                           size="sm" 
                                           className="rounded-full shadow-sm ring-1 ring-black/[0.05]"
                                        />
@@ -1629,13 +1632,21 @@ export default function ConversationsInbox() {
                   {awaitingAI && (
                      <div className="px-8 py-5 border-b border-black/[0.03]">
                         <div className="flex items-start gap-3">
-                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shrink-0">
-                              <Bot className="w-4 h-4 text-white" />
-                           </div>
+                           <Avatar
+                              name={currentUser?.user_metadata?.full_name || 'You'}
+                              email={currentUser?.email}
+                              src={currentUser?.user_metadata?.avatar_url}
+                              size="sm"
+                              className="rounded-full shadow-sm ring-1 ring-black/[0.05]"
+                           />
                            <div>
                               <div className="flex items-center gap-2 mb-1.5">
-                                 <span className="text-[13px] font-bold text-gray-900">AI Agent</span>
-                                 <span className="text-[11px] text-gray-400">is thinking...</span>
+                                 <span className="text-[13px] font-bold text-gray-900">{currentUser?.user_metadata?.full_name || 'You'}</span>
+                                 <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 rounded-md">
+                                    <Bot className="w-3 h-3 text-indigo-500" />
+                                    <span className="text-[10px] font-semibold text-indigo-500">AI</span>
+                                 </span>
+                                 <span className="text-[11px] text-gray-400">is responding...</span>
                               </div>
                               <div className="flex items-center gap-1.5 py-2 px-3 bg-gray-50 rounded-xl w-fit">
                                  <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1.2s' }} />
