@@ -10,7 +10,8 @@ import {
   analyzeConversation,
   generateFinalResponse,
   verifyResponseHallucinations,
-  extractLeadData
+  extractLeadData,
+  validateBookingAction
 } from '@/lib/ai-qualification';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
 
@@ -171,6 +172,17 @@ export async function POST(
     });
 
     console.log('✅ Analysis complete:', analysis.action);
+
+    // 6.1b Guardrail: validate booking before execution
+    if (analysis.action === 'book_calendar') {
+      const validation = validateBookingAction(analysis, conversationHistory);
+      if (!validation.valid) {
+        console.log('🛡️ Guardrail override: book_calendar → reply');
+        analysis.action = 'reply';
+        analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
+        analysis.action_params = undefined;
+      }
+    }
 
     // 6.2 Execute Actions (Calendar, etc.)
     let executionResult: { success: boolean; data?: any; error?: string } = { success: true };

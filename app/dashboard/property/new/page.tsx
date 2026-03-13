@@ -356,7 +356,6 @@ export default function NewPropertyPage() {
     sqft: '',
     pets: 'Not allowed',
     parking: 'No parking',
-    parking_available: false,
     description: '',
     status: 'available' as 'available' | 'rented' | 'pending',
     walk_score: '',
@@ -453,9 +452,6 @@ export default function NewPropertyPage() {
         ? `${formData.price}/month` 
         : formData.price;
 
-      // Determine parking_available from parking selection
-      const parkingAvailable = formData.parking !== 'No parking';
-
       const response = await fetch('/api/properties', {
         method: 'POST',
         headers: {
@@ -464,7 +460,6 @@ export default function NewPropertyPage() {
         body: JSON.stringify({
           ...formData,
           price: formattedPrice,
-          parking_available: parkingAvailable,
           walk_score: formData.walk_score ? parseInt(formData.walk_score) : null,
           transit_score: formData.transit_score ? parseInt(formData.transit_score) : null,
           amenities: amenities.length > 0 ? amenities : null,

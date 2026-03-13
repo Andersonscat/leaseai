@@ -92,7 +92,7 @@ export async function syncGmailMessages(
         // Проверяем существует ли уже tenant с таким email
         const { data: existingTenants, error: searchError } = await supabase
           .from('tenants')
-          .select('id, auto_reply_enabled, gmail_thread_id, email')
+          .select('id, auto_reply_enabled, gmail_thread_id, email, preferred_state, preferred_lat')
           .eq('user_id', user.id)
           .ilike('email', lead.tenant_email);
         
@@ -290,7 +290,7 @@ export async function syncGmailMessages(
           // 🆕 AGENTIC PIPELINE: Brain -> Hand -> Voice
           // =================================================================================
           
-          const { analyzeConversation, generateFinalResponse, formatBookingDetails } = await import('@/lib/ai-qualification');
+          const { analyzeConversation, generateFinalResponse, formatBookingDetails, validateBookingAction } = await import('@/lib/ai-qualification');
           
           const realtorName    = user.user_metadata?.ai_signature_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
           const realtorPhone   = user.user_metadata?.ai_phone || user.user_metadata?.phone || user.phone || undefined;
@@ -331,6 +331,17 @@ export async function syncGmailMessages(
             viewingHoursEnd,
             preRankedMatches: syncPreRanked.length > 0 ? syncPreRanked : undefined,
           });
+
+          // 1b. Guardrail: validate booking before execution
+          if (analysis.action === 'book_calendar') {
+            const validation = validateBookingAction(analysis, conversationHistory);
+            if (!validation.valid) {
+              console.log('🛡️ Guardrail override: book_calendar → reply');
+              analysis.action = 'reply';
+              analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
+              analysis.action_params = undefined;
+            }
+          }
 
           // 2. HAND: Execute Actions
           let executionResult: { success: boolean; data?: any; error?: string } = { success: true }; // Default for 'reply' action
@@ -706,6 +717,19 @@ export async function syncGmailMessages(
               if (inferred) updateData.preferred_state = inferred.toUpperCase();
             }
 
+            // Geocode tenant preferred city for distance-based scoring
+            if (updateData.preferred_city && !(existingTenant?.preferred_lat)) {
+              const { geocodeAddress } = await import('@/lib/geocoding');
+              const cityQuery = updateData.preferred_state
+                ? `${updateData.preferred_city}, ${updateData.preferred_state}`
+                : updateData.preferred_city;
+              const coords = await geocodeAddress(cityQuery);
+              if (coords) {
+                updateData.preferred_lat = coords.lat;
+                updateData.preferred_lng = coords.lng;
+              }
+            }
+
             const { calculateLeadScore, getLeadQuality } = await import('@/lib/ai-qualification');
             const updatedTenant = { ...(existingTenant || {}), ...updateData };
             const newScore = calculateLeadScore(updatedTenant);
@@ -716,20 +740,21 @@ export async function syncGmailMessages(
             if (newScore >= 60) updateData.qualification_status = 'qualified';
             else if (newScore >= 30) updateData.qualification_status = 'qualifying';
             
-            let { error: updateError } = await supabase
-              .from('tenants')
-              .update(updateData)
-              .eq('id', tenantId);
-
-            // Fallback: if extended columns don't exist yet, save only basic fields
-            if (updateError?.code === '42703') {
-              console.log('⚠️ Extended columns not found, saving basic fields only');
-              const basicUpdate: any = { last_auto_reply_at: new Date().toISOString() };
-              if (updateData.move_in_date) basicUpdate.move_in_date = updateData.move_in_date;
-              const fallback = await supabase.from('tenants').update(basicUpdate).eq('id', tenantId);
-              updateError = fallback.error;
+            let updatePayload = { ...updateData };
+            let updateError: any = null;
+            const maxRetries = 5;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              ({ error: updateError } = await supabase.from('tenants').update(updatePayload).eq('id', tenantId));
+              if (!updateError || updateError.code !== '42703') break;
+              const badCol = updateError.message?.match(/column\s+["']?(\w+)["']?/)?.[1]
+                ?? updateError.message?.match(/["'](\w+)["']\s+.*does not exist/)?.[1];
+              if (badCol && updatePayload[badCol] !== undefined) {
+                console.warn(`⚠️ Tenant update: column "${badCol}" missing, stripping and retrying (attempt ${attempt + 1})`);
+                delete updatePayload[badCol];
+              } else {
+                break;
+              }
             }
-
             if (updateError) {
               console.error('Error updating tenant with AI data:', updateError);
             }

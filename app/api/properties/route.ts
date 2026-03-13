@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { geocodeAddress } from '@/lib/geocoding';
 
 // Helper to create authenticated Supabase client
 function createAuthenticatedClient() {
@@ -119,8 +120,6 @@ export async function POST(request: NextRequest) {
     const application_fee = body.application_fee ? parseInt(body.application_fee.toString().replace(/[^0-9]/g, ''), 10) : null;
     const security_deposit = body.security_deposit ? parseInt(body.security_deposit.toString().replace(/[^0-9]/g, ''), 10) : null;
 
-    // Map Parking
-    const parking_available = body.parking !== 'No parking';
     let parking_type = body.parking !== 'No parking' ? body.parking : 'none';
     if (parking_type.length > 50) {
       parking_type = parking_type.substring(0, 50);
@@ -167,7 +166,6 @@ export async function POST(request: NextRequest) {
           sqft,
           pet_policy,
           parking_type,
-          parking_available,
           status: body.status || 'available',
           description: body.description,
           amenities: body.amenities,
@@ -190,6 +188,16 @@ export async function POST(request: NextRequest) {
     
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Geocode the property address in the background
+    if (data?.id && body.address) {
+      const addrQuery = [body.address, body.city, body.state].filter(Boolean).join(', ');
+      geocodeAddress(addrQuery).then(coords => {
+        if (coords) {
+          supabase.from('properties').update({ lat: coords.lat, lng: coords.lng }).eq('id', data.id).then(() => {});
+        }
+      }).catch(() => {});
     }
     
     return NextResponse.json({ property: data }, { status: 201 });

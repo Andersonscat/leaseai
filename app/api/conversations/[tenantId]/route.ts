@@ -125,7 +125,6 @@ export async function POST(
           sender_type: senderType,
           sender_name: senderName,
           message_text: body.message,
-          thoughts: body.thoughts || null,
           source,
           is_read: true,
         },

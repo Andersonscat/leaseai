@@ -11,8 +11,8 @@ async function checkAllColumns() {
   console.log('🔍 Checking all required columns in "properties"...');
   
   const requiredColumns = [
-    'city', 'state', 'zip_code', 'parking_available', 
-    'walk_score', 'transit_score', 'lease_term', 
+    'city', 'state', 'zip_code',
+    'walk_score', 'transit_score', 'lease_term', 'parking_type',
     'amenities', 'features', 'rules', 'images'
   ];
 

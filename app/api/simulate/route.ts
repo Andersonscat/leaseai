@@ -12,6 +12,7 @@ import {
   flattenExtractedData,
   getRankedPropertyMatches,
   scorePropertyMatch,
+  validateBookingAction,
   type RankedPropertyMatch,
 } from '@/lib/ai-qualification';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
@@ -204,6 +205,17 @@ export async function POST(req: NextRequest) {
     const fallbackReply = `Hi ${(tenantRow?.name || name).split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
     console.log(`🧠 Brain: action=${analysis.action}, intent=${analysis.intent}, listing_addresses=${analysis.listing_addresses?.join(',') || 'none'}`);
     pipelineStages.push({ stage: 'brain', durationMs: Date.now() - t1, detail: `action=${analysis.action}` });
+
+    // ─── GUARDRAIL: validate booking before execution ─────────────────
+    if (analysis.action === 'book_calendar') {
+      const validation = validateBookingAction(analysis, conversationHistory);
+      if (!validation.valid) {
+        console.log('🛡️ Guardrail override: book_calendar → reply');
+        analysis.action = 'reply';
+        analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
+        analysis.action_params = undefined;
+      }
+    }
 
     // ─── HAND: Execute Actions ──────────────────────────────────────────
     t1 = Date.now();
@@ -538,18 +550,42 @@ export async function POST(req: NextRequest) {
         if (inferred) updateData.preferred_state = inferred.toUpperCase();
       }
 
+      // Geocode tenant preferred city for distance-based scoring
+      if (updateData.preferred_city && !(tenantRow?.preferred_lat)) {
+        const { geocodeAddress } = await import('@/lib/geocoding');
+        const cityQuery = updateData.preferred_state
+          ? `${updateData.preferred_city}, ${updateData.preferred_state}`
+          : updateData.preferred_city;
+        const coords = await geocodeAddress(cityQuery);
+        if (coords) {
+          updateData.preferred_lat = coords.lat;
+          updateData.preferred_lng = coords.lng;
+        }
+      }
+
       const score = calculateLeadScore({ ...(tenantRow || {}), ...updateData });
       updateData.lead_score = score;
       updateData.lead_quality = analysis.priority || getLeadQuality(score);
       if (score >= 60) updateData.qualification_status = 'qualified';
       else if (score >= 30) updateData.qualification_status = 'qualifying';
 
-      let { error: updateError } = await db.from('tenants').update(updateData).eq('id', tenantId);
-
-      if (updateError?.code === '42703') {
-        const basicUpdate: any = { last_auto_reply_at: new Date().toISOString() };
-        if (updateData.move_in_date) basicUpdate.move_in_date = updateData.move_in_date;
-        await db.from('tenants').update(basicUpdate).eq('id', tenantId);
+      let updatePayload = { ...updateData };
+      let updateError: any = null;
+      const maxRetries = 5;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        ({ error: updateError } = await db.from('tenants').update(updatePayload).eq('id', tenantId));
+        if (!updateError || updateError.code !== '42703') break;
+        const badCol = updateError.message?.match(/column\s+["']?(\w+)["']?/)?.[1]
+          ?? updateError.message?.match(/["'](\w+)["']\s+.*does not exist/)?.[1];
+        if (badCol && updatePayload[badCol] !== undefined) {
+          console.warn(`⚠️ Tenant update: column "${badCol}" missing, stripping and retrying (attempt ${attempt + 1})`);
+          delete updatePayload[badCol];
+        } else {
+          break;
+        }
+      }
+      if (updateError) {
+        console.error('❌ Tenant update failed:', JSON.stringify(updateError));
       }
     } else {
       await db.from('tenants')

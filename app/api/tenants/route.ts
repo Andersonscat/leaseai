@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
           phone: body.phone,
           property_id: body.property_id,
           move_in_date: body.move_in_date,
-          lease_end_date: body.lease_end_date,
           rent_amount: body.rent_amount,
           status: body.status || 'Current',
           notes: body.notes,

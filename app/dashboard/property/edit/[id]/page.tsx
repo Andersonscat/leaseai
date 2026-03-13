@@ -30,7 +30,6 @@ export default function EditPropertyPage() {
     sqft: '',
     pets: 'Not allowed',
     parking: 'No parking',
-    parking_available: false,
     description: '',
     status: 'available' as 'available' | 'rented' | 'pending',
     walk_score: '',
@@ -90,8 +89,6 @@ export default function EditPropertyPage() {
             baths: property.baths || 1,
             sqft: property.sqft?.toString() || '',
             pets: property.pets || 'Not allowed',
-            parking: property.parking || 'No parking',
-            parking_available: property.parking_available || false,
             description: property.description || '',
             status: property.status || 'available',
             walk_score: property.walk_score?.toString() || '',
@@ -158,11 +155,6 @@ export default function EditPropertyPage() {
     setSaving(true);
 
     try {
-      // price_monthly is handled by the API from the 'price' field
-
-      // Determine parking_available from parking selection (Zillow field)
-      const parkingAvailable = formData.parking_type !== 'none';
-
       const response = await fetch(`/api/properties/${propertyId}`, {
         method: 'PUT',
         headers: {
@@ -170,7 +162,6 @@ export default function EditPropertyPage() {
         },
         body: JSON.stringify({
           ...formData,
-          parking_available: parkingAvailable,
           walk_score: formData.walk_score ? parseInt(formData.walk_score) : null,
           transit_score: formData.transit_score ? parseInt(formData.transit_score) : null,
           amenities: amenities.length > 0 ? amenities : null,

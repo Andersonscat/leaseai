@@ -257,12 +257,12 @@ export default function PropertyPage() {
                   <div className="text-lg font-bold text-black">{property.type === 'rent' ? 'For Rent' : 'For Sale'}</div>
                 </div>
                 
-                {property.parking_available !== undefined && (
+                {property.parking_type && property.parking_type !== 'none' && (
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200">
                     <Car className="w-6 h-6 text-purple-600 mb-2" />
                     <div className="text-sm text-gray-600">Parking</div>
-                    <div className="text-lg font-bold text-black">
-                      {property.parking_available ? 'Available' : 'Not Available'}
+                    <div className="text-lg font-bold text-black capitalize">
+                      {property.parking_type.replace(/_/g, ' ')}
                     </div>
                   </div>
                 )}
@@ -323,11 +323,11 @@ export default function PropertyPage() {
                   <span className="text-black font-semibold">{property.pets}</span>
                 </div>
 
-                {property.parking_available !== undefined && (
+                {property.parking_type && property.parking_type !== 'none' && (
                   <div className="flex justify-between py-3 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Parking</span>
-                    <span className="text-black font-semibold">
-                      {property.parking_available ? '✓ Available' : '✗ Not Available'}
+                    <span className="text-black font-semibold capitalize">
+                      {property.parking_type.replace(/_/g, ' ')}
                     </span>
                   </div>
                 )}
@@ -363,12 +363,12 @@ export default function PropertyPage() {
               </div>
             )}
 
-            {property.house_rules && property.house_rules.length > 0 && (
+            {property.rules && property.rules.length > 0 && (
               <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm mb-8">
                 <h2 className="text-2xl font-bold text-black mb-4">House Rules</h2>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                   <ul className="space-y-3">
-                    {property.house_rules.map((rule: string, idx: number) => (
+                    {property.rules.map((rule: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-3">
                         <span className="text-amber-600 font-bold mt-1">•</span>
                         <span className="text-gray-700 flex-1">{rule}</span>

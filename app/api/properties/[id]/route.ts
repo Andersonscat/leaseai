@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { geocodeAddress } from '@/lib/geocoding';
 
 // Helper to create authenticated Supabase client
 function createAuthenticatedClient() {
@@ -111,8 +112,6 @@ export async function PUT(
         baths: body.baths,
         sqft,
         pets: body.pets,
-        parking: body.parking,
-        parking_available: body.parking_available,
         description: body.description,
         status: body.status,
         images: body.images,
@@ -139,6 +138,16 @@ export async function PUT(
     
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    // Re-geocode if address changed
+    if (updatedProperty?.id && body.address) {
+      const addrQuery = [body.address, body.city, body.state].filter(Boolean).join(', ');
+      geocodeAddress(addrQuery).then(coords => {
+        if (coords) {
+          supabase.from('properties').update({ lat: coords.lat, lng: coords.lng }).eq('id', updatedProperty.id).then(() => {});
+        }
+      }).catch(() => {});
     }
     
     return NextResponse.json({ 
