@@ -18,13 +18,25 @@ type ParkingOption = typeof PARKING_OPTIONS[number];
 
 // ─── Platform detection ───────────────────────────────────────────────────────
 
-type Platform = 'zillow' | 'realtor' | 'redfin' | 'apartments' | 'generic';
+type Platform =
+  | 'zillow' | 'trulia' | 'hotpads'
+  | 'realtor' | 'redfin'
+  | 'apartments' | 'rent'
+  | 'zumper' | 'homes'
+  | 'generic';
+
+const ANTIBOT_PLATFORMS: Platform[] = ['zillow', 'trulia', 'hotpads'];
 
 function detectPlatform(url: string): Platform {
   if (/zillow\.com/i.test(url))       return 'zillow';
+  if (/trulia\.com/i.test(url))       return 'trulia';
+  if (/hotpads\.com/i.test(url))      return 'hotpads';
   if (/realtor\.com/i.test(url))      return 'realtor';
   if (/redfin\.com/i.test(url))       return 'redfin';
   if (/apartments\.com/i.test(url))   return 'apartments';
+  if (/rent\.com/i.test(url))         return 'rent';
+  if (/zumper\.com/i.test(url))       return 'zumper';
+  if (/homes\.com/i.test(url))        return 'homes';
   return 'generic';
 }
 
@@ -181,11 +193,14 @@ function extractGenericImages(html: string): string[] {
 
 function extractImages(html: string, platform: Platform): string[] {
   switch (platform) {
-    case 'zillow':     return extractZillowImages(html);
-    case 'realtor':    return extractRealtorImages(html);
-    case 'redfin':     return extractRedfinImages(html);
-    case 'apartments': return extractGenericImages(html);
-    default:           return extractGenericImages(html);
+    case 'zillow':
+    case 'trulia':
+    case 'hotpads':     return extractZillowImages(html);
+    case 'realtor':     return extractRealtorImages(html);
+    case 'redfin':      return extractRedfinImages(html);
+    case 'apartments':
+    case 'rent':
+    default:            return extractGenericImages(html);
   }
 }
 
@@ -235,39 +250,46 @@ function extractRedfinStructuredData(html: string): string {
   return parts.length > 0 ? '\n\nJSON-LD:\n' + parts.join('\n') : '';
 }
 
+function extractGenericStructuredData(html: string): string {
+  const parts: string[] = [];
+  const jsonLd = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi) ?? [];
+  parts.push(...jsonLd.slice(0, 3).map(b => b.replace(/<\/?script[^>]*>/gi, '').substring(0, 6000)));
+  const nextData = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (nextData) parts.push('\n__NEXT_DATA__:\n' + nextData[1].substring(0, 20000));
+  return parts.length > 0 ? '\n\nStructured Data:\n' + parts.join('\n') : '';
+}
+
 function extractStructuredData(html: string, platform: Platform): string {
   switch (platform) {
-    case 'zillow':  return extractZillowStructuredData(html);
-    case 'realtor': return extractRealtorStructuredData(html);
-    case 'redfin':  return extractRedfinStructuredData(html);
-    default: {
-      const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi) ?? [];
-      const parts = jsonLdMatches.slice(0, 2).map(b =>
-        b.replace(/<\/?script[^>]*>/gi, '').substring(0, 6000)
-      );
-      return parts.length > 0 ? '\n\nJSON-LD:\n' + parts.join('\n') : '';
-    }
+    case 'zillow':
+    case 'trulia':
+    case 'hotpads':  return extractZillowStructuredData(html);
+    case 'realtor':  return extractRealtorStructuredData(html);
+    case 'redfin':   return extractRedfinStructuredData(html);
+    default:         return extractGenericStructuredData(html);
   }
 }
 
 // ─── Platform-specific fetch headers ─────────────────────────────────────────
 
+const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const MOBILE_UA  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
+
 function getFetchHeaders(platform: Platform): Record<string, string> {
   const base = {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
   };
 
   switch (platform) {
     case 'zillow':
-      return { ...base, 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1' };
-    case 'realtor':
-      return { ...base, 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
-    case 'redfin':
-      return { ...base, 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
+    case 'trulia':
+    case 'hotpads':
+      return { ...base, 'User-Agent': MOBILE_UA };
     default:
-      return { ...base, 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
+      return { ...base, 'User-Agent': DESKTOP_UA };
   }
 }
 
@@ -440,12 +462,65 @@ export async function POST(request: NextRequest) {
     const platform = detectPlatform(url);
     console.log(`🚀 Magic Import — platform: ${platform}, url: ${url}`);
 
-    const siteResponse = await fetch(url, { headers: getFetchHeaders(platform) });
-    if (!siteResponse.ok) {
-      throw new Error(`Failed to fetch listing page: ${siteResponse.status} ${siteResponse.statusText}`);
-    }
+    // ── Smart fetch ──
+    // Zillow Group loads units/floor plans via JS — always prefer ScrapingBee
+    // for full data. Other platforms work fine with direct fetch.
+    let html: string;
+    let fetchMethod = 'direct';
+    const sbKey = process.env.SCRAPINGBEE_API_KEY;
+    const needsJsRendering = ANTIBOT_PLATFORMS.includes(platform);
 
-    const html = await siteResponse.text();
+    if (needsJsRendering && sbKey) {
+      // Zillow/Trulia/HotPads: use ScrapingBee with JS rendering + wait for dynamic content
+      console.log(`🐝 Using ScrapingBee for ${platform} (JS rendering required)`);
+      const sbUrl = `https://app.scrapingbee.com/api/v1/?${new URLSearchParams({
+        api_key: sbKey,
+        url,
+        render_js: 'true',
+        premium_proxy: 'true',
+        country_code: 'us',
+        wait: '5000',
+      })}`;
+      const sbResponse = await fetch(sbUrl);
+      if (!sbResponse.ok) {
+        throw new Error(
+          `Failed to fetch ${platform} listing (ScrapingBee ${sbResponse.status}). ` +
+          `Try Realtor.com, Apartments.com, or Rent.com — they work without restrictions.`
+        );
+      }
+      html = await sbResponse.text();
+      fetchMethod = 'scrapingbee';
+    } else {
+      // All other platforms: direct fetch, ScrapingBee as fallback for 403/429
+      const directResponse = await fetch(url, { headers: getFetchHeaders(platform) });
+
+      if (directResponse.ok) {
+        html = await directResponse.text();
+      } else if ((directResponse.status === 403 || directResponse.status === 429) && sbKey) {
+        console.log(`⚠️ Direct fetch returned ${directResponse.status} for ${platform}, trying ScrapingBee...`);
+        const sbUrl = `https://app.scrapingbee.com/api/v1/?${new URLSearchParams({
+          api_key: sbKey,
+          url,
+          render_js: 'true',
+          premium_proxy: 'true',
+          country_code: 'us',
+        })}`;
+        const sbResponse = await fetch(sbUrl);
+        if (!sbResponse.ok) {
+          throw new Error(
+            `This platform blocked our request (${directResponse.status}). ` +
+            `Try Realtor.com, Apartments.com, or Rent.com — they work reliably.`
+          );
+        }
+        html = await sbResponse.text();
+        fetchMethod = 'scrapingbee';
+        console.log(`📦 ScrapingBee fallback succeeded for ${platform}`);
+      } else if (!directResponse.ok) {
+        throw new Error(`Failed to fetch listing page: ${directResponse.status} ${directResponse.statusText}`);
+      } else {
+        html = await directResponse.text();
+      }
+    }
 
     // Platform-specific pre-extraction
     const preExtractedImages = extractImages(html, platform);
@@ -458,11 +533,16 @@ export async function POST(request: NextRequest) {
       .replace(/<svg\b[^>]*>([\s\S]*?)<\/svg>/gim, '');
 
     const platformHints: Record<Platform, string> = {
-      zillow:     'This is a Zillow listing. It may be a single unit OR an apartment building with multiple available units.',
-      realtor:    'This is a Realtor.com listing. Typically a single property rental or sale.',
-      redfin:     'This is a Redfin listing. Typically a single property for sale or rent.',
-      apartments: 'This is an Apartments.com listing. It may be a single unit OR a building with multiple floor plans.',
-      generic:    'This is a real estate listing from an unknown platform.',
+      zillow:     'Zillow listing. May be single unit OR apartment building with multiple available units.',
+      trulia:     'Trulia listing (Zillow Group). Typically a single property rental or sale.',
+      hotpads:    'HotPads listing (Zillow Group). Typically a rental property.',
+      realtor:    'Realtor.com listing. Typically a single property rental or sale.',
+      redfin:     'Redfin listing. Typically a single property for sale or rent.',
+      apartments: 'Apartments.com listing. May be single unit OR building with multiple floor plans.',
+      rent:       'Rent.com listing (CoStar Group). Typically a rental property.',
+      zumper:     'Zumper listing. Typically a rental property.',
+      homes:      'Homes.com listing. Typically a single property for sale.',
+      generic:    'Real estate listing from an unknown platform.',
     };
 
     const prompt = `You are extracting real estate listing data from a webpage.
@@ -580,7 +660,7 @@ Strict rules:
     const label = extractedData.listing_type === 'building'
       ? `building "${extractedData.building_name}" (${extractedData.units?.length ?? 0} units)`
       : `${extractedData.address}, ${extractedData.city}`;
-    console.log(`✅ Import success [${platform}] — ${label}`);
+    console.log(`✅ Import success [${platform}] via ${fetchMethod} — ${label}`);
 
     return NextResponse.json({ data: extractedData });
 

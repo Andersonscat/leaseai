@@ -1,19 +1,15 @@
 /**
  * ai-qualification.ts — backward-compatible re-export hub.
  *
- * All logic has been extracted into focused modules:
- *   lib/ai/types.ts        — shared TypeScript interfaces
- *   lib/ai/models.ts       — Gemini model instances & system prompt
- *   lib/ai/analyze.ts      — analyzeConversation, extractLeadData
- *   lib/ai/brain.ts        — analyzeBrain (lightweight pipeline)
- *   lib/ai/voice.ts        — generateFinalResponse
- *   lib/ai/guardrails.ts   — validateBookingAction, verifyResponseHallucinations
- *   lib/ai/utils.ts        — maskPII, flattenExtractedData, formatBookingDetails
- *   lib/scoring/property-match.ts — scorePropertyMatch, getRankedPropertyMatches, inferStateFromProperties
+ * Core modules:
+ *   lib/ai/types.ts              — shared TypeScript interfaces
+ *   lib/ai/agent.ts              — runAgentPipeline (unified tool-calling pipeline)
+ *   lib/ai/tools.ts              — Gemini function declarations
+ *   lib/ai/prompts.ts            — system prompt builder
+ *   lib/ai/guardrails.ts         — validateBookingAction, verifyResponseHallucinations
+ *   lib/ai/utils.ts              — maskPII, flattenExtractedData, formatBookingDetails
+ *   lib/scoring/property-match.ts — scorePropertyMatch, getRankedPropertyMatches
  *   lib/scoring/lead-score.ts     — calculateLeadScore, getLeadQuality
- *
- * Existing imports like `import { analyzeConversation } from '@/lib/ai-qualification'`
- * continue to work without changes.
  */
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -32,17 +28,16 @@ export type {
   PropertyLike,
 } from '@/lib/ai/types';
 
-// ─── AI Pipeline ────────────────────────────────────────────────────────────
-export { analyzeConversation, analyzeBrain } from '@/lib/ai/brain';
-export { extractLeadData } from '@/lib/ai/analyze';
-export { generateFinalResponse } from '@/lib/ai/voice';
+// ─── Agent Pipeline ─────────────────────────────────────────────────────────
+export { runAgentPipeline, type AgentResult } from '@/lib/ai/agent';
 
 // ─── Guardrails ─────────────────────────────────────────────────────────────
-export { validateBookingAction, verifyResponseHallucinations } from '@/lib/ai/guardrails';
+export { validateBookingAction, verifyResponseHallucinations, checkResponseDuplication, runGuardrailPipeline } from '@/lib/ai/guardrails';
+export type { GuardrailResult, GuardrailPipelineResult } from '@/lib/ai/guardrails';
 
 // ─── Scoring ────────────────────────────────────────────────────────────────
 export { scorePropertyMatch, getRankedPropertyMatches, inferStateFromProperties } from '@/lib/scoring/property-match';
 export { calculateLeadScore, getLeadQuality } from '@/lib/scoring/lead-score';
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
-export { maskPII, flattenExtractedData, formatBookingDetails } from '@/lib/ai/utils';
+export { maskPII, flattenExtractedData, formatBookingDetails, cleanMessageForHistory, detectAndEnrichDistance, extractKnownFields } from '@/lib/ai/utils';

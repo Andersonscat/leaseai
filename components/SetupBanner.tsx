@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Mail, Sparkles, Check, ArrowRight,
-  Link as LinkIcon, Zap, Bot, X
+  Link as LinkIcon, Zap, X
 } from "lucide-react";
 
 const SETUP_KEY = "leaseai_setup_v1";
@@ -36,17 +36,6 @@ const STEPS = [
     ),
     tag: "Recommended",
     tagColor: "bg-blue-50 text-blue-600 border-blue-100",
-  },
-  {
-    id: "sandbox",
-    num: "03",
-    title: "Try the AI agent",
-    desc: "Send a message as if you were a tenant. See how your AI qualifies leads, answers questions, and books viewings.",
-    cta: "Open sandbox",
-    ctaIcon: <Bot className="w-4 h-4" />,
-    tag: "Try it",
-    tagColor: "bg-violet-50 text-violet-600 border-violet-100",
-    href: "/dashboard/sandbox",
   },
 ];
 
@@ -196,7 +185,7 @@ export default function SetupBanner() {
                 {/* CTA */}
                 {!isDone && (
                   <button
-                    onClick={() => markDone(step.id, step.href)}
+                    onClick={() => markDone(step.id, (step as any).href)}
                     disabled={!!loading}
                     className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-all shrink-0 disabled:opacity-50"
                   >

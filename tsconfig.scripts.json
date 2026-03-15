@@ -7,5 +7,5 @@
     "noEmit": false,
     "outDir": ".scripts-out"
   },
-  "include": ["scripts/**/*.ts", "lib/**/*.ts"]
+  "include": ["scripts/**/*.ts", "lib/**/*.ts", "evals/**/*.ts"]
 }

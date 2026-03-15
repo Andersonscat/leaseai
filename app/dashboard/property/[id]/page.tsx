@@ -57,7 +57,7 @@ export default function PropertyPage() {
     const updated = searchParams.get('updated');
     
     if (openChats === 'true') {
-      setShowAllChats(true);
+      // TODO: implement chats sidebar
     }
     
     if (updated === 'success') {
@@ -147,31 +147,43 @@ export default function PropertyPage() {
         {/* Image Gallery */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-lg mb-8">
           <div className="relative h-[500px] bg-gray-200 group">
-            <img 
-              src={property.images[currentImageIndex]} 
-              alt={`Property ${currentImageIndex + 1}`}
-              className="w-full h-full object-cover"
-            />
+            {property.images && property.images.length > 0 ? (
+              <img 
+                src={property.images[currentImageIndex]} 
+                alt={`Property ${currentImageIndex + 1}`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <span className="text-lg">No photos</span>
+              </div>
+            )}
             
             {/* Image Navigation */}
-            <button 
-              onClick={prevImage}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
-            >
-              <ChevronLeft className="w-6 h-6 text-black" />
-            </button>
-            
-            <button 
-              onClick={nextImage}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
-            >
-              <ChevronRight className="w-6 h-6 text-black" />
-            </button>
+            {property.images && property.images.length > 1 && (
+              <>
+                <button 
+                  onClick={prevImage}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <ChevronLeft className="w-6 h-6 text-black" />
+                </button>
+                
+                <button 
+                  onClick={nextImage}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <ChevronRight className="w-6 h-6 text-black" />
+                </button>
+              </>
+            )}
 
             {/* Image Counter */}
-            <div className="absolute bottom-4 right-4 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-semibold">
-              {currentImageIndex + 1} / {property.images.length}
-            </div>
+            {property.images && property.images.length > 0 && (
+              <div className="absolute bottom-4 right-4 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-semibold">
+                {currentImageIndex + 1} / {property.images.length}
+              </div>
+            )}
 
             {/* Property Type Badge */}
             <div className="absolute top-4 right-4">

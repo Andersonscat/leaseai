@@ -8,6 +8,11 @@ export interface Database {
         Insert: Omit<Property, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<Property, 'id' | 'created_at' | 'updated_at'>>;
       };
+      buildings: {
+        Row: Building;
+        Insert: Omit<Building, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<Building, 'id' | 'created_at' | 'updated_at'>>;
+      };
       tenants: {
         Row: Tenant;
         Insert: Omit<Tenant, 'id' | 'created_at' | 'updated_at'>;
@@ -25,6 +30,34 @@ export interface Database {
       };
     };
   };
+}
+
+export interface Building {
+  id: string;
+  user_id: string;
+  name?: string;
+  address: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  lat?: number;
+  lng?: number;
+  description?: string;
+  type?: 'apartment' | 'condo' | 'townhouse' | 'co_living' | 'mixed';
+  year_built?: number;
+  total_units?: number;
+  amenities?: string[];
+  community_features?: string[];
+  rules?: string[];
+  pet_policy?: string;
+  parking_type?: string;
+  laundry_type?: string;
+  walk_score?: number | null;
+  transit_score?: number | null;
+  images?: string[];
+  source_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Property {
@@ -68,6 +101,13 @@ export interface Property {
 
   lat?: number;
   lng?: number;
+
+  building_id?: string;
+  unit_number?: string;
+  floor?: number;
+  floor_plan_name?: string;
+  move_in_special?: string;
+  building?: Building;
 
   created_at?: string;
   updated_at?: string;

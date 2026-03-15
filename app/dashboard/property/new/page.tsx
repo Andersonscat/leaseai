@@ -12,8 +12,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Bot,
   Building2,
+  Home,
   Check,
   X,
 } from 'lucide-react';
@@ -29,7 +31,21 @@ interface BuildingUnit {
   sqft: number | null;
   price: number;
   available_from: string | null;
+  floor: number | null;
+  status: string;
+  furnished: boolean;
+  lease_term: string;
+  description: string;
+  images: string[];
+  amenities: string[];
+  move_in_special: string;
 }
+
+const DEFAULT_UNIT: BuildingUnit = {
+  unit_number: '', beds: 1, baths: 1, sqft: null, price: 0, available_from: null,
+  floor: null, status: 'available', furnished: false, lease_term: '12 months',
+  description: '', images: [], amenities: [], move_in_special: '',
+};
 
 interface BuildingData {
   listing_type: 'building';
@@ -336,9 +352,22 @@ export default function NewPropertyPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Building listing state
+  // Listing mode: single unit vs multi-unit building
+  const [listingMode, setListingMode] = useState<'unit' | 'building'>('unit');
+
+  // Building listing state (URL import)
   const [buildingData, setBuildingData] = useState<BuildingData | null>(null);
   const [savingUnits, setSavingUnits] = useState(false);
+
+  // Building manual entry state
+  const [buildingName, setBuildingName] = useState('');
+  const [buildingType, setBuildingType] = useState<string>('apartment');
+  const [manualUnits, setManualUnits] = useState<BuildingUnit[]>([
+    { ...DEFAULT_UNIT },
+  ]);
+
+  // Expanded unit rows (for detail editing)
+  const [expandedUnits, setExpandedUnits] = useState<Set<number>>(new Set());
 
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -362,6 +391,9 @@ export default function NewPropertyPage() {
     transit_score: '',
     lease_term: '12 months',
     ai_assisted: true,
+    security_deposit: '',
+    application_fee: '',
+    available_from: '',
   });
 
   // Advanced fields state
@@ -387,21 +419,26 @@ export default function NewPropertyPage() {
     e.preventDefault();
     setError('');
     
-    // Validate required fields
-    const requiredFields = ['address', 'city', 'state', 'zip_code', 'price', 'sqft'] as const;
     const errors: string[] = [];
-    
-    requiredFields.forEach(field => {
-      if (!formData[field]) {
-        errors.push(field);
+
+    if (listingMode === 'building') {
+      (['address', 'city', 'state', 'zip_code'] as const).forEach(field => {
+        if (!formData[field]) errors.push(field);
+      });
+      const validUnits = manualUnits.filter(u => u.unit_number.trim());
+      if (validUnits.length === 0) {
+        setError('Add at least one unit with a unit number');
+        return;
       }
-    });
+    } else {
+      (['address', 'city', 'state', 'zip_code', 'price', 'sqft'] as const).forEach(field => {
+        if (!formData[field]) errors.push(field);
+      });
+    }
 
     if (errors.length > 0) {
       setFormErrors(errors);
       setError('Please fill in all required fields marked with *');
-      
-      // Scroll to the first error after state updates
       setTimeout(() => {
         const firstErrorField = document.getElementById(errors[0]);
         if (firstErrorField) {
@@ -413,7 +450,6 @@ export default function NewPropertyPage() {
     }
     
     setFormErrors([]);
-    // Show preview modal
     setCurrentPreviewImageIndex(0);
     setShowPreview(true);
   };
@@ -446,17 +482,59 @@ export default function NewPropertyPage() {
     setSaving(true);
 
     try {
+      if (listingMode === 'building') {
+        const validUnits = manualUnits.filter(u => u.unit_number.trim());
+        const res = await fetch('/api/buildings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            building: {
+              name: buildingName || null,
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zip_code: formData.zip_code,
+              type: buildingType,
+              description: formData.description,
+              amenities: amenities.length > 0 ? amenities : null,
+              rules: rules.length > 0 ? rules : null,
+              pets: formData.pets,
+              parking: formData.parking,
+              walk_score: formData.walk_score ? parseInt(formData.walk_score) : null,
+              transit_score: formData.transit_score ? parseInt(formData.transit_score) : null,
+              images: imagePreviews.length > 0 ? imagePreviews : null,
+            },
+            units: validUnits.map(u => ({
+              unit_number: u.unit_number,
+              beds: u.beds,
+              baths: u.baths,
+              sqft: u.sqft,
+              price: u.price,
+              available_from: u.available_from,
+              floor: u.floor,
+              status: u.status,
+              furnished: u.furnished,
+              lease_term: u.lease_term,
+              description: u.description || null,
+              images: u.images.length > 0 ? u.images : null,
+              amenities: u.amenities.length > 0 ? u.amenities : null,
+              move_in_special: u.move_in_special || null,
+            })),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create building');
+        router.push('/dashboard?tab=properties&success=property_created');
+        return;
+      }
 
-      // Format price (add /month for rent)
-      const formattedPrice = formData.type === 'rent' 
-        ? `${formData.price}/month` 
+      const formattedPrice = formData.type === 'rent'
+        ? `${formData.price}/month`
         : formData.price;
 
       const response = await fetch('/api/properties', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           price: formattedPrice,
@@ -466,18 +544,14 @@ export default function NewPropertyPage() {
           features: features.length > 0 ? features : null,
           rules: rules.length > 0 ? rules : null,
           images: imagePreviews,
+          security_deposit: formData.security_deposit ? parseInt(formData.security_deposit.replace(/[^0-9]/g, '')) : null,
+          application_fee: formData.application_fee ? parseInt(formData.application_fee.replace(/[^0-9]/g, '')) : null,
+          available_from: formData.available_from || null,
         }),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create property');
-      }
-
-      console.log('✅ Property created:', data);
-
-      // Redirect to properties list with success message
+      if (!response.ok) throw new Error(data.error || 'Failed to create property');
       router.push('/dashboard?tab=properties&success=property_created');
     } catch (err) {
       console.error('Error creating property:', err);
@@ -567,7 +641,6 @@ export default function NewPropertyPage() {
     });
   };
 
-  // Saves each selected unit as a separate property and redirects
   const handleBuildingConfirm = async (selectedUnits: BuildingUnit[]) => {
     if (!buildingData || selectedUnits.length === 0) return;
     setSavingUnits(true);
@@ -575,43 +648,51 @@ export default function NewPropertyPage() {
     setBuildingData(null);
 
     try {
-      const results = await Promise.allSettled(
-        selectedUnits.map(unit =>
-          fetch('/api/properties', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type:        buildingData.type,
-              address:     `${buildingData.address} Unit ${unit.unit_number}`,
-              city:        buildingData.city,
-              state:       buildingData.state,
-              zip_code:    buildingData.zip_code,
-              price:       unit.price,
-              beds:        unit.beds,
-              baths:       unit.baths,
-              sqft:        unit.sqft,
-              description: buildingData.description,
-              amenities:   buildingData.amenities,
-              features:    buildingData.features,
-              rules:       buildingData.rules,
-              pets:        buildingData.pets,
-              parking:     buildingData.parking,
-              images:      buildingData.imagePreviews,
-              status:      'available',
-              ai_assisted: true,
-            }),
-          })
-        )
-      );
+      const res = await fetch('/api/buildings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          building: {
+            name:        buildingData.building_name || null,
+            address:     buildingData.address,
+            city:        buildingData.city,
+            state:       buildingData.state,
+            zip_code:    buildingData.zip_code,
+            type:        buildingData.type === 'sale' ? 'sale' : 'rent',
+            description: buildingData.description,
+            amenities:   buildingData.amenities,
+            rules:       buildingData.rules,
+            pets:        buildingData.pets,
+            parking:     buildingData.parking,
+            images:      buildingData.imagePreviews,
+          },
+          units: selectedUnits.map(u => ({
+            unit_number:    u.unit_number,
+            beds:           u.beds,
+            baths:          u.baths,
+            sqft:           u.sqft,
+            price:          u.price,
+            available_from: u.available_from,
+            floor:          u.floor,
+            status:         u.status,
+            furnished:      u.furnished,
+            lease_term:     u.lease_term,
+            description:    u.description || null,
+            images:         u.images?.length > 0 ? u.images : null,
+            amenities:      u.amenities?.length > 0 ? u.amenities : null,
+            move_in_special: u.move_in_special || null,
+          })),
+        }),
+      });
 
-      const failed = results.filter(r => r.status === 'rejected').length;
-      if (failed > 0) {
-        setError(`${results.length - failed} unit(s) saved, but ${failed} failed. Check the properties list.`);
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to save building');
       }
 
       router.push('/dashboard?tab=properties&success=property_created');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save units');
+      setError(err instanceof Error ? err.message : 'Failed to save building');
       setSavingUnits(false);
     }
   };
@@ -644,7 +725,7 @@ export default function NewPropertyPage() {
               </div>
               <input
                 type="text"
-                placeholder="Paste Zillow, Realtor.com, Redfin or Apartments.com URL to auto-fill..."
+                placeholder="Paste any listing URL — Zillow, Realtor, Redfin, Apartments.com, Trulia, Rent.com, Zumper..."
                 className="flex-1 px-4 py-4 bg-transparent border-0 text-lg text-black placeholder:text-gray-400 outline-none"
                 id="magic-url"
                 disabled={saving}
@@ -745,6 +826,47 @@ export default function NewPropertyPage() {
             </div>
           )}
 
+          {/* Listing Mode Selector */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-2xl font-bold text-black mb-4">What are you listing?</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setListingMode('unit')}
+                className={`p-5 rounded-xl border-2 text-left transition-all ${
+                  listingMode === 'unit'
+                    ? 'border-black bg-black/[0.02] shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 transition-colors ${
+                  listingMode === 'unit' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  <Home className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-black text-base">Single Unit</div>
+                <div className="text-sm text-gray-500 mt-1">Apartment, house, condo</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setListingMode('building')}
+                className={`p-5 rounded-xl border-2 text-left transition-all ${
+                  listingMode === 'building'
+                    ? 'border-black bg-black/[0.02] shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 transition-colors ${
+                  listingMode === 'building' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-black text-base">Multi-Unit Building</div>
+                <div className="text-sm text-gray-500 mt-1">Apartment complex, co-living</div>
+              </button>
+            </div>
+          </div>
+
           {/* Property Type */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-4">
@@ -806,6 +928,43 @@ export default function NewPropertyPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
             <h2 className="text-2xl font-bold text-black mb-4">Basic Information</h2>
             <div className="space-y-4">
+              {/* Building Name & Type (building mode only) */}
+              {listingMode === 'building' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-base font-bold text-gray-900 mb-2">
+                      Building Name
+                    </label>
+                    <input
+                      type="text"
+                      value={buildingName}
+                      onChange={e => setBuildingName(e.target.value)}
+                      placeholder="The Piedmont"
+                      className="w-full px-4 py-3.5 border border-gray-300 bg-gray-50 rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-base font-bold text-gray-900 mb-2">
+                      Building Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={buildingType}
+                        onChange={e => setBuildingType(e.target.value)}
+                        className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-lg text-lg text-black appearance-none cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                      >
+                        <option value="apartment">Apartment Complex</option>
+                        <option value="co_living">Co-living</option>
+                        <option value="condo">Condo Building</option>
+                        <option value="townhouse">Townhouse Community</option>
+                        <option value="mixed">Mixed Use</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-base font-bold text-gray-900 mb-2">
                   Street Address <span className="text-red-500">*</span>
@@ -883,42 +1042,395 @@ export default function NewPropertyPage() {
                 </div>
               </div>
 
+              {listingMode === 'unit' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-base font-bold text-gray-900 mb-2">
+                      Price <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="price"
+                      id="price"
+                      value={formData.price}
+                      onChange={handleChange}
+                      placeholder={formData.type === 'rent' ? '$2,500' : '$450,000'}
+                      className={`w-full px-4 py-3.5 border rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-4 transition-all duration-200 ${
+                        formErrors.includes('price')
+                          ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
+                          : 'border-gray-300 bg-gray-50 focus:ring-black/5 focus:border-black'
+                      }`}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.type === 'rent' ? 'Monthly rent' : 'Sale price'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-base font-bold text-gray-900 mb-2">
+                      Type
+                    </label>
+                    <div className="px-4 py-3.5 bg-gray-100 rounded-lg text-lg text-gray-700 font-semibold">
+                      {formData.type === 'rent' ? 'For Rent' : 'For Sale'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {listingMode === 'building' && (
+                <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-4 py-3">
+                  Price is set per unit in the Units section below.
+                </p>
+              )}
+
+              {/* Security Deposit & Application Fee */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-base font-bold text-gray-900 mb-2">
-                    Price <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-bold text-black mb-2">Security Deposit</label>
                   <input
                     type="text"
-                    name="price"
-                    id="price"
-                    value={formData.price}
+                    name="security_deposit"
+                    value={formData.security_deposit}
                     onChange={handleChange}
-                    placeholder={formData.type === 'rent' ? '$2,500' : '$450,000'}
-                    className={`w-full px-4 py-3.5 border rounded-lg text-lg text-black placeholder:text-gray-400 focus:outline-none focus:ring-4 transition-all duration-200 ${
-                      formErrors.includes('price')
-                        ? 'border-red-300 bg-red-50/50 focus:ring-red-100 focus:border-red-400'
-                        : 'border-gray-300 bg-gray-50 focus:ring-black/5 focus:border-black'
-                    }`}
+                    placeholder="$1,500"
+                    className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl focus:ring-4 outline-none transition-all duration-200 text-black focus:ring-black/5 focus:border-black"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formData.type === 'rent' ? 'Monthly rent' : 'Sale price'}
-                  </p>
                 </div>
-
                 <div>
-                  <label className="block text-base font-bold text-gray-900 mb-2">
-                    Type
-                  </label>
-                  <div className="px-4 py-3.5 bg-gray-100 rounded-lg text-lg text-gray-700 font-semibold">
-                    {formData.type === 'rent' ? 'For Rent' : 'For Sale'}
-                  </div>
+                  <label className="block text-sm font-bold text-black mb-2">Application Fee</label>
+                  <input
+                    type="text"
+                    name="application_fee"
+                    value={formData.application_fee}
+                    onChange={handleChange}
+                    placeholder="$50"
+                    className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl focus:ring-4 outline-none transition-all duration-200 text-black focus:ring-black/5 focus:border-black"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Property Details */}
+          {/* Units (building mode) — Accordion Cards */}
+          {listingMode === 'building' && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-2xl font-bold text-black">Units</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = manualUnits.length;
+                    setManualUnits(prev => [...prev, { ...DEFAULT_UNIT }]);
+                    setExpandedUnits(prev => new Set(prev).add(nextIdx));
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-black text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-all"
+                >
+                  <Plus className="w-4 h-4" /> Add Unit
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {manualUnits.map((unit, idx) => {
+                  const isExpanded = expandedUnits.has(idx);
+                  const updateUnit = (patch: Partial<BuildingUnit>) => {
+                    const next = [...manualUnits];
+                    next[idx] = { ...next[idx], ...patch };
+                    setManualUnits(next);
+                  };
+                  const toggleExpand = () => {
+                    setExpandedUnits(prev => {
+                      const next = new Set(prev);
+                      next.has(idx) ? next.delete(idx) : next.add(idx);
+                      return next;
+                    });
+                  };
+                  const removeUnit = () => {
+                    setManualUnits(prev => prev.filter((_, i) => i !== idx));
+                    setExpandedUnits(prev => {
+                      const n = new Set<number>();
+                      prev.forEach(v => { if (v < idx) n.add(v); else if (v > idx) n.add(v - 1); });
+                      return n;
+                    });
+                  };
+
+                  const bedsLabel = unit.beds === 0 ? 'Studio' : `${unit.beds} bd`;
+                  const bathsLabel = `${unit.baths} ba`;
+                  const sqftLabel = unit.sqft ? `${unit.sqft.toLocaleString()} sqft` : null;
+                  const priceLabel = unit.price > 0 ? `$${unit.price.toLocaleString()}/mo` : null;
+                  const statusColors: Record<string, string> = {
+                    available: 'bg-green-50 text-green-700 border-green-200',
+                    occupied: 'bg-gray-100 text-gray-600 border-gray-200',
+                    reserved: 'bg-amber-50 text-amber-700 border-amber-200',
+                    renovation: 'bg-orange-50 text-orange-700 border-orange-200',
+                  };
+
+                  return (
+                    <div key={idx} className={`border rounded-xl transition-all ${isExpanded ? 'border-gray-300 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                      {/* Collapsed header */}
+                      <button
+                        type="button"
+                        onClick={toggleExpand}
+                        className="w-full flex items-center gap-3.5 px-4 py-3 text-left"
+                      >
+                        {/* Thumbnail */}
+                        <div className="w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-gray-100 flex items-center justify-center">
+                          {unit.images.length > 0 ? (
+                            <img src={unit.images[0]} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="w-5 h-5 text-gray-300" />
+                          )}
+                        </div>
+
+                        {/* Text content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-black text-sm">
+                              {unit.unit_number ? `Unit ${unit.unit_number}` : `Unit ${idx + 1}`}
+                            </span>
+                            <span className="text-gray-300">|</span>
+                            <span className="text-sm text-gray-600">
+                              {[bedsLabel, bathsLabel, sqftLabel].filter(Boolean).join(' / ')}
+                            </span>
+                            {priceLabel && (
+                              <>
+                                <span className="text-gray-300">|</span>
+                                <span className="text-sm font-semibold text-black">{priceLabel}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {unit.floor != null && (
+                              <span className="text-xs text-gray-500">Floor {unit.floor}</span>
+                            )}
+                            {unit.floor != null && unit.available_from && <span className="text-gray-300 text-xs">·</span>}
+                            {unit.available_from && (
+                              <span className="text-xs text-gray-500">Available {unit.available_from}</span>
+                            )}
+                            {(unit.floor != null || unit.available_from) && <span className="text-gray-300 text-xs">·</span>}
+                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${statusColors[unit.status] || statusColors.available}`}>
+                              {unit.status.charAt(0).toUpperCase() + unit.status.slice(1)}
+                            </span>
+                            {unit.furnished && (
+                              <>
+                                <span className="text-gray-300 text-xs">·</span>
+                                <span className="text-xs text-gray-500">Furnished</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right side actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {manualUnits.length > 1 && (
+                            <div
+                              onClick={e => { e.stopPropagation(); removeUnit(); }}
+                              className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                              role="button"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Expanded form */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-200 px-5 py-5 space-y-5">
+                          {/* Core details */}
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Unit #</label>
+                              <input type="text" value={unit.unit_number} onChange={e => updateUnit({ unit_number: e.target.value })} placeholder="19A" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Floor</label>
+                              <input type="number" value={unit.floor ?? ''} onChange={e => updateUnit({ floor: e.target.value ? Number(e.target.value) : null })} placeholder="2" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Beds</label>
+                              <select value={unit.beds} onChange={e => updateUnit({ beds: Number(e.target.value) })} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all appearance-none">
+                                {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n === 0 ? 'Studio' : `${n} bd`}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Baths</label>
+                              <select value={unit.baths} onChange={e => updateUnit({ baths: Number(e.target.value) })} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all appearance-none">
+                                {[1, 1.5, 2, 2.5, 3].map(n => <option key={n} value={n}>{n} ba</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Sqft</label>
+                              <input type="number" value={unit.sqft || ''} onChange={e => updateUnit({ sqft: e.target.value ? Number(e.target.value) : null })} placeholder="850" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Price/mo</label>
+                              <input type="number" value={unit.price || ''} onChange={e => updateUnit({ price: Number(e.target.value) || 0 })} placeholder="950" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                          </div>
+
+                          {/* Availability & lease */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Status</label>
+                              <select value={unit.status} onChange={e => updateUnit({ status: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all appearance-none">
+                                <option value="available">Available</option>
+                                <option value="occupied">Occupied</option>
+                                <option value="reserved">Reserved</option>
+                                <option value="renovation">Renovation</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Available From</label>
+                              <input type="text" value={unit.available_from || ''} onChange={e => updateUnit({ available_from: e.target.value || null })} placeholder="Aug 14" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Lease Term</label>
+                              <select value={unit.lease_term} onChange={e => updateUnit({ lease_term: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all appearance-none">
+                                <option value="Month-to-month">Month-to-month</option>
+                                <option value="6 months">6 months</option>
+                                <option value="12 months">12 months</option>
+                                <option value="18 months">18 months</option>
+                                <option value="24 months">24 months</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Move-in Special</label>
+                              <input type="text" value={unit.move_in_special} onChange={e => updateUnit({ move_in_special: e.target.value })} placeholder="1 month free" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" />
+                            </div>
+                          </div>
+
+                          {/* Furnished toggle */}
+                          <div>
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                              <button type="button" onClick={() => updateUnit({ furnished: !unit.furnished })} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${unit.furnished ? 'bg-gray-900' : 'bg-gray-200'}`}>
+                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${unit.furnished ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+                              </button>
+                              <span className="text-sm font-medium text-gray-700">Furnished</span>
+                            </label>
+                          </div>
+
+                          {/* Description */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Description</label>
+                            <textarea value={unit.description} onChange={e => updateUnit({ description: e.target.value })} rows={2} placeholder="Corner unit with natural light, updated kitchen..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black resize-none transition-all" />
+                          </div>
+
+                          {/* Unit Amenities */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Amenities</label>
+                            <div className="flex gap-2 mb-2">
+                              <input
+                                type="text"
+                                placeholder="e.g., In-unit W/D"
+                                className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = (e.target as HTMLInputElement).value.trim();
+                                    if (val && !unit.amenities.includes(val)) {
+                                      updateUnit({ amenities: [...unit.amenities, val] });
+                                      (e.target as HTMLInputElement).value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                                  const val = input.value.trim();
+                                  if (val && !unit.amenities.includes(val)) {
+                                    updateUnit({ amenities: [...unit.amenities, val] });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-4 py-2.5 bg-black text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-all"
+                              >
+                                Add
+                              </button>
+                            </div>
+                            {unit.amenities.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {unit.amenities.map((a, aIdx) => (
+                                  <div key={aIdx} className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg text-sm border border-green-200">
+                                    <span>{a}</span>
+                                    <button type="button" onClick={() => updateUnit({ amenities: unit.amenities.filter((_, i) => i !== aIdx) })} className="text-green-700 hover:text-green-900">&times;</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Unit Photos */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Photos</label>
+                            {unit.images.length > 0 && (
+                              <div className="flex gap-2 mb-2 flex-wrap">
+                                {unit.images.map((img, imgIdx) => (
+                                  <div key={imgIdx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group/img">
+                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => updateUnit({ images: unit.images.filter((_, i) => i !== imgIdx) })}
+                                      className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+                                    >
+                                      <X className="w-4 h-4 text-white" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <label className="cursor-pointer">
+                              <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                                <span className="text-xs font-medium text-gray-500">Click to upload unit photos</span>
+                              </div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={e => {
+                                  const files = Array.from(e.target.files || []);
+                                  files.forEach(file => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => updateUnit({ images: [...unit.images, reader.result as string] });
+                                    reader.readAsDataURL(file);
+                                  });
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Summary footer */}
+              {manualUnits.filter(u => u.unit_number.trim()).length > 0 && (() => {
+                const valid = manualUnits.filter(u => u.unit_number.trim());
+                const prices = valid.map(u => u.price).filter(p => p > 0);
+                const avg = prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0;
+                const min = prices.length > 0 ? Math.min(...prices) : 0;
+                const max = prices.length > 0 ? Math.max(...prices) : 0;
+                return (
+                  <div className="mt-4 px-4 py-3 bg-gray-50 rounded-xl flex items-center gap-4 text-sm text-gray-600">
+                    <span className="font-semibold text-black">{valid.length} unit{valid.length !== 1 ? 's' : ''}</span>
+                    {avg > 0 && <span>Avg: ${avg.toLocaleString()}/mo</span>}
+                    {min > 0 && min !== max && <span>Range: ${min.toLocaleString()} — ${max.toLocaleString()}</span>}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Property Details (single unit mode) */}
+          {listingMode === 'unit' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
             <h2 className="text-2xl font-bold text-black mb-4">Property Details</h2>
             <div className="grid grid-cols-3 gap-4">
@@ -983,8 +1495,13 @@ export default function NewPropertyPage() {
                 />
               </div>
             </div>
+          </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-4 mt-4">
+          {/* Policies */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-2xl font-bold text-black mb-4">{listingMode === 'building' ? 'Building Policies' : 'Policies'}</h2>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-base font-bold text-gray-900 mb-2">
                   Pets Policy
@@ -1270,7 +1787,7 @@ export default function NewPropertyPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-black">
-                Photos
+                {listingMode === 'building' ? 'Building Photos' : 'Photos'}
                 {imagePreviews.length > 0 && (
                   <span className="ml-2 text-base font-normal text-gray-400">{imagePreviews.length}</span>
                 )}
@@ -1285,6 +1802,9 @@ export default function NewPropertyPage() {
                 </button>
               )}
             </div>
+            {listingMode === 'building' && (
+              <p className="text-xs text-gray-500 mb-4 -mt-2">Exterior, lobby, amenity spaces. Add unit-specific photos in each unit&apos;s detail panel above.</p>
+            )}
 
             {/* Upload area */}
             <div className="mb-4">
@@ -1449,7 +1969,7 @@ export default function NewPropertyPage() {
                       <span className="text-2xl font-bold text-black tracking-tight">
                         {formatCurrency(formData.price)}
                       </span>
-                      {formData.type === 'rent' && formData.price > 0 && (
+                      {formData.type === 'rent' && Number(formData.price) > 0 && (
                         <span className="text-sm text-gray-400 font-normal">/mo</span>
                       )}
                     </div>
@@ -1488,7 +2008,7 @@ export default function NewPropertyPage() {
                         {formData.baths} BA
                       </span>
                     )}
-                    {formData.sqft > 0 && (
+                    {Number(formData.sqft) > 0 && (
                       <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-full">
                         <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-2V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />

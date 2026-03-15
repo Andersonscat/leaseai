@@ -1,24 +1,56 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
-// Public routes that don't require authentication
-const publicRoutes = ['/', '/login', '/signup', '/test-db', '/test-properties'];
+const publicRoutes = ['/', '/login', '/signup'];
 
-export function middleware(request: NextRequest) {
+const publicApiRoutes = ['/api/gmail/webhook', '/api/gmail/callback'];
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  // Check if the route is public
-  const isPublicRoute = publicRoutes.some(route => 
-    pathname === route || pathname.startsWith(route)
+
+  const isPublicRoute = publicRoutes.some(
+    (route) => pathname === route || pathname.startsWith(route + '/')
   );
-  
-  if (isPublicRoute) {
-    return NextResponse.next();
+  if (isPublicRoute) return NextResponse.next();
+
+  const isPublicApi = publicApiRoutes.some((route) => pathname.startsWith(route));
+  if (isPublicApi) return NextResponse.next();
+
+  let response = NextResponse.next({
+    request: { headers: request.headers },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          response.cookies.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          response.cookies.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
   }
-  
-  // For now, allow all routes (we'll add auth check later)
-  // TODO: Check for Supabase session
-  return NextResponse.next();
+
+  return response;
 }
 
 export const config = {

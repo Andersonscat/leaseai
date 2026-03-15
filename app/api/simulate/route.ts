@@ -3,9 +3,6 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import {
-  analyzeBrain,
-  generateFinalResponse,
-  verifyResponseHallucinations,
   calculateLeadScore,
   getLeadQuality,
   formatBookingDetails,
@@ -13,8 +10,16 @@ import {
   getRankedPropertyMatches,
   scorePropertyMatch,
   validateBookingAction,
+  cleanMessageForHistory,
+  extractKnownFields,
+  runAgentPipeline,
+  type AgentResult,
   type RankedPropertyMatch,
 } from '@/lib/ai-qualification';
+import { runGuardrailPipeline } from '@/lib/ai/guardrails';
+import { loadConversationMemory, summarizeConversationIfNeeded } from '@/lib/ai/memory';
+import { extractClientData, mergeExtractionWithAgent } from '@/lib/ai/extraction';
+import type { AiAnalysis } from '@/lib/ai/types';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
 
 function getAuthClient() {
@@ -118,22 +123,20 @@ export async function POST(req: NextRequest) {
     // ─── 3-6. LOAD PROPERTIES, MESSAGES, TENANT IN PARALLEL ────────────
     const [
       { data: properties },
-      { data: previousMessages },
       { data: tenantRow },
+      memory,
     ] = await Promise.all([
-      db.from('properties').select('*').eq('user_id', user.id)
+      db.from('properties').select('*, building:buildings(id, name, amenities, rules, pet_policy, parking_type, walk_score, transit_score)').eq('user_id', user.id)
         .is('deleted_at', null),
-      db.from('messages').select('message_text, sender_type')
-        .eq('tenant_id', tenantId).eq('user_id', user.id)
-        .order('created_at', { ascending: true }).limit(10),
       db.from('tenants').select('*').eq('id', tenantId).single(),
+      loadConversationMemory(db, user.id, tenantId),
     ]);
 
     console.log(`🏠 Properties loaded: ${properties?.length ?? 0}. Addresses: ${properties?.map(p => `${p.address} [status=${p.status}, price=${p.price_monthly || p.price}, img=${p.images?.[0] ? (String(p.images[0]).startsWith('http') ? 'URL' : String(p.images[0]).substring(0, 15) + '...') : 'NONE'}]`).join(' | ') || 'none'}`);
 
-    const conversationHistory = (previousMessages || []).map(msg => ({
+    const conversationHistory = memory.recentMessages.map(msg => ({
       role: msg.sender_type === 'tenant' ? ('user' as const) : ('assistant' as const),
-      content: msg.message_text,
+      content: cleanMessageForHistory(msg.message_text),
     }));
 
     const realtorName = user.user_metadata?.ai_signature_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
@@ -180,6 +183,8 @@ export async function POST(req: NextRequest) {
         }))
       : [];
 
+    const oauthRow = await getOAuthTokens(user.id);
+
     const context = {
       tenant: {
         id: tenantId,
@@ -190,63 +195,140 @@ export async function POST(req: NextRequest) {
       },
       properties: properties || [],
       conversationHistory,
+      conversationSummary: memory.summary || undefined,
       realtorName,
       realtorPhone,
       realtorCompany,
       timezone,
       viewingHoursStart,
       viewingHoursEnd,
+      knownFields: tenantRow ? extractKnownFields(tenantRow) : undefined,
+      oauthRefreshToken: oauthRow?.refresh_token,
       preRankedMatches: preRankedMatches.length > 0 ? preRankedMatches : undefined,
     };
 
-    // ─── PHASE 1: BRAIN (intent + data extraction, NO reply text) ──────
+    // =================================================================
+    // STEP 1: FORCED EXTRACTION (Structured Output — guaranteed)
+    // =================================================================
     t1 = Date.now();
-    const { analysis } = await analyzeBrain(context);
-    const fallbackReply = `Hi ${(tenantRow?.name || name).split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
-    console.log(`🧠 Brain: action=${analysis.action}, intent=${analysis.intent}, listing_addresses=${analysis.listing_addresses?.join(',') || 'none'}`);
-    pipelineStages.push({ stage: 'brain', durationMs: Date.now() - t1, detail: `action=${analysis.action}` });
+    const extraction = await extractClientData(message, conversationHistory);
+    pipelineStages.push({ stage: 'extraction', durationMs: Date.now() - t1, detail: extraction.hasData ? 'data_found' : 'no_data' });
 
-    // ─── GUARDRAIL: validate booking before execution ─────────────────
-    if (analysis.action === 'book_calendar') {
-      const validation = validateBookingAction(analysis, conversationHistory);
-      if (!validation.valid) {
-        console.log('🛡️ Guardrail override: book_calendar → reply');
-        analysis.action = 'reply';
-        analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
-        analysis.action_params = undefined;
+    // Save extraction data to tenant immediately (before agent runs)
+    if (extraction.hasData) {
+      const extFlat = flattenExtractedData(extraction.data);
+      if (Object.keys(extFlat).length > 0) {
+        const extUpdate: Record<string, any> = {};
+        if (extFlat.budget_max) extUpdate.budget_max = extFlat.budget_max;
+        if (extFlat.move_in_date) extUpdate.move_in_date = extFlat.move_in_date;
+        if (extFlat.bedrooms) extUpdate.bedrooms = extFlat.bedrooms;
+        if (extFlat.bathrooms) extUpdate.bathrooms = extFlat.bathrooms;
+        if (extFlat.num_occupants != null) extUpdate.num_occupants = extFlat.num_occupants;
+        if (extFlat.has_pets === true || extFlat.has_pets === false) extUpdate.has_pets = extFlat.has_pets;
+        if (extFlat.property_type) extUpdate.property_type = extFlat.property_type;
+        if (extFlat.lease_duration) extUpdate.lease_duration = extFlat.lease_duration;
+        if (extFlat.preferred_city) extUpdate.preferred_city = extFlat.preferred_city;
+        if (extFlat.preferred_state) extUpdate.preferred_state = extFlat.preferred_state;
+        if (extFlat.must_haves) extUpdate.must_haves = extFlat.must_haves;
+        if (extFlat.deal_breakers) extUpdate.deal_breakers = extFlat.deal_breakers;
+        if (extFlat.needs_parking) extUpdate.needs_parking = true;
+        if (extFlat.furnishing) extUpdate.furnishing = extFlat.furnishing;
+        if (extraction.data.personal?.firstName) {
+          const fn = extraction.data.personal.firstName;
+          const ln = extraction.data.personal.lastName;
+          extUpdate.name = ln ? `${fn} ${ln}` : fn;
+        }
+        if (extraction.data.pets && Object.keys(extraction.data.pets).length > 0) {
+          extUpdate.pet_details = extraction.data.pets;
+        }
+
+        if (Object.keys(extUpdate).length > 0) {
+          await db.from('tenants').update(extUpdate).eq('id', tenantId);
+          console.log(`💾 Extraction saved to tenant: ${Object.keys(extUpdate).join(', ')}`);
+        }
+      }
+
+      // Refresh knownFields so the agent sees the extracted data
+      const { data: refreshedTenant } = await db.from('tenants').select('*').eq('id', tenantId).single();
+      if (refreshedTenant) {
+        context.knownFields = extractKnownFields(refreshedTenant);
       }
     }
 
-    // ─── HAND: Execute Actions ──────────────────────────────────────────
-    t1 = Date.now();
+    // =================================================================
+    // STEP 2: AGENT PIPELINE (Tool Calling — response generation)
+    // =================================================================
+    const fallbackReply = `Hi ${(tenantRow?.name || name).split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
+
+    let analysis: AiAnalysis;
+    let finalResponseText: string;
     let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
     let appointmentSaved = false;
+    let rankedMatches: RankedPropertyMatch[] = [];
+    let hallucinationBlocked = false;
+    let guardrailResult: import('@/lib/ai/guardrails').GuardrailPipelineResult;
 
-    if (analysis.action === 'book_calendar' && analysis.action_params) {
+    {
+      // ─── AGENT PIPELINE: Tool Calling ─────────────────────────────────
+      t1 = Date.now();
+      let agentResult: AgentResult;
       try {
-        const oauthRow = await getOAuthTokens(user.id);
-        if (oauthRow) {
-          const { createCalendarEvent } = await import('@/lib/calendar-client');
+        agentResult = await runAgentPipeline(context);
+      } catch (agentErr: any) {
+        console.error('❌ Agent pipeline failed, falling back to legacy:', agentErr?.message);
+        agentResult = {
+          responseText: fallbackReply,
+          action: 'reply',
+          extractedData: null,
+          listingAddresses: [],
+          photoMode: false,
+          actionParams: null,
+          escalationReason: null,
+          humanActionRequests: [],
+          toolsUsed: [],
+          thoughtProcess: 'Agent pipeline failed',
+        };
+      }
+      pipelineStages.push({ stage: 'agent', durationMs: Date.now() - t1, detail: `action=${agentResult.action}, tools=[${agentResult.toolsUsed.join(',')}]` });
+
+      // Merge: extraction data + agent data (agent takes priority)
+      if (extraction.hasData) {
+        agentResult.extractedData = mergeExtractionWithAgent(extraction.data, agentResult.extractedData);
+      }
+
+      // Convert AgentResult → AiAnalysis for backward compat
+      analysis = {
+        thought_process: agentResult.thoughtProcess,
+        intent: agentResult.action === 'book_calendar' ? 'booking_confirmed' : 'general',
+        action: agentResult.action,
+        action_params: agentResult.actionParams || undefined,
+        extractedData: agentResult.extractedData || undefined,
+        listing_addresses: agentResult.listingAddresses,
+        photo_mode: agentResult.photoMode,
+        escalation_reason: agentResult.escalationReason || undefined,
+        priority: 'warm',
+      };
+      finalResponseText = agentResult.responseText;
+
+      // ─── GUARDRAIL: validate booking before execution ───────────────
+      if (analysis.action === 'book_calendar') {
+        const validation = validateBookingAction(analysis, conversationHistory);
+        if (!validation.valid) {
+          console.log('🛡️ Guardrail override: book_calendar → reply');
+          analysis.action = 'reply';
+          analysis.action_params = undefined;
+        }
+      }
+
+      // ─── HAND: Save appointment to DB (calendar event already created by dispatcher) ──
+      t1 = Date.now();
+      if (analysis.action === 'book_calendar' && analysis.action_params) {
+        try {
           const args = analysis.action_params;
-          const startTimeStr = args.start_time
-            .replace(/Z$/i, '')
-            .replace(/[+-]\d{2}:\d{2}$/, '')
-            .replace(/\.\d{3}$/, '');
-
+          const startTimeStr = (args.start_time || '').replace(/Z$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/\.\d{3}$/, '');
           const duration = args.duration_minutes || 30;
-          const startAsUtc = new Date(startTimeStr + 'Z');
-          const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
-          const endTimeStr = endAsUtc.toISOString().slice(0, 19);
-
-          const event = await createCalendarEvent(
-            oauthRow.refresh_token,
-            startTimeStr,
-            endTimeStr,
-            `Viewing: ${args.property_address}`,
-            `Client: ${args.client_name || name}\nPhone: ${phone || 'N/A'}\nEmail: ${email}`,
-            email
-          );
-          executionResult = { success: true, data: event };
+          const endDate = new Date(new Date(startTimeStr).getTime() + duration * 60000);
+          const endTimeStr = endDate.toISOString().replace(/Z$/i, '').replace(/\.\d{3}$/, '');
 
           await db.from('appointments').insert({
             user_id: user.id,
@@ -256,109 +338,81 @@ export async function POST(req: NextRequest) {
             start_time: startTimeStr,
             end_time: endTimeStr,
             description: `Client: ${args.client_name || name}\nPhone: ${phone || 'N/A'}\nEmail: ${email}`,
-            google_event_id: event.id,
-            google_event_link: event.htmlLink,
             status: 'confirmed',
           });
           appointmentSaved = true;
-        } else {
-          executionResult = {
-            success: true,
-            data: { htmlLink: '(Calendar not connected — simulated)', id: 'sim-' + Date.now() },
-          };
+          executionResult = { success: true };
+        } catch (err: any) {
+          console.error('Simulate: appointment save error:', err);
+          executionResult = { success: false, error: err.message };
         }
-      } catch (err: any) {
-        console.error('Simulate: calendar error:', err);
-        executionResult = { success: false, error: err.message };
       }
-    }
-    pipelineStages.push({ stage: 'hand', durationMs: Date.now() - t1, detail: analysis.action === 'book_calendar' ? 'calendar' : 'none' });
+      pipelineStages.push({ stage: 'hand', durationMs: Date.now() - t1, detail: analysis.action === 'book_calendar' ? 'calendar' : 'none' });
 
-    // ─── PHASE 2: CODE — Resolve properties ─────────────────────────────
-    const flatTenant = { ...(tenantRow || {}), ...flattenExtractedData(analysis.extractedData) };
-
-    // Infer state from landlord's property portfolio when AI didn't extract it
-    if (flatTenant.preferred_city && !flatTenant.preferred_state && properties?.length) {
-      const { inferStateFromProperties } = await import('@/lib/ai-qualification');
-      const inferred = inferStateFromProperties(flatTenant.preferred_city, properties);
-      if (inferred) {
-        flatTenant.preferred_state = inferred.toUpperCase();
-        console.log(`🌍 State inferred from portfolio: "${flatTenant.preferred_city}" → ${flatTenant.preferred_state}`);
+      // ─── CODE: Resolve property cards ───────────────────────────────
+      const flatTenant = { ...(tenantRow || {}), ...flattenExtractedData(analysis.extractedData) };
+      if (flatTenant.preferred_city && !flatTenant.preferred_state && properties?.length) {
+        const { inferStateFromProperties } = await import('@/lib/ai-qualification');
+        const inferred = inferStateFromProperties(flatTenant.preferred_city, properties);
+        if (inferred) flatTenant.preferred_state = inferred.toUpperCase();
       }
-    }
 
-    let rankedMatches: RankedPropertyMatch[] = [];
-    if (analysis.action === 'send_listing' && properties?.length) {
-      // Strategy: trust the AI's listing_addresses when they resolve to real properties.
-      // The AI already received preRankedMatches in context and mentions those addresses
-      // in its reply text — cards must match. Fallback to deterministic ranking only if
-      // the address lookup fails (e.g. hallucinated address).
-      const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
+      if (analysis.action === 'send_listing' && properties?.length) {
+        const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
+        if (aiAddresses.length > 0) {
+          const resolvedProperties = aiAddresses
+            .map(addr => {
+              const addrLow = addr.toLowerCase().trim();
+              return properties.find(p => {
+                const pAddr = (p.address || '').toLowerCase();
+                return pAddr === addrLow || pAddr.includes(addrLow) || addrLow.includes(pAddr);
+              });
+            })
+            .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
-      if (aiAddresses.length > 0) {
-        const resolvedProperties = aiAddresses
-          .map(addr => {
-            const addrLow = addr.toLowerCase().trim();
-            return properties.find(p => {
-              const pAddr = (p.address || '').toLowerCase();
-              return pAddr === addrLow || pAddr.includes(addrLow) || addrLow.includes(pAddr);
+          if (resolvedProperties.length > 0) {
+            const scored = resolvedProperties.map(p => {
+              const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p);
+              return { property: p, score, reason, clusters, isNearby, disqualified };
             });
-          })
-          .filter((p): p is NonNullable<typeof p> => Boolean(p));
-
-        if (resolvedProperties.length > 0) {
-          const scored = resolvedProperties.map(p => {
-            const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p);
-            return { property: p, score, reason, clusters, isNearby, disqualified };
-          });
-
-          // SCORING GATE: never show hard-disqualified properties regardless of AI choice
-          const disqualifiedAddrs = scored.filter(r => r.disqualified).map(r => `${r.property.address} (${r.disqualified})`);
-          if (disqualifiedAddrs.length > 0) {
-            console.log(`🚫 Scoring gate rejected AI suggestions: ${disqualifiedAddrs.join(', ')}`);
-          }
-          rankedMatches = scored.filter(r => !r.disqualified);
-          console.log(`📋 AI listing_addresses after gate: ${rankedMatches.map(r => r.property.address).join(', ')} (scores: ${rankedMatches.map(r => r.score).join(', ')})`);
-
-          // If all AI suggestions were disqualified, fall back to deterministic ranking
-          if (rankedMatches.length === 0) {
+            rankedMatches = scored.filter(r => !r.disqualified);
+            if (rankedMatches.length === 0) {
+              rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
+            }
+          } else {
             rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
-            console.log(`🔄 All AI suggestions disqualified, fallback ranking: ${rankedMatches.map(r => `${r.property.address}=${r.score}`).join(', ')}`);
           }
         } else {
           rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
-          console.log(`⚠️ listing_addresses not found in DB, falling back to ranking`);
         }
-      } else {
-        rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults, alreadyShown: alreadyShownAddresses });
-        console.log(`🏠 No listing_addresses, deterministic ranking: ${rankedMatches.map(r => r.score).join(', ')}`);
       }
+
+      // ─── GUARDRAILS PIPELINE ────────────────────────────────────────
+      t1 = Date.now();
+      const matchedPropsForCheck = rankedMatches.map(r => r.property);
+      guardrailResult = runGuardrailPipeline(
+        {
+          responseText: finalResponseText,
+          agentResult,
+          properties: matchedPropsForCheck.length > 0 ? matchedPropsForCheck : (properties || []),
+          conversationHistory,
+          tenantEmail: email,
+        },
+        (tenantRow?.name || name).split(' ')[0]
+      );
+      if (guardrailResult.blocked || guardrailResult.rewritten) {
+        console.log(`🛡️ Guardrails: blocked=${guardrailResult.blocked}, rewritten=${guardrailResult.rewritten}, checks=${guardrailResult.results.map(r => `${r.name}:${r.verdict}`).join(', ')}`);
+        if (guardrailResult.blocked) {
+          analysis.action = 'reply';
+          hallucinationBlocked = true;
+        }
+      }
+      finalResponseText = guardrailResult.finalText;
+      pipelineStages.push({ stage: 'guardrails', durationMs: Date.now() - t1, detail: hallucinationBlocked ? 'blocked' : guardrailResult.rewritten ? 'rewritten' : 'passed' });
+
     }
 
     const matchedProperties = rankedMatches.map(r => r.property);
-
-    // ─── PHASE 3: VOICE — Generate reply text (sees ONLY selected properties) ──
-    t1 = Date.now();
-    let finalResponseText: string;
-    try {
-      finalResponseText = await generateFinalResponse(context, analysis, executionResult, matchedProperties as any);
-    } catch (voiceErr: any) {
-      console.error('❌ Voice failed:', voiceErr?.message);
-      finalResponseText = fallbackReply;
-    }
-    console.log(`🗣️ Voice: length=${finalResponseText.length}`);
-    pipelineStages.push({ stage: 'voice', durationMs: Date.now() - t1, detail: `len=${finalResponseText.length}` });
-
-    // ─── PHASE 4: JUDGE — Deterministic hallucination check ─────────────
-    t1 = Date.now();
-    const verification = await verifyResponseHallucinations(finalResponseText, matchedProperties.length > 0 ? matchedProperties : (properties || []));
-    let hallucinationBlocked = false;
-    if (verification.hasHallucinations) {
-      finalResponseText = `Hi ${(tenantRow?.name || name).split(' ')[0]}, I'm currently checking our inventory to confirm the exact details of matching properties. I will get back to you very shortly with accurate information!`;
-      analysis.action = 'reply';
-      hallucinationBlocked = true;
-    }
-    pipelineStages.push({ stage: 'judge', durationMs: Date.now() - t1, detail: hallucinationBlocked ? 'blocked' : 'passed' });
 
     // ─── ATTACH BOOKING BLOCK ───────────────────────────────────────────
     let finalResponse = finalResponseText;
@@ -450,7 +504,7 @@ export async function POST(req: NextRequest) {
     const bestPropertyId = matchedProperties.length > 0
       ? matchedProperties[0].id
       : (analysis.action === 'book_calendar' && analysis.action_params
-          ? properties?.find(p => p.address === analysis.action_params.property_address)?.id
+          ? properties?.find(p => p.address === analysis.action_params!.property_address)?.id
           : null) || null;
 
     // Progressive insert: try with all columns, strip failing ones
@@ -593,6 +647,11 @@ export async function POST(req: NextRequest) {
         .eq('id', tenantId);
     }
 
+    // Summarize conversation if it's getting long
+    summarizeConversationIfNeeded(db, user.id, tenantId).catch(err =>
+      console.error('Summary generation failed (non-blocking):', err)
+    );
+
     return NextResponse.json({
       success: true,
       tenantId,
@@ -627,6 +686,11 @@ export async function POST(req: NextRequest) {
         error: executionResult.error,
       } : null,
       hallucinationBlocked,
+      guardrails: {
+        blocked: guardrailResult.blocked,
+        rewritten: guardrailResult.rewritten,
+        checks: guardrailResult.results.map(r => ({ name: r.name, verdict: r.verdict, reason: r.reason })),
+      },
       pipeline: pipelineStages,
       timing: { totalMs: Date.now() - t0 },
     });

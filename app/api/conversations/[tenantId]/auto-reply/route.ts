@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { 
+import {
   calculateLeadScore,
   getLeadQuality,
   flattenExtractedData,
   getRankedPropertyMatches,
   scorePropertyMatch,
-  analyzeConversation,
-  generateFinalResponse,
-  verifyResponseHallucinations,
-  extractLeadData,
-  validateBookingAction
+  validateBookingAction,
+  cleanMessageForHistory,
+  extractKnownFields,
+  runAgentPipeline,
+  type AgentResult,
 } from '@/lib/ai-qualification';
+import type { AiAnalysis } from '@/lib/ai/types';
+import { runGuardrailPipeline } from '@/lib/ai/guardrails';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
+import { aiLogger, traceAiCall, recordSystemEvent } from '@/lib/observability';
+import { loadConversationMemory, summarizeConversationIfNeeded } from '@/lib/ai/memory';
 
 export async function POST(
   req: NextRequest,
@@ -33,20 +37,18 @@ export async function POST(
       }
     );
 
-    // Проверяем авторизацию
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const tenantId = params.tenantId;
+    const log = aiLogger.child({ route: 'auto-reply', userId: user.id, tenantId });
 
-    console.log('🤖 Generating smart AI response for tenant:', tenantId);
-
-    // 1. Get tenant data (all qualification info)
+    // 1. Get tenant data
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
@@ -55,53 +57,24 @@ export async function POST(
       .single();
 
     if (tenantError || !tenant) {
-      console.error('Error fetching tenant:', tenantError);
-      return NextResponse.json(
-        { error: 'Tenant not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    // 2. Get conversation history
-    const { data: messages, error: messagesError } = await supabase
-      .from('messages')
-      .select('message_text, sender_type')
-      .eq('tenant_id', tenantId)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(10);
-
-    if (messagesError) {
-      console.error('Error fetching messages:', messagesError);
-    }
+    // 2. Load conversation memory (summary + recent messages)
+    const memory = await loadConversationMemory(supabase, user.id, tenantId);
 
     const conversationHistory =
-      messages?.map((msg) => ({
+      memory.recentMessages.map((msg) => ({
         role: msg.sender_type === 'tenant' ? ('user' as const) : ('assistant' as const),
-        content: msg.message_text,
-      })) || [];
+        content: cleanMessageForHistory(msg.message_text),
+      }));
 
     // 3. Get realtor's available properties
-    const { data: properties, error: propertiesError } = await supabase
+    const { data: properties } = await supabase
       .from('properties')
-      .select('*')
+      .select('*, building:buildings(id, name, amenities, rules, pet_policy, parking_type, walk_score, transit_score)')
       .eq('user_id', user.id)
-      .in('status', ['Active', 'Available']); // ← Support both statuses
-
-    if (propertiesError) {
-      console.error('Error fetching properties:', propertiesError);
-    }
-    
-    // 🚨 DEBUG: Log what properties AI sees
-    console.log('🏠 Properties for AI generation:', {
-      count: properties?.length || 0,
-      properties: properties?.map(p => ({
-        address: p.address,
-        price: p.price,
-        beds: p.beds,
-        status: p.status,
-      })),
-    });
+      .in('status', ['Active', 'Available']);
 
     // 4. Get realtor info
     const { data: userData } = await supabase
@@ -117,43 +90,40 @@ export async function POST(
     const viewingHoursStart = user.user_metadata?.viewing_hours_start || '10:00';
     const viewingHoursEnd   = user.user_metadata?.viewing_hours_end   || '20:00';
 
-    // 5. NEW: Modular AI Pipeline (Extraction 2.0)
-    // 5.1 Extract Data & Detect Conflicts
-    const questionnaire = await extractLeadData(conversationHistory, tenant);
-    
-    if (questionnaire.conflicts && questionnaire.conflicts.length > 0) {
-      console.warn('⚡ AI Conflict Detected:', questionnaire.conflicts);
+    // 5. Pre-compute ranked matches for context
+    const alreadyShownAddresses: string[] = [];
+    for (const msg of conversationHistory) {
+      if (msg.role === 'assistant' && msg.content?.includes('---PROPERTIES_JSON---')) {
+        try {
+          const jsonStr = msg.content.split('---PROPERTIES_JSON---')[1]?.split('---END_PROPERTIES_JSON---')[0]?.trim();
+          if (jsonStr) {
+            const shown = JSON.parse(jsonStr) as { address: string }[];
+            shown.forEach(p => { if (p.address) alreadyShownAddresses.push(p.address); });
+          }
+        } catch { /* ignore */ }
+      }
     }
+    const maxResults = alreadyShownAddresses.length > 0 ? 5 : 3;
 
-    // 5.2 Map questionnaire to TenantData updates
-    const extractionUpdates: any = {};
-    if (questionnaire.fullName?.value) extractionUpdates.name = questionnaire.fullName.value;
-    if (questionnaire.budgetMax?.value) extractionUpdates.budget_max = questionnaire.budgetMax.value;
-    if (questionnaire.moveInDate?.value) extractionUpdates.move_in_date = questionnaire.moveInDate.value;
-    if (questionnaire.bedrooms?.value) extractionUpdates.bedrooms = questionnaire.bedrooms.value;
-    if (questionnaire.hasPets?.value !== undefined) extractionUpdates.has_pets = questionnaire.hasPets.value;
-    if (questionnaire.petsDetails?.value) extractionUpdates.pet_details = questionnaire.petsDetails.value;
-    if (questionnaire.occupantsCount?.value) extractionUpdates.occupants = questionnaire.occupantsCount.value;
-    if (questionnaire.parkingNeeded?.value !== undefined) extractionUpdates.parking_needed = questionnaire.parkingNeeded.value;
+    const preFlatTenant = { ...(tenant || {}) };
+    const preRankedMatches = properties?.length
+      ? getRankedPropertyMatches(preFlatTenant, properties, {
+          maxResults,
+          alreadyShown: alreadyShownAddresses,
+        }).map(r => ({
+          address: r.property.address,
+          score: r.score,
+          reason: r.reason,
+          price: r.property.price_monthly || r.property.price,
+          beds: r.property.beds ?? r.property.bedrooms,
+          baths: r.property.baths ?? r.property.bathrooms,
+          sqft: r.property.sqft,
+        }))
+      : [];
 
-    // 5.3 Update Tenant in DB with confidence-aware data
-    if (Object.keys(extractionUpdates).length > 0) {
-      console.log('📝 Updating tenant data from extraction:', extractionUpdates);
-      
-      const newScore = calculateLeadScore({ ...tenant, ...extractionUpdates });
-      const newQuality = getLeadQuality(newScore);
-      extractionUpdates.lead_score = newScore;
-      extractionUpdates.lead_quality = newQuality;
+    const oauthRow = await getOAuthTokens(user.id);
 
-      await supabase.from('tenants').update(extractionUpdates).eq('id', tenantId);
-      
-      // Update local tenant object for subsequent steps
-      Object.assign(tenant, extractionUpdates);
-    }
-
-    // 6. Planning & Execution (AI Brain Phase 2)
-    // 6.1 Analyze & Decide Action
-    const analysis = await analyzeConversation({
+    const context = {
       tenant: {
         id: tenant.id,
         name: tenant.name,
@@ -163,76 +133,100 @@ export async function POST(
       },
       properties: properties || [],
       conversationHistory,
+      conversationSummary: memory.summary || undefined,
       realtorName,
       realtorPhone,
       realtorCompany,
       timezone,
       viewingHoursStart,
       viewingHoursEnd,
-    });
+      knownFields: extractKnownFields(tenant),
+      oauthRefreshToken: oauthRow?.refresh_token,
+      preRankedMatches: preRankedMatches.length > 0 ? preRankedMatches : undefined,
+    };
 
-    console.log('✅ Analysis complete:', analysis.action);
+    // 6. Run Agent Pipeline (with tracing)
+    let agentResult: AgentResult;
+    try {
+      agentResult = await traceAiCall(
+        {
+          userId: user.id,
+          tenantId,
+          trigger: 'manual',
+          promptText: conversationHistory.map(m => m.content).join('\n').slice(0, 2000),
+        },
+        () => runAgentPipeline(context)
+      );
+    } catch (err: any) {
+      log.error({ err }, 'Agent pipeline failed');
+      const firstName = (tenant.name || 'there').split(' ')[0];
+      agentResult = {
+        responseText: `Hi ${firstName}, thanks for your message! I'm reviewing the details and will get back to you shortly.`,
+        action: 'reply',
+        extractedData: null,
+        listingAddresses: [],
+        photoMode: false,
+        actionParams: null,
+        escalationReason: null,
+        humanActionRequests: [],
+        toolsUsed: [],
+        thoughtProcess: 'Agent pipeline error — fallback',
+      };
+    }
 
-    // 6.1b Guardrail: validate booking before execution
+    // Convert to AiAnalysis for backward compat
+    const analysis: AiAnalysis = {
+      thought_process: agentResult.thoughtProcess,
+      intent: agentResult.action === 'book_calendar' ? 'booking_confirmed' : 'general',
+      action: agentResult.action,
+      action_params: agentResult.actionParams || undefined,
+      extractedData: agentResult.extractedData || undefined,
+      listing_addresses: agentResult.listingAddresses,
+      photo_mode: agentResult.photoMode,
+      escalation_reason: agentResult.escalationReason || undefined,
+      priority: 'warm',
+    };
+    let finalResponse = agentResult.responseText;
+
+    // 7. Guardrail: validate booking before execution
     if (analysis.action === 'book_calendar') {
       const validation = validateBookingAction(analysis, conversationHistory);
       if (!validation.valid) {
         console.log('🛡️ Guardrail override: book_calendar → reply');
         analysis.action = 'reply';
-        analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
         analysis.action_params = undefined;
       }
     }
 
-    // 6.2 Execute Actions (Calendar, etc.)
+    // 8. Calendar event is now created by dispatcher; save appointment to DB
     let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
-    
     if (analysis.action === 'book_calendar' && analysis.action_params) {
-      console.log('📅 Action: Booking Calendar...');
-      console.log('📅 Action Params:', JSON.stringify(analysis.action_params, null, 2));
       try {
-         const { createCalendarEvent } = await import('@/lib/calendar-client');
-         const oauthRow = await getOAuthTokens(user.id);
-         if (!oauthRow) throw new Error('Calendar not connected — no OAuth token');
-         const args = analysis.action_params;
-         
-         const startTimeStr = args.start_time
-           .replace(/Z$/i, '')
-           .replace(/[+-]\d{2}:\d{2}$/, '')
-           .replace(/\.\d{3}$/, '');
-         
-         if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(startTimeStr)) {
-           throw new Error(`Invalid start_time format from AI: "${args.start_time}"`);
-         }
-         
-         const duration = args.duration_minutes || 30;
-         const startAsUtc = new Date(startTimeStr + 'Z');
-         const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
-         const endTimeStr = endAsUtc.toISOString().slice(0, 19);
-         
-         console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
-         
-         const event = await createCalendarEvent(
-            oauthRow.refresh_token,
-            startTimeStr,
-            endTimeStr,
-            `Viewing: ${args.property_address}`,
-            `Client: ${args.client_name || tenant.name}\nPhone: ${tenant.phone}\nEmail: ${tenant.email}`,
-            tenant.email || undefined
-         );
-         
-         executionResult = { success: true, data: event };
-         // We should also save appointment to DB here if needed, consistent with sync-service
+        const args = analysis.action_params;
+        const startTimeStr = (args.start_time || '').replace(/Z$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/\.\d{3}$/, '');
+        const duration = args.duration_minutes || 30;
+        const endDate = new Date(new Date(startTimeStr).getTime() + duration * 60000);
+        const endTimeStr = endDate.toISOString().replace(/Z$/i, '').replace(/\.\d{3}$/, '');
+
+        await supabase.from('appointments').insert({
+          user_id: user.id,
+          tenant_id: tenant.id,
+          property_id: properties?.find((p: any) => p.address === args.property_address)?.id || null,
+          title: `Viewing: ${args.property_address}`,
+          start_time: startTimeStr,
+          end_time: endTimeStr,
+          description: `Client: ${args.client_name || tenant.name}\nPhone: ${tenant.phone}\nEmail: ${tenant.email}`,
+          status: 'confirmed',
+        });
+        executionResult = { success: true };
       } catch (err: any) {
-         console.error('❌ Calendar booking failed:', err);
-         executionResult = { success: false, error: err.message };
+        console.error('❌ Appointment save failed:', err);
+        executionResult = { success: false, error: err.message };
       }
     }
 
-
-    // 7. Deterministic property matching — address-first, ranking as fallback
+    // 9. Resolve property cards
     const flatTenant = { ...tenant, ...flattenExtractedData(analysis.extractedData) };
-
     if (flatTenant.preferred_city && !flatTenant.preferred_state && properties?.length) {
       const { inferStateFromProperties } = await import('@/lib/ai-qualification');
       const inferred = inferStateFromProperties(flatTenant.preferred_city, properties);
@@ -242,9 +236,8 @@ export async function POST(
     let rankedMatches: ReturnType<typeof getRankedPropertyMatches> = [];
     if (analysis.action === 'send_listing' && properties?.length) {
       const aiAddresses = (analysis.listing_addresses ?? []).filter(Boolean);
-
       if (aiAddresses.length > 0) {
-        const resolvedProperties = aiAddresses
+        const resolved = aiAddresses
           .map((addr: string) => {
             const addrLow = addr.toLowerCase().trim();
             return properties.find((p: any) => {
@@ -253,69 +246,58 @@ export async function POST(
             });
           })
           .filter(Boolean) as any[];
-
-        if (resolvedProperties.length > 0) {
-          const scored = resolvedProperties.map((p: any) => {
-            const { score, reason, clusters, isNearby, disqualified } = scorePropertyMatch(flatTenant, p);
-            return { property: p, score, reason, clusters, isNearby, disqualified };
+        if (resolved.length > 0) {
+          const scored = resolved.map((p: any) => {
+            const r = scorePropertyMatch(flatTenant, p);
+            return { property: p, ...r };
           });
           rankedMatches = scored.filter(r => !r.disqualified);
           if (rankedMatches.length === 0) {
-            rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+            rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults });
           }
         } else {
-          rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+          rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults });
         }
       } else {
-        rankedMatches = getRankedPropertyMatches(flatTenant, properties);
+        rankedMatches = getRankedPropertyMatches(flatTenant, properties, { maxResults });
       }
     }
     const matchedProperties = rankedMatches.map(r => r.property);
 
-    // 8. Generate Final Response with Verification Loop
-    let finalResponse = '';
-    let hallucinationsFound = false;
-    let hallucinatedAddresses: string[] = [];
-    let retryCount = 0;
-    const MAX_RETRIES = 2;
+    // 10. Guardrails pipeline
+    const guardrailResult = runGuardrailPipeline(
+      {
+        responseText: finalResponse,
+        agentResult,
+        properties: matchedProperties.length > 0 ? (matchedProperties as any) : (properties || []),
+        conversationHistory,
+        tenantEmail: tenant.email,
+      },
+      (tenant.name || 'there').split(' ')[0]
+    );
 
-    while (retryCount <= MAX_RETRIES) {
-      finalResponse = await generateFinalResponse(
-        {
-          tenant: { name: tenant.name, email: tenant.email },
-          properties: properties || [],
-          conversationHistory,
-          realtorName,
-          realtorPhone,
-          realtorCompany,
-          timezone,
-          viewingHoursStart,
-          viewingHoursEnd,
-        },
-        analysis,
-        executionResult,
-        matchedProperties as any
-      );
-
-      // Verify for hallucinations (check only against selected properties if available)
-      const verification = await verifyResponseHallucinations(finalResponse, matchedProperties.length > 0 ? (matchedProperties as any) : (properties || []));
-      
-      if (!verification.hasHallucinations) {
-        break; // Success!
+    if (guardrailResult.blocked || guardrailResult.rewritten) {
+      const failedChecks = guardrailResult.results.filter(r => r.verdict !== 'pass');
+      for (const check of failedChecks) {
+        log.warn({ guardrail: check.name, reason: check.reason, verdict: check.verdict }, 'Guardrail triggered');
       }
-
-      // If we found hallucinations, log and retry
-      console.warn(`⚠️ Hallucination detected (Attempt ${retryCount + 1}):`, verification.hallucinatedAddresses);
-      hallucinationsFound = true;
-      hallucinatedAddresses = Array.from(new Set([...hallucinatedAddresses, ...verification.hallucinatedAddresses]));
-      
-      // Update analysis context for next iteration to be more strict
-      analysis.thought_process += `\n[SYSTEM WARNING]: You previously mentioned the following non-existent addresses which caused a hallucination error: ${verification.hallucinatedAddresses.join(', ')}. DO NOT mention them again. ONLY use addresses from the database.`;
-      
-      retryCount++;
+      if (guardrailResult.blocked) {
+        await recordSystemEvent({
+          userId: user.id,
+          eventType: 'guardrail_blocked',
+          status: 'error',
+          metadata: { tenantId, checks: failedChecks.map(c => ({ name: c.name, reason: c.reason })) },
+        });
+        analysis.action = 'reply';
+      }
     }
+    finalResponse = guardrailResult.finalText;
 
-    // Append AI disclosure and Equal Housing footer to every outgoing email
+    // 11. Trigger conversation summarization in background
+    summarizeConversationIfNeeded(supabase, user.id, tenantId)
+      .catch(err => aiLogger.warn({ err, tenantId }, 'Background summarization failed'));
+
+    // 12. Footer
     const AI_DISCLAIMER = '\n\n---\nThis message was generated by an AI leasing assistant. A licensed human agent is available upon request.\nWe are an Equal Housing Opportunity provider. \u00A9 Equal Housing Opportunity.';
     const finalResponseWithFooter = finalResponse + AI_DISCLAIMER;
 
@@ -323,21 +305,20 @@ export async function POST(
       success: true,
       aiResponse: finalResponseWithFooter,
       extractedData: analysis.extractedData,
-      thoughts: analysis.thoughts,
-      leadScore: tenant.lead_score, 
+      leadScore: tenant.lead_score,
       leadQuality: tenant.lead_quality,
       matchedProperties: matchedProperties.slice(0, 5),
       nextAction: analysis.action,
       listingAddresses: analysis.listing_addresses,
-      hallucinationsDetected: hallucinationsFound,
-      hallucinatedAddresses: hallucinatedAddresses
+      guardrails: {
+        blocked: guardrailResult.blocked,
+        rewritten: guardrailResult.rewritten,
+        checks: guardrailResult.results.map(r => ({ name: r.name, verdict: r.verdict, reason: r.reason })),
+      },
     });
-    
-  } catch (error) {
-    console.error('❌ Error in auto-reply endpoint:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+
+  } catch (error: any) {
+    aiLogger.error({ err: error, tenantId: params.tenantId }, 'Auto-reply endpoint failed');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

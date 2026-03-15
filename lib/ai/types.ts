@@ -64,12 +64,45 @@ export interface Property {
   security_deposit?: number;
   utilities_included?: string[];
   utilities_fee?: number;
+  building_id?: string;
+  unit_number?: string;
+  building_name?: string;
+  building_amenities?: string[];
+  building?: {
+    id?: string;
+    name?: string;
+    amenities?: string[];
+    rules?: string[];
+    pet_policy?: string;
+    parking_type?: string;
+    walk_score?: number;
+    transit_score?: number;
+  };
+}
+
+export interface KnownClientFields {
+  budget_max?: number;
+  bedrooms?: number;
+  move_in_date?: string;
+  occupants?: number;
+  has_pets?: boolean;
+  pet_details?: any;
+  lease_duration?: string;
+  property_type?: string; // "rent" | "buy"
+  preferred_city?: string;
+  preferred_state?: string;
+  preferred_neighborhoods?: string[];
+  must_haves?: string[];
+  deal_breakers?: string[];
+  furnishing?: string;
+  parking_needed?: boolean;
 }
 
 export interface ConversationContext {
   tenant: TenantData;
   properties: Property[];
   conversationHistory: { role: 'user' | 'assistant'; content: string }[];
+  conversationSummary?: string;
   lastAction?: string;
   realtorName?: string;
   realtorPhone?: string;
@@ -78,6 +111,8 @@ export interface ConversationContext {
   viewingHoursStart?: string;
   viewingHoursEnd?: string;
   defaultLanguage?: string;
+  knownFields?: KnownClientFields;
+  oauthRefreshToken?: string;
   preRankedMatches?: Array<{
     address: string;
     score: number;

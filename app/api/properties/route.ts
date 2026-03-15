@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     
     let query = supabase
       .from('properties')
-      .select('*')
+      .select('*, building:buildings(id, name, amenities, rules, pet_policy, parking_type, walk_score, transit_score, images)')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
@@ -181,6 +181,9 @@ export async function POST(request: NextRequest) {
           furnished,
           laundry_type,
           ai_assisted: body.ai_assisted !== undefined ? body.ai_assisted : true,
+          building_id: body.building_id || null,
+          unit_number: body.unit_number || null,
+          floor: body.floor != null ? parseInt(String(body.floor)) : null,
         },
       ])
       .select()

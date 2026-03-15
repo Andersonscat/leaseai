@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
           lead_score, lead_quality, qualification_status,
           bedrooms, bathrooms, num_occupants, lease_duration,
           furnishing, property_type, must_haves, deal_breakers,
-          required_amenities, preferred_neighborhoods, needs_parking
+          required_amenities, preferred_neighborhoods, needs_parking,
+          preferred_city, preferred_state
         ),
         property:properties!left(
           id,

@@ -35,7 +35,12 @@ function collectAllFeatures(property: PropertyLike): string[] {
     ? (Array.isArray(property.features) ? property.features : Object.values(property.features))
         .map((f: any) => String(f).toLowerCase())
     : [];
-  return [...amenities, ...features, desc];
+  const buildingAmenities = Array.isArray(property.building_amenities)
+    ? property.building_amenities.map((a: any) => String(a).toLowerCase())
+    : Array.isArray(property.building?.amenities)
+      ? property.building.amenities.map((a: any) => String(a).toLowerCase())
+      : [];
+  return [...amenities, ...features, ...buildingAmenities, desc];
 }
 
 function isPropFurnished(property: PropertyLike, allFeatures: string[]): boolean {

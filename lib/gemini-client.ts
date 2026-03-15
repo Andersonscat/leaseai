@@ -6,7 +6,14 @@ if (!process.env.GOOGLE_GEMINI_API_KEY) {
 }
 
 export const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-export const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+export const geminiModel = genAI.getGenerativeModel({
+  model: "gemini-2.5-flash",
+  generationConfig: {
+    temperature: 0.3,
+    topP: 0.8,
+    maxOutputTokens: 2048,
+  },
+});
 
 /**
  * Wrapper for generateContent with retry logic for 429 (Rate Limit) errors

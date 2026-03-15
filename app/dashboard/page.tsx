@@ -1146,6 +1146,31 @@ function DashboardContent() {
 
   const sortedProperties = getSortedProperties();
 
+  const propertyGroups = (() => {
+    const buildingMap = new Map<string, { building: any; units: any[] }>();
+    const standalone: any[] = [];
+
+    for (const p of sortedProperties) {
+      if (p.building_id && p.building) {
+        if (!buildingMap.has(p.building_id)) {
+          buildingMap.set(p.building_id, { building: p.building, units: [] });
+        }
+        buildingMap.get(p.building_id)!.units.push(p);
+      } else {
+        standalone.push(p);
+      }
+    }
+
+    const groups: Array<{ type: 'building'; building: any; units: any[] } | { type: 'property'; property: any }> = [];
+    Array.from(buildingMap.values()).forEach(group => {
+      groups.push({ type: 'building', ...group });
+    });
+    for (const p of standalone) {
+      groups.push({ type: 'property', property: p });
+    }
+    return groups;
+  })();
+
   // Filter contracts by search
   const filteredContracts = contracts.filter(contract => {
     if (!contractSearch.trim()) return true;
@@ -1411,7 +1436,82 @@ function DashboardContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {sortedProperties.map((property) => {
+              {propertyGroups.map((group, gIdx) => {
+                if (group.type === 'building') {
+                  const { building, units } = group;
+                  const prices = units.map(u => u.price_monthly).filter(Boolean);
+                  const minPrice = prices.length ? Math.min(...prices) : 0;
+                  const available = units.filter(u => (u.status || '').toLowerCase() === 'available').length;
+                  const buildingImage = building.images?.[0] || units.find((u: any) => u.images?.[0])?.images?.[0];
+                  const daysOnMarket = building.created_at
+                    ? Math.floor((Date.now() - new Date(building.created_at).getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+
+                  return (
+                    <div key={`bldg-${building.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200 group relative">
+                      <Link href={`/dashboard/building/${building.id}`} className="block">
+                        <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                          {buildingImage ? (
+                            <img
+                              src={buildingImage.startsWith('data:image') ? buildingImage : buildingImage.includes('?') ? buildingImage : `${buildingImage}?w=800`}
+                              alt={building.name || building.address}
+                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'https://via.placeholder.com/800x600/f3f4f6/9ca3af?text=No+Image';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Building2 className="w-12 h-12 text-gray-300" />
+                            </div>
+                          )}
+                          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded-md text-xs font-medium bg-white/90 text-gray-600 backdrop-blur-sm flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {units.length} units
+                            </span>
+                          </div>
+                          <div className="absolute bottom-2.5 left-2.5">
+                            <span className="px-2 py-0.5 rounded-md text-xs font-medium backdrop-blur-sm bg-emerald-500/90 text-white">
+                              {available} available
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-4">
+                          <div className="flex items-baseline gap-1 mb-1.5">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {minPrice > 0 ? `$${minPrice.toLocaleString()}+` : 'Contact'}
+                            </span>
+                            <span className="text-sm text-gray-400">/mo</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                            <span>{units.length} unit{units.length !== 1 ? 's' : ''}</span>
+                            <span className="text-gray-300">&middot;</span>
+                            <span>{available} available</span>
+                          </div>
+
+                          <p className="text-sm text-gray-700 truncate mb-3">
+                            {building.name || building.address}
+                            {building.name && <span className="text-gray-500"> &middot; {building.address}</span>}
+                            {building.city ? `, ${building.city}` : ''}
+                            {building.state ? ` ${building.state}` : ''}
+                          </p>
+
+                          <div className="flex items-center gap-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                            {daysOnMarket !== null && (
+                              <span>{daysOnMarket === 0 ? 'Listed today' : `${daysOnMarket}d on market`}</span>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  );
+                }
+
+                const property = group.property;
                 const daysOnMarket = property.created_at
                   ? Math.floor((Date.now() - new Date(property.created_at).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
@@ -1421,7 +1521,6 @@ function DashboardContent() {
                 key={property.id}
                 className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200 group relative"
               >
-                {/* Checkbox on hover or in selection mode */}
                 <div className={`absolute top-2.5 left-2.5 z-10 transition-opacity ${
                   selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>

@@ -985,12 +985,18 @@ export default function ConversationsInbox() {
           message: messageText,
           tenantId: selectedConversation.tenant_id,
         }),
-      }).then((res) => {
+      }).then(async (res) => {
         if (!res.ok) {
           setAiError(`AI response failed (${res.status}). Try again.`);
           setAwaitingAI(false);
         }
         fetchConversations(false);
+        // Refetch messages for the open conversation so AI reply appears in chat
+        try {
+          const msgRes = await fetch(`/api/conversations/${selectedConversation.tenant_id}`);
+          const msgData = await msgRes.json();
+          if (msgData.messages?.length) setConversationMessages(msgData.messages);
+        } catch {}
       }).catch(err => {
         console.error('Simulate error:', err);
         setAiError('Failed to reach AI. Check your connection and try again.');
@@ -1574,7 +1580,7 @@ export default function ConversationsInbox() {
                                     
                                     {/* Render Properties if inserted by AI */}
                                     {propertiesData && propertiesData.length > 0 && (
-                                       <div className="mt-6 space-y-4 max-w-[720px] flex flex-wrap gap-4">
+                                       <div className="mt-6 max-w-[720px] flex flex-wrap gap-4">
                                          {propertiesData.map((prop, pIdx) => {
                                            const allImages: string[] = Array.isArray(prop.images) && prop.images.length > 0
                                              ? prop.images

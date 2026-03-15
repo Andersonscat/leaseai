@@ -38,6 +38,7 @@ export async function GET(
       .from('tenants')
       .select('*')
       .eq('id', params.id)
+      .eq('user_id', user.id)
       .single();
     
     if (error) {

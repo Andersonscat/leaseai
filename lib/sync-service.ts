@@ -2,6 +2,8 @@
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import { getRecentMessages, sendAutoReply, sendHtmlEmail, buildPropertyListingHtml } from '@/lib/gmail';
 import { getOAuthTokens } from '@/lib/oauth-tokens';
+import { gmailLogger, traceAiCall, recordSystemEvent, alertGmailSyncFailed, alertHallucinationBlocked } from '@/lib/observability';
+import { loadConversationMemory, summarizeConversationIfNeeded } from '@/lib/ai/memory';
 
 // Global sync lock to prevent concurrent syncs
 const syncLocks = new Map<string, boolean>();
@@ -18,9 +20,10 @@ export async function syncGmailMessages(
   supabase: SupabaseClient,
   user: User
 ): Promise<SyncResult> {
-  // 🚨 CRITICAL: Prevent concurrent syncs for same user
+  const log = gmailLogger.child({ userId: user.id });
+
   if (syncLocks.get(user.id)) {
-    console.log('⏸️  Sync already in progress for this user, skipping...');
+    log.debug('Sync already in progress, skipping');
     return {
       success: true,
       synced: 0,
@@ -30,9 +33,9 @@ export async function syncGmailMessages(
     };
   }
 
-  // Set lock
   syncLocks.set(user.id, true);
-  console.log('📧 Starting Gmail sync service...');
+  const syncStartedAt = Date.now();
+  log.info('Gmail sync started');
 
   try {
     // Load per-user OAuth token
@@ -66,7 +69,7 @@ export async function syncGmailMessages(
     
     const { data: properties, error: propertiesError } = await supabase
       .from('properties')
-      .select('*')
+      .select('*, building:buildings(id, name, amenities, rules, pet_policy, parking_type, walk_score, transit_score)')
       .eq('user_id', user.id)
       .is('deleted_at', null);
     
@@ -100,7 +103,7 @@ export async function syncGmailMessages(
           console.error('❌ Error searching for tenant:', searchError);
         }
         
-        const existingTenant = existingTenants?.[0]; // Take first match
+        let existingTenant = existingTenants?.[0]; // Take first match
         
         if (existingTenant) {
           console.log(`✅ Found existing tenant: ${existingTenant.email} (ID: ${existingTenant.id})`);
@@ -266,20 +269,15 @@ export async function syncGmailMessages(
           
           console.log('🤖 Generating instant auto-reply for:', lead.tenant_name);
 
-          // Get conversation history
-          const { data: previousMessages } = await supabase
-            .from('messages')
-            .select('message_text, sender_type')
-            .eq('tenant_id', tenantId)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true })
-            .limit(10);
+          // Load conversation memory (summary + recent messages)
+          const memory = await loadConversationMemory(supabase, user.id, tenantId!);
 
+          const { cleanMessageForHistory } = await import('@/lib/ai-qualification');
           const conversationHistory = [
-            ...(previousMessages?.map(msg => ({
+            ...(memory.recentMessages.map(msg => ({
               role: msg.sender_type === 'tenant' ? ('user' as const) : ('assistant' as const),
-              content: msg.message_text,
-            })) || []),
+              content: cleanMessageForHistory(msg.message_text),
+            }))),
             {
               role: 'user' as const,
               content: lead.message,
@@ -287,10 +285,11 @@ export async function syncGmailMessages(
           ];
 
           // =================================================================================
-          // 🆕 AGENTIC PIPELINE: Brain -> Hand -> Voice
+          // AGENT PIPELINE: Tool Calling (replaces Brain + Voice)
           // =================================================================================
           
-          const { analyzeConversation, generateFinalResponse, formatBookingDetails, validateBookingAction } = await import('@/lib/ai-qualification');
+          const { runAgentPipeline, formatBookingDetails, validateBookingAction, getRankedPropertyMatches: getRanked, flattenExtractedData: flattenEd, scorePropertyMatch: scoreMatchSync, extractKnownFields: extractKF } = await import('@/lib/ai-qualification');
+          const { runGuardrailPipeline } = await import('@/lib/ai/guardrails');
           
           const realtorName    = user.user_metadata?.ai_signature_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent';
           const realtorPhone   = user.user_metadata?.ai_phone || user.user_metadata?.phone || user.phone || undefined;
@@ -299,8 +298,6 @@ export async function syncGmailMessages(
           const viewingHoursStart = user.user_metadata?.viewing_hours_start || '10:00';
           const viewingHoursEnd   = user.user_metadata?.viewing_hours_end   || '20:00';
 
-          // Pre-compute ranked matches using existing tenant data so AI text matches card order
-          const { getRankedPropertyMatches: getRanked, flattenExtractedData: flattenEd } = await import('@/lib/ai-qualification');
           const syncPreRanked = properties?.length
             ? getRanked({ ...(existingTenant || {}) }, properties).map((r: any) => ({
                 address: r.property.address,
@@ -312,25 +309,119 @@ export async function syncGmailMessages(
               }))
             : [];
 
-          // 1. BRAIN: Analyze and Plan
-          const analysis = await analyzeConversation({
+          // 0. Forced Extraction (Structured Output — guaranteed data capture)
+          const { extractClientData, mergeExtractionWithAgent } = await import('@/lib/ai/extraction');
+          const extraction = await extractClientData(lead.message, conversationHistory);
+
+          if (extraction.hasData) {
+            const extFlat = flattenEd(extraction.data);
+            if (Object.keys(extFlat).length > 0) {
+              const extUpdate: Record<string, any> = {};
+              if (extFlat.budget_max) extUpdate.budget_max = extFlat.budget_max;
+              if (extFlat.move_in_date) extUpdate.move_in_date = extFlat.move_in_date;
+              if (extFlat.bedrooms) extUpdate.bedrooms = extFlat.bedrooms;
+              if (extFlat.bathrooms) extUpdate.bathrooms = extFlat.bathrooms;
+              if (extFlat.num_occupants != null) extUpdate.num_occupants = extFlat.num_occupants;
+              if (extFlat.has_pets === true || extFlat.has_pets === false) extUpdate.has_pets = extFlat.has_pets;
+              if (extFlat.property_type) extUpdate.property_type = extFlat.property_type;
+              if (extFlat.lease_duration) extUpdate.lease_duration = extFlat.lease_duration;
+              if (extFlat.preferred_city) extUpdate.preferred_city = extFlat.preferred_city;
+              if (extFlat.preferred_state) extUpdate.preferred_state = extFlat.preferred_state;
+              if (extFlat.must_haves) extUpdate.must_haves = extFlat.must_haves;
+              if (extFlat.deal_breakers) extUpdate.deal_breakers = extFlat.deal_breakers;
+              if (extFlat.needs_parking) extUpdate.needs_parking = true;
+              if (extFlat.furnishing) extUpdate.furnishing = extFlat.furnishing;
+              if (extraction.data.personal?.firstName) {
+                const fn = extraction.data.personal.firstName;
+                const ln = extraction.data.personal.lastName;
+                extUpdate.name = ln ? `${fn} ${ln}` : fn;
+              }
+              if (extraction.data.pets && Object.keys(extraction.data.pets).length > 0) {
+                extUpdate.pet_details = extraction.data.pets;
+              }
+              if (Object.keys(extUpdate).length > 0) {
+                await supabase.from('tenants').update(extUpdate).eq('id', tenantId);
+                console.log(`💾 Extraction saved to tenant: ${Object.keys(extUpdate).join(', ')}`);
+                // Refresh existingTenant so agent context has updated knownFields
+                const { data: refreshed } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
+                if (refreshed) existingTenant = refreshed;
+              }
+            }
+          }
+
+          const agentContext = {
             tenant: {
               id: tenantId,
               name: lead.tenant_name,
               email: lead.tenant_email,
               phone: lead.tenant_phone,
-              qualification_status: isNewTenant ? 'new' : 'qualifying',
+              qualification_status: isNewTenant ? 'new' as const : 'qualifying' as const,
             },
             properties: properties || [],
             conversationHistory,
+            conversationSummary: memory.summary || undefined,
             realtorName,
             realtorPhone,
             realtorCompany,
             timezone,
             viewingHoursStart,
             viewingHoursEnd,
+            knownFields: existingTenant ? extractKF(existingTenant) : undefined,
+            oauthRefreshToken: refreshToken,
             preRankedMatches: syncPreRanked.length > 0 ? syncPreRanked : undefined,
-          });
+          };
+
+          // 1. Run Agent Pipeline (with tracing)
+          let agentResult;
+          try {
+            agentResult = await traceAiCall(
+              {
+                userId: user.id,
+                tenantId: tenantId!,
+                trigger: 'webhook',
+                promptText: conversationHistory.map(m => m.content).join('\n').slice(0, 2000),
+              },
+              () => runAgentPipeline(agentContext)
+            );
+          } catch (agentErr: any) {
+            log.error({ err: agentErr, tenantId }, 'Agent pipeline failed');
+            await recordSystemEvent({
+              userId: user.id,
+              eventType: 'agent_fallback',
+              status: 'error',
+              metadata: { tenantId, tenantName: lead.tenant_name },
+              error: agentErr?.message,
+            });
+            agentResult = {
+              responseText: `Hi ${(lead.tenant_name || 'there').split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`,
+              action: 'reply' as const,
+              extractedData: null,
+              listingAddresses: [] as string[],
+              photoMode: false,
+              actionParams: null,
+              escalationReason: null,
+              humanActionRequests: [],
+              toolsUsed: [] as string[],
+              thoughtProcess: 'Agent pipeline error',
+            };
+          }
+
+          // Merge extraction data with agent data (agent takes priority)
+          if (extraction.hasData) {
+            agentResult.extractedData = mergeExtractionWithAgent(extraction.data, agentResult.extractedData);
+          }
+
+          const analysis: any = {
+            thought_process: agentResult.thoughtProcess,
+            intent: agentResult.action === 'book_calendar' ? 'booking_confirmed' : 'general',
+            action: agentResult.action,
+            action_params: agentResult.actionParams || undefined,
+            extractedData: agentResult.extractedData || undefined,
+            listing_addresses: agentResult.listingAddresses,
+            photo_mode: agentResult.photoMode,
+            escalation_reason: agentResult.escalationReason || undefined,
+            priority: 'warm',
+          };
 
           // 1b. Guardrail: validate booking before execution
           if (analysis.action === 'book_calendar') {
@@ -338,98 +429,46 @@ export async function syncGmailMessages(
             if (!validation.valid) {
               console.log('🛡️ Guardrail override: book_calendar → reply');
               analysis.action = 'reply';
-              analysis.thought_process = validation.overrideReason || 'Ask client for a specific date and time.';
               analysis.action_params = undefined;
             }
           }
 
-          // 2. HAND: Execute Actions
-          let executionResult: { success: boolean; data?: any; error?: string } = { success: true }; // Default for 'reply' action
+          // 2. HAND: Calendar event already created by dispatcher; save appointment to DB
+          let executionResult: { success: boolean; data?: any; error?: string } = { success: true };
           
           if (analysis.action === 'book_calendar' && analysis.action_params) {
-            console.log('📅 Action: Booking Calendar...');
             try {
-              const { createCalendarEvent } = await import('@/lib/calendar-client');
               const args = analysis.action_params;
-               
-              // Use naive datetime strings to avoid server timezone interference
-              const startTimeStr = args.start_time
-                .replace(/Z$/i, '')
-                .replace(/[+-]\d{2}:\d{2}$/, '')
-                .replace(/\.\d{3}$/, '');
-              
+              const startTimeStr = (args.start_time || '').replace(/Z$/i, '').replace(/[+-]\d{2}:\d{2}$/, '').replace(/\.\d{3}$/, '');
               const duration = args.duration_minutes || 30;
-              const startAsUtc = new Date(startTimeStr + 'Z');
-              const endAsUtc = new Date(startAsUtc.getTime() + duration * 60000);
-              const endTimeStr = endAsUtc.toISOString().slice(0, 19);
-              
-              console.log('📅 Passing to Calendar (Pacific):', { start: startTimeStr, end: endTimeStr });
-              
-              const event = await createCalendarEvent(
-                refreshToken,
-                startTimeStr,
-                endTimeStr,
-                `Viewing: ${args.property_address}`,
-                `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
-                lead.tenant_email
-              );
-              
-              executionResult = { success: true, data: event };
-              console.log('✅ Booking Execution Success:', event.htmlLink);
+              const endDate = new Date(new Date(startTimeStr).getTime() + duration * 60000);
+              const endTimeStr = endDate.toISOString().replace(/Z$/i, '').replace(/\.\d{3}$/, '');
 
-              // Save appointment to Supabase
-              try {
-                const fs = await import('fs');
-                const path = await import('path');
-                const logFile = path.resolve(process.cwd(), 'server.log');
+              const { error: appointmentError } = await supabase.from('appointments').insert({
+                user_id: user.id,
+                tenant_id: tenantId,
+                property_id: properties?.find(p => p.address === args.property_address)?.id || null, 
+                title: `Viewing: ${args.property_address}`,
+                start_time: startTimeStr,
+                end_time: endTimeStr,
+                description: `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
+                status: 'confirmed',
+              });
 
-                const { error: appointmentError } = await supabase.from('appointments').insert({
-                  user_id: user.id,
-                  tenant_id: tenantId,
-                  property_id: properties?.find(p => p.address === args.property_address)?.id || null, 
-                  title: `Viewing: ${args.property_address}`,
-                  start_time: startTimeStr,
-                  end_time: endTimeStr,
-                  description: `Client: ${args.client_name || lead.tenant_name}\nPhone: ${lead.tenant_phone}\nEmail: ${lead.tenant_email}`,
-                  google_event_id: event.id,
-                  google_event_link: event.htmlLink,
-                  status: 'confirmed'
-                });
-
-                if (appointmentError) {
-                  const logMsg = `❌ [${new Date().toISOString()}] DB Save Error: ${JSON.stringify(appointmentError)}\n`;
-                  fs.appendFileSync(logFile, logMsg);
-                  console.error('❌ Failed to save appointment to DB:', appointmentError);
-                } else {
-                  const logMsg = `✅ [${new Date().toISOString()}] DB Save Success: ${event.id}\n`;
-                  fs.appendFileSync(logFile, logMsg);
-                  console.log('✅ Appointment saved to DB');
-                }
-              } catch (dbError: any) {
-                const fs = await import('fs');
-                const path = await import('path');
-                const logFile = path.resolve(process.cwd(), 'server.log');
-                const logMsg = `❌ [${new Date().toISOString()}] DB Exception: ${dbError?.message || JSON.stringify(dbError)}\n`;
-                fs.appendFileSync(logFile, logMsg);
-                console.error('❌ Error saving appointment to DB:', dbError);
+              if (appointmentError) {
+                console.error('❌ Failed to save appointment to DB:', appointmentError);
+              } else {
+                console.log('✅ Appointment saved to DB');
               }
-              
+              executionResult = { success: true };
             } catch (err: any) {
-              console.error('❌ Booking Execution Failed:', err);
-              const fs = await import('fs');
-              const path = await import('path');
-              const logFile = path.resolve(process.cwd(), 'server.log');
-              fs.appendFileSync(logFile, `❌ [${new Date().toISOString()}] Execution Error: ${err.message}\n`);
-              
-              executionResult = { success: false, error: err.message || 'Unknown calendar error' };
+              console.error('❌ Appointment save failed:', err);
+              executionResult = { success: false, error: err.message || 'Unknown error' };
             }
           }
 
-          // 2b. CODE: Resolve properties BEFORE Voice
-          const { flattenExtractedData: flattenEdVoice, getRankedPropertyMatches: getRankedVoice, scorePropertyMatch: scoreMatchVoice } = await import('@/lib/ai-qualification');
-          const { data: voiceTenantData } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
-          const voiceFlatTenant = { ...(voiceTenantData || existingTenant || {}), ...flattenEdVoice(analysis.extractedData) };
-
+          // 2b. Resolve property cards
+          const voiceFlatTenant: any = { ...(existingTenant || {}), ...flattenEd(analysis.extractedData) };
           if (voiceFlatTenant.preferred_city && !voiceFlatTenant.preferred_state && properties?.length) {
             const { inferStateFromProperties } = await import('@/lib/ai-qualification');
             const inferred = inferStateFromProperties(voiceFlatTenant.preferred_city, properties);
@@ -450,60 +489,55 @@ export async function syncGmailMessages(
                 })
                 .filter(Boolean) as any[];
               if (resolved.length > 0) {
-                const scored = resolved.map((p: any) => { const { score, reason, clusters, isNearby, disqualified } = scoreMatchVoice(voiceFlatTenant, p); return { property: p, score, reason, clusters, isNearby, disqualified }; });
+                const scored = resolved.map((p: any) => { const r = scoreMatchSync(voiceFlatTenant, p); return { property: p, ...r }; });
                 voiceRankedMatches = scored.filter((r: any) => !r.disqualified);
-                if (voiceRankedMatches.length === 0) voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+                if (voiceRankedMatches.length === 0) voiceRankedMatches = getRanked(voiceFlatTenant, properties);
               } else {
-                voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+                voiceRankedMatches = getRanked(voiceFlatTenant, properties);
               }
             } else {
-              voiceRankedMatches = getRankedVoice(voiceFlatTenant, properties);
+              voiceRankedMatches = getRanked(voiceFlatTenant, properties);
             }
           }
           const voiceSelectedProps = voiceRankedMatches.map((r: any) => r.property);
 
-          // 3. VOICE: Generate Response (sees ONLY selected properties)
-          let finalResponseText = await generateFinalResponse(
-            {
-               tenant: { name: lead.tenant_name, email: lead.tenant_email },
-               properties: properties || [], 
-               conversationHistory,
-               realtorName,
-               realtorPhone,
-               realtorCompany,
-               timezone,
-               viewingHoursStart,
-               viewingHoursEnd,
-            },
-            analysis,
-            executionResult,
-            voiceSelectedProps
-          );
-
+          // 3. Use Agent Pipeline response (already generated)
+          let finalResponseText = agentResult.responseText;
           if (!finalResponseText?.trim()) {
             finalResponseText = `Hi ${(lead.tenant_name || 'there').split(' ')[0]}, thank you for your message! I'm reviewing the details and will get back to you shortly.`;
           }
 
-          // 4. THE JUDGE: Anti-Hallucination Enforcement
-          const { verifyResponseHallucinations } = await import('@/lib/ai-qualification');
-          const verification = await verifyResponseHallucinations(finalResponseText, voiceSelectedProps.length > 0 ? voiceSelectedProps : (properties || []));
-          
-          if (verification.hasHallucinations) {
-             console.error('🚨 HALLUCINATION BLOCKED 🚨', verification.reason);
-             try {
-                const fs = await import('fs');
-                const path = await import('path');
-                const logFile = path.resolve(process.cwd(), 'server.log');
-                fs.appendFileSync(logFile, `🚨 [${new Date().toISOString()}] HALLUCINATION BLOCKED: ${verification.reason}\n`);
-             } catch (e) {
-                // Ignore file logging errors
-             }
-             
-             // Fallback response instead of sending hallucinated text
-             finalResponseText = `Hi ${lead.tenant_name}, I'm currently checking our inventory to confirm the exact details of matching properties. I will get back to you very shortly with accurate information!`;
-             // Disable booking/listing inserts that rely on hallucinated data
-             analysis.action = 'reply';
+          // 4. Guardrails pipeline (hallucinations, commitments, price accuracy, duplication, length, PII)
+          const guardrailResult = runGuardrailPipeline(
+            {
+              responseText: finalResponseText,
+              agentResult,
+              properties: voiceSelectedProps.length > 0 ? voiceSelectedProps : (properties || []),
+              conversationHistory,
+              tenantEmail: lead.tenant_email,
+            },
+            (lead.tenant_name || 'there').split(' ')[0]
+          );
+
+          if (guardrailResult.blocked || guardrailResult.rewritten) {
+            const failedChecks = guardrailResult.results.filter(r => r.verdict !== 'pass');
+            for (const check of failedChecks) {
+              log.warn({ tenantId, guardrail: check.name, reason: check.reason, verdict: check.verdict }, 'Guardrail triggered');
+            }
+
+            if (guardrailResult.blocked) {
+              const blockReason = failedChecks.find(c => c.verdict === 'block');
+              alertHallucinationBlocked(lead.tenant_name, blockReason?.reason || 'guardrail block').catch(() => {});
+              await recordSystemEvent({
+                userId: user.id,
+                eventType: 'guardrail_blocked',
+                status: 'error',
+                metadata: { tenantId, checks: failedChecks.map(c => ({ name: c.name, reason: c.reason })), originalResponse: finalResponseText.slice(0, 200) },
+              });
+              analysis.action = 'reply';
+            }
           }
+          finalResponseText = guardrailResult.finalText;
 
           // 3b. ATTACH FORMATTED DETAILS (Code-generated, not AI-generated)
           let finalResponse = finalResponseText;
@@ -768,6 +802,10 @@ export async function syncGmailMessages(
           autoRepliesSent++;
           console.log(`✅ Auto-reply complete for ${lead.tenant_name}`);
 
+          // Trigger conversation summarization in background (non-blocking)
+          summarizeConversationIfNeeded(supabase, user.id, tenantId!)
+            .catch(err => log.warn({ err, tenantId }, 'Background summarization failed'));
+
         } catch (autoReplyError) {
           console.error('❌ Auto-reply failed for', lead.tenant_name, ':', autoReplyError);
         }
@@ -777,7 +815,15 @@ export async function syncGmailMessages(
       }
     }
 
-    console.log(`✅ Gmail sync complete: ${created} new leads saved, ${autoRepliesSent} auto-replies sent`);
+    const syncLatency = Date.now() - syncStartedAt;
+    log.info({ synced: leads.length, created, autoRepliesSent, latencyMs: syncLatency }, 'Gmail sync complete');
+    await recordSystemEvent({
+      userId: user.id,
+      eventType: 'gmail_sync',
+      status: 'success',
+      metadata: { synced: leads.length, created, autoRepliesSent },
+      latencyMs: syncLatency,
+    });
 
     return {
       success: true,
@@ -787,12 +833,20 @@ export async function syncGmailMessages(
       message: `Found ${leads.length} leads, saved ${created} to database, sent ${autoRepliesSent} auto-replies`,
     };
 
-  } catch (error) {
-    console.error('❌ Gmail sync error:', error);
+  } catch (error: any) {
+    const syncLatency = Date.now() - syncStartedAt;
+    log.error({ err: error, latencyMs: syncLatency }, 'Gmail sync failed');
+    alertGmailSyncFailed(user.email || user.id, error?.message || 'Unknown').catch(() => {});
+    await recordSystemEvent({
+      userId: user.id,
+      eventType: 'gmail_sync_error',
+      status: 'error',
+      error: error?.message,
+      latencyMs: syncLatency,
+    });
     throw error;
   } finally {
-    // 🚨 CRITICAL: Always release lock
     syncLocks.delete(user.id);
-    console.log('🔓 Sync lock released');
+    log.debug('Sync lock released');
   }
 }

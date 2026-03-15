@@ -99,16 +99,27 @@ export async function POST(
     
     const body = await request.json();
     const tenantId = params.tenantId;
+
+    // Verify tenant belongs to current user
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('id', tenantId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
     
-    // Allow explicitly setting sender_type (e.g. for ai_reasoning)
     const senderType = body.sender_type || 'landlord';
     const senderName = senderType === 'ai_reasoning' ? 'AI Assistant' : 'You';
     
-    // Get existing messages to determine property and source
     const { data: existingMessages } = await supabase
       .from('messages')
       .select('property_id, source')
       .eq('tenant_id', tenantId)
+      .eq('user_id', user.id)
       .limit(1);
     
     const propertyId = existingMessages?.[0]?.property_id || null;
